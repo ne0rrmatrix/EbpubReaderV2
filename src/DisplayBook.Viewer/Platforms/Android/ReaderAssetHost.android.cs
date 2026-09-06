@@ -78,10 +78,19 @@ public sealed partial class ReaderAssetHost
 
             if (navigationHandler is not null)
             {
-                _ = navigationHandler(uri.ToString());
+                HandleNavigationAsync(uri.ToString());
             }
 
             return true;
+        }
+
+        private async Task HandleNavigationAsync(string url)
+        {
+            if(navigationHandler is null)
+            {
+                return;
+            }
+            await navigationHandler(url);
         }
     }
 }

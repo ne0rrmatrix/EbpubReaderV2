@@ -76,6 +76,8 @@
         currentPage: 0,
         currentSpineIndex: 0,
         chromeVisible: false,
+        contentsPromise: null,
+        contentsLoader: null,
         documentUrl: "",
         isReady: false,
         loadToken: 0,
@@ -388,6 +390,23 @@
         base.href = resourceUrl;
         resourceDocument.head.insertBefore(base, resourceDocument.head.firstChild);
 
+        for (const image of resourceDocument.querySelectorAll("img[src], svg image")) {
+            const attributeName = image.localName === "image"
+                ? (image.getAttribute("href") !== null ? "href" : "xlink:href")
+                : "src";
+            const imageUrl = image.getAttribute(attributeName);
+            if (!imageUrl || /^(?:data:|blob:|https?:|\/\/|#)/iu.test(imageUrl)) {
+                continue;
+            }
+
+            const absoluteImageUrl = getAbsoluteUrl(imageUrl, resourceUrl);
+            image.setAttribute(attributeName, absoluteImageUrl);
+            if (image.localName === "image") {
+                image.setAttribute("href", absoluteImageUrl);
+                image.setAttribute("xlink:href", absoluteImageUrl);
+            }
+        }
+
         const stylesheetLinks = Array.from(resourceDocument.querySelectorAll("link[href]"));
         for (const link of stylesheetLinks) {
             const rel = (link.getAttribute("rel") ?? "").split(/\s+/u);
@@ -648,6 +667,11 @@
                 object-fit: contain !important;
             }
 
+            body.cover-page svg {
+                width: 100vw !important;
+                height: 100vh !important;
+            }
+
             img, svg, video, canvas, iframe {
                 max-width: 100% !important;
             }
@@ -678,6 +702,12 @@
             text.length === 0;
         const isCoverPage = body.classList.contains("cover-page") ||
             (state.currentSpineIndex === 0 && hasOnlyCoverMedia);
+
+        if (isCoverPage) {
+            for (const svg of body.querySelectorAll("svg")) {
+                svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+            }
+        }
 
         root.classList.toggle("cover-page", isCoverPage);
         body.classList.toggle("cover-page", isCoverPage);
@@ -1211,9 +1241,13 @@
         }
     }
 
-    function openContents() {
+    async function openContents() {
         elements.contentsPanel.hidden = false;
         elements.contentsToggle.setAttribute("aria-expanded", "true");
+        if (!state.contentsPromise) {
+            state.contentsPromise = state.contentsLoader?.() ?? Promise.resolve();
+        }
+        await state.contentsPromise;
     }
 
     function closeContents() {
@@ -1252,7 +1286,7 @@
         });
         elements.contentsToggle.addEventListener("click", () => {
             if (elements.contentsPanel.hidden) {
-                openContents();
+                openContents().catch(setError);
             } else {
                 closeContents();
             }
@@ -1332,6 +1366,23 @@
 
     window.DisplayBookReader = { setLocator, setSettings };
 
+    function scheduleBackgroundPreload(publication) {
+        const preload = () => {
+            state.preloadPromise = Promise.all([
+                preloadPublicationStyles(publication.manifest),
+                preloadRemainingResources()
+            ]).catch((error) => {
+                console.warn("Unable to preload the complete publication.", error);
+            });
+        };
+
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(preload, { timeout: 2000 });
+        } else {
+            window.setTimeout(preload, 250);
+        }
+    }
+
     async function initialize() {
         bindHostEvents();
         setReaderChromeVisible(false);
@@ -1346,19 +1397,14 @@
         state.manifest = publication.manifest;
         state.metadata = publication.metadata;
         state.spine = publication.spine;
-        await loadContents(publication.nav);
+        state.contentsLoader = () => loadContents(publication.nav);
         await Promise.all([
             preloadReaderStyles(),
             preloadResource(state.spine[0])
         ]);
         await preloadResourceStyles(state.spine[0]);
         await loadResource(0);
-        state.preloadPromise = Promise.all([
-            preloadPublicationStyles(publication.manifest),
-            preloadRemainingResources()
-        ]).catch((error) => {
-            console.warn("Unable to preload the complete publication.", error);
-        });
+        scheduleBackgroundPreload(publication);
     }
 
     initialize().catch(setError);

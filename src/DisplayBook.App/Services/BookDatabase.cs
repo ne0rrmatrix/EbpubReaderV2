@@ -150,6 +150,7 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
                 return;
             }
 
+            await storage.InitializeAsync(cancellationToken);
             await using var connection = await OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
             command.CommandText = """

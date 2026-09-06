@@ -86,6 +86,8 @@ public partial class LibraryViewModel(
 
     private readonly HashSet<string> _selectedBookIds = new(StringComparer.Ordinal);
     private CancellationTokenSource? _importCancellationSource;
+    private int _importGeneration;
+    private int _activeImportGeneration;
 
     public IReadOnlyList<string> SortOptions { get; } =
     [
@@ -314,11 +316,13 @@ public partial class LibraryViewModel(
 
         using var importCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _importCancellationSource = importCancellationSource;
-        var progress = new Progress<BookImportProgress>(UpdateImportProgress);
+        var importGeneration = Interlocked.Increment(ref _importGeneration);
+        Volatile.Write(ref _activeImportGeneration, importGeneration);
+        var progress = new Progress<BookImportProgress>(value => UpdateImportProgress(value, importGeneration));
         try
         {
             IsBusy = true;
-            IsImporting = true;
+            IsImporting = false;
             IsCancelRequested = false;
             ImportStage = "Starting import";
             ImportCurrentItem = string.Empty;
@@ -327,6 +331,7 @@ public partial class LibraryViewModel(
             ImportTotal = 0;
             ErrorMessage = string.Empty;
             await import(progress, importCancellationSource.Token);
+            IsImporting = false;
             await ReloadCatalogAsync(importCancellationSource.Token);
         }
         catch (OperationCanceledException exception) when (importCancellationSource.IsCancellationRequested)
@@ -341,6 +346,7 @@ public partial class LibraryViewModel(
         }
         finally
         {
+            Volatile.Write(ref _activeImportGeneration, 0);
             _importCancellationSource = null;
             IsImporting = false;
             IsCancelRequested = false;
@@ -348,8 +354,14 @@ public partial class LibraryViewModel(
         }
     }
 
-    private void UpdateImportProgress(BookImportProgress progress)
+    private void UpdateImportProgress(BookImportProgress progress, int importGeneration)
     {
+        if (Volatile.Read(ref _activeImportGeneration) != importGeneration)
+        {
+            return;
+        }
+
+        IsImporting = true;
         ImportStage = progress.Stage;
         ImportCurrentItem = progress.CurrentItem;
         ImportCompleted = progress.Completed;
@@ -373,11 +385,7 @@ public partial class LibraryViewModel(
     public async Task ReloadCatalogAsync(CancellationToken cancellationToken)
     {
         var books = await catalogService.GetBooksAsync(cancellationToken);
-        Books.Clear();
-        foreach (var book in books)
-        {
-            Books.Add(book);
-        }
+        Books = new ObservableCollection<BookSummary>(books);
 
         ClearSelectedBooks();
         IsSelectionMode = false;

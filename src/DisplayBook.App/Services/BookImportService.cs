@@ -103,7 +103,7 @@ public sealed class BookImportService(
 
             logger.LogInformation("Imported {ImportedCount} EPUBs from folder {SourceRoot}; skipped {SkippedCount} candidates.",
                 importedBooks.Count,
-                candidates.Count - importedBooks.Count,
+                sourceRoot,
                 candidates.Count - importedBooks.Count);
             return importedBooks;
         }
@@ -274,11 +274,10 @@ public sealed class BookImportService(
             return [new ImportCandidate(sourceRoot, true)];
         }
 
-        return Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+        return [.. Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
             .Where(path => string.Equals(Path.GetExtension(path), ".epub", StringComparison.OrdinalIgnoreCase))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .Select(path => new ImportCandidate(path, false))
-            .ToList();
+            .Select(path => new ImportCandidate(path, false))];
     }
 
     private static bool IsUnpackedEpub(string path)

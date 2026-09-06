@@ -39,6 +39,7 @@ public partial class EpubReaderView : ContentView
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
     }
 
     public string PublicationRoot
@@ -110,18 +111,47 @@ public partial class EpubReaderView : ContentView
     private static async void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
     {
         var reader = (EpubReaderView)bindable;
-        if (reader.IsLoaded)
+        try
         {
-            reader._hasLoadedPublication = false;
-            await reader.ReloadPublicationAsync();
+            if (reader.IsLoaded)
+            {
+                reader._hasLoadedPublication = false;
+                await reader.ReloadPublicationAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            reader.RaiseReaderError(exception.Message);
         }
     }
 
     private async void OnLoaded(object? sender, EventArgs e)
     {
-        if (!_hasLoadedPublication)
+        await TryLoadPublicationAsync();
+    }
+
+    private async void OnReaderWebViewHandlerChanged(object? sender, EventArgs e)
+    {
+        if (IsLoaded)
+        {
+            await TryLoadPublicationAsync();
+        }
+    }
+
+    private async Task TryLoadPublicationAsync()
+    {
+        if (_hasLoadedPublication)
+        {
+            return;
+        }
+
+        try
         {
             await LoadPublicationAsync();
+        }
+        catch (Exception exception)
+        {
+            RaiseReaderError(exception.Message);
         }
     }
 
@@ -139,7 +169,14 @@ public partial class EpubReaderView : ContentView
 
     private async void OnWebViewNavigating(object? sender, WebNavigatingEventArgs e)
     {
-        await HandleNavigationAsync(e.Url, cancelNavigation: () => e.Cancel = true);
+        try
+        {
+            await HandleNavigationAsync(e.Url, cancelNavigation: () => e.Cancel = true);
+        }
+        catch (Exception exception)
+        {
+            RaiseReaderError(exception.Message);
+        }
     }
 
     private Task HandleNativeNavigationAsync(string url)

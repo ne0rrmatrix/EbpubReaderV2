@@ -15,7 +15,6 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
         "DisplayBookViewer/ReadiumCSS-after.css"
     ];
     private static readonly SemaphoreSlim InitializationLock = new(1, 1);
-    private bool _initialized;
 
     public async Task InitializeAsync(
         WebView webView,
@@ -26,19 +25,14 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
         try
         {
             Directory.CreateDirectory(ContentRoot);
-            if (!_initialized)
+            foreach (var assetPath in ViewerAssetPaths)
             {
-                foreach (var assetPath in ViewerAssetPaths)
-                {
-                    var destination = Path.Combine(ContentRoot, assetPath.Replace('/', Path.DirectorySeparatorChar));
-                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                var destination = Path.Combine(ContentRoot, assetPath.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
 
-                    await using var source = await FileSystem.OpenAppPackageFileAsync(assetPath);
-                    await using var target = File.Create(destination);
-                    await source.CopyToAsync(target, cancellationToken);
-                }
-
-                _initialized = true;
+                await using var source = await FileSystem.OpenAppPackageFileAsync(assetPath);
+                await using var target = File.Create(destination);
+                await source.CopyToAsync(target, cancellationToken);
             }
 
             await ConfigurePlatformWebViewAsync(webView, ContentRoot, navigationHandler, cancellationToken);

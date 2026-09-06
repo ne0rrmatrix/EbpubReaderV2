@@ -1,12 +1,14 @@
 using DisplayBook.App.ViewModels;
 using DisplayBook.Viewer.Controls;
 using DisplayBook.Viewer.Models;
+using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.Views;
 
 public partial class ReaderPage : ContentPage
 {
     private readonly ReaderViewModel _viewModel;
+    private readonly ILogger<ReaderPage> _logger;
 #if ANDROID
     private Android.Graphics.Color? _previousStatusBarColor;
     private Android.Views.SystemUiFlags _previousSystemUiFlags;
@@ -14,9 +16,10 @@ public partial class ReaderPage : ContentPage
     private string _readerTheme = "sepia";
 #endif
 
-    public ReaderPage(ReaderViewModel viewModel)
+    public ReaderPage(ReaderViewModel viewModel, ILogger<ReaderPage> logger)
     {
         _viewModel = viewModel;
+        _logger = logger;
         BindingContext = viewModel;
         InitializeComponent();
     }
@@ -150,7 +153,14 @@ public partial class ReaderPage : ContentPage
             return;
         }
 
-        await _viewModel.UpdateLocatorAsync(locator);
+        try
+        {
+            await _viewModel.UpdateLocatorAsync(locator);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Could not save the reader location.");
+        }
     }
 
     private async void OnExitRequested(object? sender, EventArgs e)
@@ -160,6 +170,13 @@ public partial class ReaderPage : ContentPage
             return;
         }
 
-        await _viewModel.ExitReaderCommand.ExecuteAsync(null);
+        try
+        {
+            await _viewModel.ExitReaderCommand.ExecuteAsync(null);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Could not exit the reader.");
+        }
     }
 }
