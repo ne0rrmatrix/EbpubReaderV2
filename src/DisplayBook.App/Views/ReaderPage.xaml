@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewer="clr-namespace:DisplayBook.Viewer.Controls;assembly=DisplayBook.Viewer"
+             xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             x:Class="DisplayBook.App.Views.ReaderPage"
+             x:DataType="vm:ReaderViewModel"
+             Shell.NavBarIsVisible="False"
+             Padding="0"
+             Background="Black">
+    <viewer:EpubReaderView  x:Name="Reader"
+                           PublicationRoot="{Binding Book.PublicationRoot}"
+                           PublicationOpfPath="{Binding Book.PublicationOpfPath}"
+                           StartLocator="{Binding Locator}"
+                           HorizontalOptions="Fill"
+                           VerticalOptions="Fill" />
+</ContentPage>

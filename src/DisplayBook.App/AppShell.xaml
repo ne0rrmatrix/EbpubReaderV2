@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       x:Class="DisplayBook.App.AppShell"
+       xmlns:views="clr-namespace:DisplayBook.App.Views"
+       FlyoutBehavior="Disabled"
+       NavBarIsVisible="False">
+       <ShellContent Route="MainPage"
+                     ContentTemplate="{DataTemplate views:LibraryPage}" />
+</Shell>

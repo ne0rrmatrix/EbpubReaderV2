@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>EPUB Reader</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="EpubText.css">
+    <link rel="icon" href="data:,">
+</head>
+<body class="reader-body" id="body">
+    <main class="reader-shell reader-shell--immersive" aria-label="EPUB reader">
+        <header class="reader-header">
+            <div>
+                <p class="reader-eyebrow">Now reading</p>
+                <h1 id="book-title">Loading book…</h1>
+                <p class="reader-author" id="book-author"></p>
+            </div>
+            <div class="reader-header__actions">
+                <button class="chrome-button" id="reader-back" type="button" aria-label="Back to library">Back</button>
+                <button class="chrome-button" id="contents-toggle" type="button" aria-expanded="false" aria-controls="contents-panel">
+                    Contents
+                </button>
+                <button class="chrome-button" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">
+                    Settings
+                </button>
+            </div>
+        </header>
+
+        <section class="reader-stage" aria-label="Book page">
+            <button class="page-button page-button--previous" id="previous-page" type="button" aria-label="Previous page">
+                <span aria-hidden="true">‹</span>
+            </button>
+            <div class="book-viewport" id="book-viewport">
+                <iframe title="Book content" src="about:blank" id="page"></iframe>
+                <output class="reader-loading" id="reader-loading" aria-live="polite">Loading publication…</output>
+            </div>
+            <button class="page-button page-button--next" id="next-page" type="button" aria-label="Next page">
+                <span aria-hidden="true">›</span>
+            </button>
+        </section>
+
+        <footer class="reader-footer">
+            <p class="reader-location" id="reader-location" aria-live="polite">Preparing publication…</p>
+            <div class="progress-track">
+                <span class="progress-value" id="progress-value" aria-hidden="true"></span>
+                <input class="progress-slider" id="book-progress" type="range" min="0" max="1000" step="1" value="0" aria-label="Book progress" aria-valuetext="Beginning of book">
+            </div>
+            <p class="reader-hint">Use ← →, Page Up/Down, or swipe to turn pages</p>
+        </footer>
+
+        <aside class="contents-panel" id="contents-panel" hidden aria-labelledby="contents-title">
+            <div class="contents-panel__header">
+            <h2 id="contents-title">Contents</h2>
+                <button class="chrome-button chrome-button--small" id="contents-close" type="button" aria-label="Close contents">Close</button>
+            </div>
+            <ol class="contents-list" id="contents-list"></ol>
+        </aside>
+
+        <aside class="settings-panel" id="settings-panel" hidden aria-labelledby="settings-title">
+            <div class="settings-panel__header">
+                <h2 id="settings-title">Reader settings</h2>
+                <button class="chrome-button chrome-button--small" id="settings-close" type="button" aria-label="Close reader settings">Close</button>
+            </div>
+            <form class="settings-form" id="settings-form">
+                <fieldset>
+                    <legend>Theme</legend>
+                    <div class="settings-choice-row">
+                        <label><input type="radio" name="theme" value="paper"> Paper</label>
+                        <label><input type="radio" name="theme" value="sepia"> Sepia</label>
+                        <label><input type="radio" name="theme" value="night"> Night</label>
+                    </div>
+                </fieldset>
+                <div class="settings-grid">
+                    <label>Font family<select name="fontFamily"><option value="serif">Serif</option><option value="sans">Sans</option><option value="humanist">Humanist</option><option value="monospace">Monospace</option></select></label>
+                    <label>Pagination<select name="paginationMode"><option value="paged">Paginated</option><option value="scroll">Continuous scroll</option></select></label>
+                    <label>Columns<select name="columnMode"><option value="single">One column</option><option value="two">Two columns (wide screens)</option></select></label>
+                    <label>Reading width<select name="lineLength"><option value="100%">Full width</option><option value="75ch">Wide</option><option value="65ch">Comfortable</option><option value="55ch">Narrow</option></select></label>
+                    <label>Alignment<select name="textAlignment"><option value="auto">Publication default</option><option value="left">Left</option><option value="justify">Justified</option></select></label>
+                    <label>Hyphenation<select name="hyphenation"><option value="auto">Automatic</option><option value="none">Off</option></select></label>
+                    <label>Paragraph spacing<select name="paragraphSpacing"><option value="0">Compact</option><option value="0.35em">Relaxed</option><option value="0.7em">Spacious</option></select></label>
+                    <label>Paragraph indent<select name="paragraphIndent"><option value="0">None</option><option value="1em">Standard</option><option value="2em">Large</option></select></label>
+                    <label>Image treatment<select name="imageTreatment"><option value="normal">Normal</option><option value="dim">Dim</option><option value="invert">Invert</option><option value="dim-invert">Dim and invert</option></select></label>
+                    <label>Font weight<select name="fontWeight"><option value="normal">Normal</option><option value="600">Medium</option><option value="700">Bold</option></select></label>
+                    <label>Word spacing<select name="wordSpacing"><option value="0">Normal</option><option value="0.08em">Wide</option><option value="0.16em">Extra wide</option></select></label>
+                    <label>Letter spacing<select name="letterSpacing"><option value="normal">Normal</option><option value="0.03em">Wide</option><option value="0.06em">Extra wide</option></select></label>
+                </div>
+                <label class="settings-range">Font size <output data-for="fontSize">100%</output><input name="fontSize" type="range" min="85" max="150" step="5" value="100"></label>
+                <label class="settings-range">Line height <output data-for="lineHeight">1.5</output><input name="lineHeight" type="range" min="1.2" max="2" step="0.1" value="1.5"></label>
+                <button class="settings-reset" id="settings-reset" type="button">Reset to defaults</button>
+            </form>
+        </aside>
+
+        <p class="reader-error" id="reader-error" role="alert" hidden></p>
+    </main>
+
+    <script src="EpubText.js" defer></script>
+</body>
+</html>

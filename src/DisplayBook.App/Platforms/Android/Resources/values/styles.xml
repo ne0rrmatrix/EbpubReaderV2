@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+	<style name="Maui.MainTheme" parent="Maui.MainTheme.Base">
+		<item name="maui_edgetoedge_optout">false</item>
+		<item name="android:statusBarColor">@android:color/transparent</item>
+		<item name="android:windowDrawsSystemBarBackgrounds">true</item>
+	</style>
+
+	<style name="Maui.SplashTheme" parent="Maui.MainTheme.NoActionBar">
+		<item name="android:statusBarColor">@android:color/transparent</item>
+		<item name="android:windowDrawsSystemBarBackgrounds">true</item>
+	</style>
+</resources>

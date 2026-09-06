@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             x:Class="DisplayBook.App.Views.BookDetailsPage"
+             x:DataType="vm:BookDetailsViewModel"
+             Title="Book details">
+        <Grid RowDefinitions="Auto,*" Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}" RowSpacing="16">
+        <Button Text="‹  Library"
+                Command="{Binding BackCommand}"
+                HorizontalOptions="Start"
+                Background="Transparent"
+                 TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
+                Padding="0" />
+        <ScrollView Grid.Row="1"
+                    VerticalScrollBarVisibility="Never">
+            <Grid RowDefinitions="{OnIdiom Phone='Auto,Auto', Default='*'}"
+                  ColumnDefinitions="{OnIdiom Phone='*', Default='0.85*,1.15*'}"
+                  ColumnSpacing="{OnIdiom Phone=0, Default=32}"
+                  RowSpacing="{OnIdiom Phone=24, Default=0}"
+                  VerticalOptions="Fill">
+            <Border Grid.Column="0"
+                    Grid.Row="0"
+                    Background="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeShape="RoundRectangle 16"
+                    Padding="12"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Image AutomationId="BookCover"
+                       Source="{Binding Book.CoverPath}"
+                       HeightRequest="{OnIdiom Phone=300, Default=360}"
+                       WidthRequest="{OnIdiom Phone=216, Default=260}"
+                       Aspect="AspectFit"
+                       SemanticProperties.Description="{Binding Book.Title}" />
+            </Border>
+
+            <Grid Grid.Column="{OnIdiom Phone=0, Default=1}"
+                  Grid.Row="{OnIdiom Phone=1, Default=0}"
+                  RowDefinitions="Auto,Auto,Auto,*,Auto"
+                  RowSpacing="12"
+                  VerticalOptions="Fill">
+                <Label AutomationId="BookTitle"
+                       Text="{Binding Book.Title}"
+                       FontSize="{OnIdiom Phone=28, Default=32}"
+                       FontAttributes="Bold"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="2"
+                       SemanticProperties.HeadingLevel="Level1" />
+                <Label Grid.Row="1"
+                       Text="{Binding Book.Author}"
+                       FontSize="18"
+                       TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}"
+                       LineBreakMode="TailTruncation" />
+
+                <Border Grid.Row="2"
+                        Background="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}"
+                        Stroke="Transparent"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="14,10">
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
+                        <Label Text="Language" FontAttributes="Bold" />
+                        <Label Grid.Column="1" Text="{Binding Book.Language}" LineBreakMode="TailTruncation" />
+                        <Label Grid.Row="1" Text="Format" FontAttributes="Bold" />
+                        <Label Grid.Row="1" Grid.Column="1" Text="Reflowable EPUB" />
+                    </Grid>
+                </Border>
+
+                <Label Grid.Row="3"
+                       AutomationId="BookDescription"
+                       Text="{Binding Book.Description}"
+                       TextType="Html"
+                       FontSize="15"
+                       LineHeight="1.25"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="6"
+                       VerticalOptions="Start" />
+
+                <Button Grid.Row="4"
+                        AutomationId="OpenBookButton"
+                        Text="Open book"
+                        Command="{Binding OpenCommand}"
+                        Background="{StaticResource LibraryAccent}"
+                        TextColor="White"
+                        CornerRadius="12"
+                        HeightRequest="52"
+                        FontAttributes="Bold" />
+            </Grid>
+            </Grid>
+        </ScrollView>
+    </Grid>
+</ContentPage>
