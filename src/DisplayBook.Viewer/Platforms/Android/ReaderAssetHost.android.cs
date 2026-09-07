@@ -17,7 +17,7 @@ public sealed partial class ReaderAssetHost
 
         var context = nativeWebView.Context ?? throw new InvalidOperationException("The Android reader WebView has no context.");
         var filesDirectory = context.FilesDir?.AbsolutePath;
-        if (string.IsNullOrWhiteSpace(filesDirectory) || !filesDirectory.StartsWith("/", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(filesDirectory) || !filesDirectory.StartsWith('/'))
         {
             throw new InvalidOperationException("Android returned an invalid application files directory.");
         }
@@ -50,6 +50,9 @@ public sealed partial class ReaderAssetHost
         AndroidX.WebKit.WebViewAssetLoader assetLoader,
         Func<string, Task>? navigationHandler) : Android.Webkit.WebViewClient
     {
+        private readonly object _navigationQueueLock = new();
+        private Task _navigationQueue = Task.CompletedTask;
+
         public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView? view, Android.Webkit.IWebResourceRequest? request)
         {
             return HandleNavigation(request?.Url?.ToString());
@@ -78,19 +81,42 @@ public sealed partial class ReaderAssetHost
 
             if (navigationHandler is not null)
             {
-                HandleNavigationAsync(uri.ToString());
+                QueueNavigation(uri.ToString());
             }
 
             return true;
         }
 
-        private async Task HandleNavigationAsync(string url)
+        private void QueueNavigation(string url)
         {
-            if(navigationHandler is null)
+            lock (_navigationQueueLock)
             {
-                return;
+                _navigationQueue = ProcessNavigationAsync(_navigationQueue, url);
             }
-            await navigationHandler(url);
+        }
+
+        private async Task ProcessNavigationAsync(Task previousNavigation, string url)
+        {
+            try
+            {
+                await previousNavigation;
+            }
+            catch (Exception exception)
+            {
+                Android.Util.Log.Error(nameof(ReaderAssetWebViewClient), $"Reader bridge navigation queue failed: {exception}");
+            }
+
+            try
+            {
+                if (navigationHandler is not null)
+                {
+                    await navigationHandler(url);
+                }
+            }
+            catch (Exception exception)
+            {
+                Android.Util.Log.Error(nameof(ReaderAssetWebViewClient), $"Reader bridge navigation failed: {exception}");
+            }
         }
     }
 }
