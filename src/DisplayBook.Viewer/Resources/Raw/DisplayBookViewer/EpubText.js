@@ -577,7 +577,7 @@
         style.textContent = `
             :root {
                 --reader-column-width: 100vw;
-                --reader-page-gutter: clamp(1rem, 5vw, 4.5rem);
+                --reader-page-gutter: clamp(16px, 5vw, 72px);
                 width: 100% !important;
                 min-width: 100% !important;
                 max-width: 100% !important;
@@ -591,6 +591,9 @@
                 overflow-x: auto !important;
                 overflow-y: hidden !important;
                 scrollbar-width: none;
+                margin: 0 !important;
+                padding-inline: 0 !important;
+                box-sizing: border-box !important;
                 background: var(--USER__backgroundColor, #f6f1e8) !important;
             }
 
@@ -621,15 +624,34 @@
             }
 
             body {
-                width: 100% !important;
+                width: min(100%, calc(var(--USER__lineLength, 100%) + (2 * var(--reader-page-gutter)))) !important;
                 min-width: 0 !important;
-                max-width: var(--USER__lineLength, 100%) !important;
+                max-width: 100% !important;
                 min-height: 100% !important;
-                margin: 0 !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
                 padding: 2.25rem var(--reader-page-gutter) !important;
                 box-sizing: border-box !important;
                 overflow: visible !important;
                 background: transparent !important;
+            }
+
+            /* EPUB chapters sometimes add asymmetric margins to a direct wrapper.
+               Re-center that wrapper without changing paragraph indentation. */
+            body > * {
+                max-width: 100% !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Some publications use width_10 as a chapter wrapper with a large
+               asymmetric percentage margin. Keep the wrapper in the reader column. */
+            body .width_10 {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
             }
 
             :root[style*="--USER__fontFamily"] body,
@@ -638,7 +660,8 @@
             }
 
             :root[style*="readium-scroll-on"] body {
-                max-width: var(--USER__lineLength, 100%) !important;
+                width: min(100%, calc(var(--USER__lineLength, 100%) + (2 * var(--reader-page-gutter)))) !important;
+                max-width: 100% !important;
                 min-height: 100% !important;
                 overflow: visible !important;
             }
