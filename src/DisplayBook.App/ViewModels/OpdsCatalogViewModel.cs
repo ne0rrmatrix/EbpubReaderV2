@@ -101,13 +101,7 @@ public sealed partial class OpdsCatalogViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task GoBackAsync()
     {
-        var url = _crumbs.Count > 1 ? _crumbs[^2].Url : null;
-        if (url is null)
-        {
-            return;
-        }
-
-        await LoadFeedAsync(url, pushCrum: false);
+        await LoadPreviousCrumbAsync();
     }
 
     [RelayCommand]
@@ -115,11 +109,21 @@ public sealed partial class OpdsCatalogViewModel : ObservableObject, IDisposable
     {
         if (_crumbs.Count > 1)
         {
-            await LoadFeedAsync(_crumbs[^2].Url, pushCrum: false);
+            await LoadPreviousCrumbAsync();
             return;
         }
 
         await _navigation.GoBackAsync();
+    }
+
+    private async Task LoadPreviousCrumbAsync()
+    {
+        if (_crumbs.Count <= 1)
+        {
+            return;
+        }
+
+        await LoadFeedAsync(_crumbs[^2].Url, pushCrum: false, replaceCurrentCrumb: true);
     }
 
     [RelayCommand]
@@ -162,7 +166,7 @@ public sealed partial class OpdsCatalogViewModel : ObservableObject, IDisposable
 
     private OpdsFeed? CurrentFeed { get; set; }
 
-    private async Task LoadFeedAsync(string url, bool pushCrum)
+    private async Task LoadFeedAsync(string url, bool pushCrum, bool replaceCurrentCrumb = false)
     {
         if (_loadCts is not null)
         {
@@ -185,6 +189,10 @@ public sealed partial class OpdsCatalogViewModel : ObservableObject, IDisposable
             if (pushCrum)
             {
                 _crumbs.Add(new Crumb(feed.Title, url));
+            }
+            else if (replaceCurrentCrumb && _crumbs.Count > 1)
+            {
+                _crumbs.RemoveAt(_crumbs.Count - 1);
             }
 
             _currentUrl = url;
