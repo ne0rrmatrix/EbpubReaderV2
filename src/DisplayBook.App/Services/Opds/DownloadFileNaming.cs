@@ -75,8 +75,11 @@ public static class DownloadFileNaming
             return null;
         }
 
+        // Path.GetExtension includes the leading dot, so validate the dot-less suffix and
+        // return the extension as produced (dot included).
         var extension = Path.GetExtension(uri.AbsolutePath);
-        return extension.Length is > 1 and <= 10 && extension.All(character => char.IsLetterOrDigit(character))
+        var suffix = extension.TrimStart('.');
+        return suffix.Length is > 0 and <= 10 && suffix.All(character => char.IsLetterOrDigit(character))
             ? extension.ToLowerInvariant()
             : null;
     }
