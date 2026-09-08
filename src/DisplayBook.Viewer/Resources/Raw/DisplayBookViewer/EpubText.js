@@ -58,6 +58,8 @@
         error: document.getElementById("reader-error"),
         frame: document.getElementById("page"),
         loading: document.getElementById("reader-loading"),
+        loadingCover: document.getElementById("reader-loading-cover"),
+        loadingLabel: document.getElementById("reader-loading-label"),
         location: document.getElementById("reader-location"),
         next: document.getElementById("next-page"),
         previous: document.getElementById("previous-page"),
@@ -545,6 +547,41 @@
         return item?.href.split("/").pop() ?? "Publication";
     }
 
+    function getChapterTitle(spineIndex) {
+        const tocItem = state.toc.find((entry) => entry.spineIndex === spineIndex);
+        return tocItem?.label?.trim() ?? "";
+    }
+
+    function getCoverImageHref() {
+        const items = Array.from(state.manifest.values());
+        const cover = items.find((item) => item.properties.split(/\s+/u).includes("cover-image"));
+        if (cover?.href) {
+            return cover.href;
+        }
+        const firstImage = items.find((item) => item.mediaType.startsWith("image/"));
+        return firstImage?.href;
+    }
+
+    function applyLoadingCover() {
+        const cover = elements.loadingCover;
+        if (!cover) {
+            return;
+        }
+        const coverHref = getCoverImageHref();
+        if (!coverHref) {
+            cover.hidden = true;
+            return;
+        }
+        cover.hidden = true;
+        cover.onload = () => {
+            cover.removeAttribute("hidden");
+        };
+        cover.onerror = () => {
+            cover.hidden = true;
+        };
+        cover.src = coverHref;
+    }
+
     function setError(error) {
         const message = error instanceof Error ? error.message : String(error);
         elements.error.textContent = message;
@@ -556,7 +593,7 @@
     }
 
     function setLoading(isLoading, message = "Loading publication…") {
-        elements.loading.textContent = message;
+        elements.loadingLabel.textContent = message;
         elements.loading.hidden = !isLoading;
     }
 
@@ -818,16 +855,23 @@
         elements.previous.disabled = !state.isReady || (isScrollMode ? state.currentSpineIndex === 0 : atFirstPage);
         elements.next.disabled = !state.isReady || (isScrollMode ? state.currentSpineIndex === state.spine.length - 1 : atLastPage);
         elements.progressSlider.disabled = !state.isReady && !state.progressSeek.isLoading;
-        elements.location.textContent = isScrollMode
-            ? `${getSpineLabel(state.currentSpineIndex)} · Continuous scroll`
-            : `${getSpineLabel(state.currentSpineIndex)} · Page ${state.currentPage + 1} of ${state.pageCount}`;
+        const chapterTitle = getChapterTitle(state.currentSpineIndex);
+        const pageInfo = isScrollMode
+            ? "Continuous scroll"
+            : `Page ${state.currentPage + 1} of ${state.pageCount}`;
+        elements.location.textContent = chapterTitle
+            ? `${chapterTitle} · ${pageInfo}`
+            : pageInfo;
         elements.bookTitle.textContent = state.metadata.title;
         elements.author.textContent = state.metadata.author;
         document.title = `${state.metadata.title} · EPUB Reader`;
         updateProgress();
         updateTocHighlight();
         if (item) {
-            elements.frame.setAttribute("aria-label", `${getSpineLabel(state.currentSpineIndex)}, page ${state.currentPage + 1}`);
+            const frameAriaLabel = chapterTitle
+                ? `${chapterTitle}, page ${state.currentPage + 1}`
+                : `Page ${state.currentPage + 1}`;
+            elements.frame.setAttribute("aria-label", frameAriaLabel);
         }
         if (state.isReady && item) {
             notifyNative("locationChanged", {
@@ -1157,7 +1201,7 @@
         state.currentPage = 0;
         state.pageCount = 1;
         state.documentUrl = stripFragment(item.href);
-        setLoading(true, `Loading ${getSpineLabel(spineIndex)}…`);
+        setLoading(true, "Loading…");
         updateUi();
 
         const token = ++state.loadToken;
@@ -1421,6 +1465,7 @@
         state.metadata = publication.metadata;
         state.spine = publication.spine;
         state.contentsLoader = () => loadContents(publication.nav);
+        applyLoadingCover();
         await Promise.all([
             preloadReaderStyles(),
             preloadResource(state.spine[0])
