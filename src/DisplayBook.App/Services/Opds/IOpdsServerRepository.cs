@@ -3,8 +3,8 @@ using DisplayBook.App.Models;
 namespace DisplayBook.App.Services;
 
 /// <summary>
-/// Persists user-managed OPDS server profiles (discovered servers are ephemeral unless the user
-/// adds them). Backed by a JSON file in the app's data directory.
+/// Persists OPDS server profiles, including servers saved automatically after discovery. Backed by
+/// a JSON file in the app's data directory.
 /// </summary>
 public interface IOpdsServerRepository
 {

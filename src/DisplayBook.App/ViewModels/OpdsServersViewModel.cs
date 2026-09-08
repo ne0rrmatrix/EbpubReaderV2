@@ -96,8 +96,13 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnServerDiscovered(object? sender, DiscoveredServerEventArgs e)
+    private async void OnServerDiscovered(object? sender, DiscoveredServerEventArgs e)
     {
+        if (e.IsNew)
+        {
+            await PersistDiscoveredServerAsync(e.Server);
+        }
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             if (_disposed)
@@ -112,6 +117,21 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 
             _discovered.Add(new OpdsServerDisplayModel(e.Server, this));
         });
+    }
+
+    private async Task PersistDiscoveredServerAsync(OpdsServer server)
+    {
+        try
+        {
+            if (_servers.FindByUrl(server.Url) is null)
+            {
+                await _servers.AddAsync(server).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not save discovered server {ServerName}", server.Name);
+        }
     }
 
     private void OnServerRemoved(object? sender, ServerRemovedEventArgs e)
