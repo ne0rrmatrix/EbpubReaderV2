@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             xmlns:conv="clr-namespace:DisplayBook.App.Views"
+             x:Class="DisplayBook.App.Views.OpdsServersPage"
+             x:DataType="vm:OpdsServersViewModel"
+             Title="OPDS servers">
+    <ContentPage.Resources>
+        <conv:ZeroCountConverter x:Key="ZeroCount" />
+        <DataTemplate x:Key="ServerTemplate" x:DataType="vm:OpdsServerDisplayModel">
+            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                    StrokeShape="RoundRectangle 12"
+                    Padding="12"
+                    Margin="0,4">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout VerticalOptions="Center" Spacing="4">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <Border Padding="6,2"
+                                    Background="{AppThemeBinding Light={StaticResource LibraryAccentLightSurface}, Dark={StaticResource Gray900}}"
+                                    StrokeShape="RoundRectangle 6"
+                                    VerticalOptions="Start">
+                                <Label Text="{Binding BadgeText}"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}" />
+                            </Border>
+                            <Label Grid.Column="1"
+                                   Text="{Binding Name}"
+                                   FontAttributes="Bold"
+                                   LineBreakMode="TailTruncation"
+                                   SemanticProperties.Description="Server name" />
+                            <Switch Grid.Column="2"
+                                   IsToggled="{Binding IsEnabled, Mode=TwoWay}"
+                                   VerticalOptions="Center"
+                                   SemanticProperties.Description="Server enabled" />
+                        </Grid>
+                        <Label Text="{Binding Url}"
+                               FontSize="12"
+                               LineBreakMode="TailTruncation"
+                               TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1"
+                            Text="Open"
+                            Command="{Binding OpenCommand}"
+                            IsEnabled="{Binding IsEnabled}"
+                            Background="{StaticResource LibraryAccent}"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="40"
+                            WidthRequest="72"
+                            VerticalOptions="Center" />
+                    <Button Grid.Column="2"
+                            Text="✕"
+                            Command="{Binding RemoveCommand}"
+                            Background="Transparent"
+                            TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                            CornerRadius="8"
+                            HeightRequest="40"
+                            WidthRequest="44"
+                            FontAttributes="Bold"
+                            SemanticProperties.Description="Remove server" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </ContentPage.Resources>
+
+    <ScrollView VerticalScrollBarVisibility="Never">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+              RowSpacing="16"
+              Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
+
+            <Button Grid.Row="0"
+                    Text="‹  Library"
+                    Command="{Binding GoBackCommand}"
+                    HorizontalOptions="Start"
+                    Background="Transparent"
+                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
+                    Padding="0" />
+
+            <VerticalStackLayout Grid.Row="1" Spacing="6">
+                <Label AutomationId="ServersTitle"
+                       Text="OPDS servers"
+                       FontSize="28"
+                       FontAttributes="Bold"
+                       SemanticProperties.HeadingLevel="Level1" />
+                <Label Text="Browse Calibre and other OPDS catalogs, or enter a server address manually."
+                       TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}" />
+            </VerticalStackLayout>
+
+            <Border Grid.Row="2"
+                    Background="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeShape="RoundRectangle 16"
+                    Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Add a server manually" FontAttributes="Bold" FontSize="16" />
+                    <Entry AutomationId="ManualUrlEntry"
+                           Placeholder="http://192.168.1.10:8080/"
+                           PlaceholderColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}"
+                           Keyboard="Url"
+                           Text="{Binding ManualUrl, Mode=TwoWay}" />
+                    <Entry AutomationId="ManualNameEntry"
+                           Placeholder="Name (optional)"
+                           PlaceholderColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}"
+                           Text="{Binding ManualName, Mode=TwoWay}" />
+                    <Button AutomationId="AddServerButton"
+                            Text="Add and open"
+                            Command="{Binding AddManualCommand}"
+                            Background="{StaticResource LibraryAccent}"
+                            TextColor="White"
+                            CornerRadius="12"
+                            HeightRequest="48"
+                            FontAttributes="Bold" />
+                </VerticalStackLayout>
+            </Border>
+
+            <VerticalStackLayout Grid.Row="3" Spacing="8">
+                <HorizontalStackLayout Spacing="8">
+                    <Label Text="Network discovery" FontAttributes="Bold" FontSize="16" VerticalOptions="Center" />
+                    <ActivityIndicator AutomationId="DiscoveryIndicator"
+                                       IsRunning="{Binding IsDiscovering}"
+                                       HeightRequest="18"
+                                       WidthRequest="18"
+                                       VerticalOptions="Center" />
+                </HorizontalStackLayout>
+                <Label Text="Find Calibre servers advertising on this network via mDNS/Bonjour."
+                       TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}" />
+                <Button AutomationId="ToggleDiscoveryButton"
+                        Text="{Binding ToggleButtonText}"
+                        Command="{Binding ToggleDiscoveryCommand}"
+                        Background="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}"
+                        TextColor="{AppThemeBinding Light={StaticResource OffBlack}, Dark={StaticResource White}}"
+                        CornerRadius="12"
+                        HeightRequest="48"
+                        FontAttributes="Bold" />
+            </VerticalStackLayout>
+
+            <Label Grid.Row="4"
+                   Text="Saved servers"
+                   FontAttributes="Bold"
+                   FontSize="16" />
+            <VerticalStackLayout Grid.Row="5"
+                                AutomationId="SavedServers"
+                                Spacing="8"
+                                BindableLayout.ItemsSource="{Binding Saved}"
+                                BindableLayout.ItemTemplate="{StaticResource ServerTemplate}">
+                <Label Text="No saved servers yet."
+                       IsVisible="{Binding Saved.Count, Converter={StaticResource ZeroCount}}"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+            </VerticalStackLayout>
+
+            <Label Grid.Row="6"
+                   Text="Discovered on this network"
+                   FontAttributes="Bold"
+                   FontSize="16" />
+            <VerticalStackLayout Grid.Row="7"
+                                AutomationId="DiscoveredServers"
+                                Spacing="8"
+                                BindableLayout.ItemsSource="{Binding Discovered}"
+                                BindableLayout.ItemTemplate="{StaticResource ServerTemplate}">
+                <Label Text="Nothing found yet. Start discovery to scan the local network."
+                       IsVisible="{Binding Discovered.Count, Converter={StaticResource ZeroCount}}"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+            </VerticalStackLayout>
+
+            <Label Grid.Row="8"
+                   AutomationId="ServersStatus"
+                   Text="{Binding StatusMessage}"
+                   LineBreakMode="WordWrap"
+                   TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}" />
+        </Grid>
+    </ScrollView>
+</ContentPage>

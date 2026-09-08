@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<RootNamespace>DisplayBook.Tests</RootNamespace>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+		<PackageReference Include="coverlet.collector" Version="6.0.4" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; buildMultitargeting; buildTransitive; contentFiles; analyzers; native</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Compile the OPDS service + model sources directly so the tests stay pure
+		     .NET and do not pull in the MAUI app project. -->
+		<Compile Include="..\..\src\DisplayBook.App\Models\Opds\*.cs" LinkBase="App\Models" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsParserService.cs" Link="App\Services\Opds\OpdsParserService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsUrlNormalizer.cs" Link="App\Services\Opds\OpdsUrlNormalizer.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\DownloadFileNaming.cs" Link="App\Services\Opds\DownloadFileNaming.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\BookMetadataMatcher.cs" Link="App\Services\BookMetadataMatcher.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Models\BookSummary.cs" Link="App\Models\BookSummary.cs" />
+	</ItemGroup>
+
+</Project>

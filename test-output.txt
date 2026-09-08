@@ -1,0 +1,123 @@
+﻿Test run for c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\bin\Debug\net10.0\DisplayBook.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+dotnet : [xUnit.net 00:00:00.16]     
+DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_SchemeCase_IsCanonicalized 
+[FAIL]
+At line:1 char:1
++ dotnet test "c:\Users\james\source\Test\DisplayBook\tests\DisplayBook ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([xUnit.net 00:0...icalized [FAIL] 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[xUnit.net 00:00:00.17]     
+DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_Fragment_IsIgnored [FAIL]
+  Failed DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_SchemeCase_IsCanonicalized [4 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+                               Γåô (pos 20)
+Expected: "https://host.example/opds"
+Actual:   "https://host.example:443/opds"
+                               Γåæ (pos 20)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_SchemeCase_IsCanonicalized() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsUrlNormalizerTests.cs:line 76
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_Fragment_IsIgnored [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+                              Γåô (pos 19)
+Expected: "http://host.example/opds"
+Actual:   "http://host.example:80/opds"
+                              Γåæ (pos 19)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_Fragment_IsIgnored() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsUrlNormalizerTests.cs:line 39
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.19]     DisplayBook.Tests.OpdsParserServiceTests.ParseFeedF
+romBytes_AtomCatalog_ImageLinksAreNotAcquisitionLinks [FAIL]
+[xUnit.net 00:00:00.19]     
+DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_QueryString_IsIgnored [FAIL]
+[xUnit.net 00:00:00.19]     
+DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_TrimsSurroundingWhitespace 
+[FAIL]
+[xUnit.net 00:00:00.19]     DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_
+MultipleTrailingSlashes_AreRemoved [FAIL]
+  Failed DisplayBook.Tests.OpdsParserServiceTests.ParseFeedFromBytes_AtomCatalog_ImageLinksAreNotAcquisitionLinks [14 ms]
+  Error Message:
+   Assert.Single() Failure: The collection contained 2 items
+Collection: [Link { Href = "http://calibre.local:8080/entry/1", Language = null, Length = null, Properties = [], Rel = "self", ┬╖┬╖┬╖ }, Link { Href = "http://calibre.local:8080/download/1", Language = null, Length = "9999", Properties = [], Rel = "self", ┬╖┬╖┬╖ }]
+  Stack Trace:
+     at DisplayBook.Tests.OpdsParserServiceTests.ParseFeedFromBytes_AtomCatalog_ImageLinksAreNotAcquisitionLinks() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsParserServiceTests.cs:line 172
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_QueryString_IsIgnored [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+                              Γåô (pos 19)
+Expected: "http://host.example/opds"
+Actual:   "http://host.example:80/opds"
+                              Γåæ (pos 19)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_QueryString_IsIgnored() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsUrlNormalizerTests.cs:line 32
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_TrimsSurroundingWhitespace [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+                              Γåô (pos 19)
+Expected: "http://host.example/opds"
+Actual:   "http://host.example:80/opds"
+                              Γåæ (pos 19)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_TrimsSurroundingWhitespace() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsUrlNormalizerTests.cs:line 46
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_MultipleTrailingSlashes_AreRemoved [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+                              Γåô (pos 19)
+Expected: "http://host.example/opds"
+Actual:   "http://host.example:80/opds"
+                              Γåæ (pos 19)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsUrlNormalizerTests.Normalize_MultipleTrailingSlashes_AreRemoved() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsUrlNormalizerTests.cs:line 26
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.19]     DisplayBook.Tests.OpdsParserServiceTests.FormatName
+For_UnknownMime_FallsBackToExtensionOrOriginal [FAIL]
+  Failed DisplayBook.Tests.OpdsParserServiceTests.FormatNameFor_UnknownMime_FallsBackToExtensionOrOriginal [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+           Γåô (pos 0)
+Expected: "HTML"
+Actual:   "text/html"
+           Γåæ (pos 0)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsParserServiceTests.FormatNameFor_UnknownMime_FallsBackToExtensionOrOriginal() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsParserServiceTests.cs:line 264
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.19]     DisplayBook.Tests.OpdsParserServiceTests.ParseFeedF
+romBytes_AtomCatalog_ParsesEntryMetadata [FAIL]
+[xUnit.net 00:00:00.19]     DisplayBook.Tests.OpdsParserServiceTests.ParseFeedF
+romBytes_Opds20Rdf_ParsesBookDescription [FAIL]
+  Failed DisplayBook.Tests.OpdsParserServiceTests.ParseFeedFromBytes_AtomCatalog_ParsesEntryMetadata [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+           Γåô (pos 0)
+Expected: "Fiction"
+Actual:   "Test series"
+           Γåæ (pos 0)
+  Stack Trace:
+     at DisplayBook.Tests.OpdsParserServiceTests.ParseFeedFromBytes_AtomCatalog_ParsesEntryMetadata() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsParserServiceTests.cs:line 150
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed DisplayBook.Tests.OpdsParserServiceTests.ParseFeedFromBytes_Opds20Rdf_ParsesBookDescription [< 1 ms]
+  Error Message:
+   Assert.NotNull() Failure: Value is null
+  Stack Trace:
+     at DisplayBook.Tests.OpdsParserServiceTests.ParseFeedFromBytes_Opds20Rdf_ParsesBookDescription() in c:\Users\james\source\Test\DisplayBook\tests\DisplayBook.Tests\OpdsParserServiceTests.cs:line 200
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Failed!  - Failed:     9, Passed:    24, Skipped:     0, Total:    33, Duration: 53 ms - DisplayBook.Tests.dll (net10.0)

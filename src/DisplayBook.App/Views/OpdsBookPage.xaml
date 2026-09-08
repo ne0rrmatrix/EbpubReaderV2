@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             xmlns:conv="clr-namespace:DisplayBook.App.Views"
+             xmlns:m="clr-namespace:DisplayBook.App.Models"
+             x:Class="DisplayBook.App.Views.OpdsBookPage"
+             x:Name="BookPage"
+             x:DataType="vm:OpdsBookViewModel"
+             Title="Book">
+    <ContentPage.Resources>
+        <conv:ByteSizeConverter x:Key="ByteSize" />
+        <conv:StringNotNullConverter x:Key="StringNotNull" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+    </ContentPage.Resources>
+    <ScrollView Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
+        <VerticalStackLayout Spacing="16">
+            <Button Text="‹  Catalog"
+                    Command="{Binding GoBackCommand}"
+                    HorizontalOptions="Start"
+                    Background="Transparent"
+                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
+                    Padding="0"
+                    AutomationId="BookBackButton" />
+            <VerticalStackLayout HorizontalOptions="Center" Spacing="12">
+                <Border WidthRequest="120"
+                        HeightRequest="160"
+                        Background="{AppThemeBinding Light={StaticResource LibraryCoverLight}, Dark={StaticResource LibraryCoverDark}}"
+                        StrokeShape="RoundRectangle 8">
+                    <Grid>
+                        <Label Text="📖"
+                               FontSize="44"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               IsVisible="{Binding HasCover, Converter={StaticResource InverseBool}}" />
+                        <Image Source="{Binding CoverUrl}"
+                               Aspect="AspectFill"
+                               IsVisible="{Binding HasCover}" />
+                    </Grid>
+                </Border>
+                <Label Text="{Binding Title}"
+                       FontSize="24"
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       AutomationId="BookTitle" />
+                <Label Text="{Binding Authors}"
+                       FontSize="14"
+                       HorizontalOptions="Center"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                  <Border IsVisible="{Binding IsInLibrary}"
+                       Background="{StaticResource LibraryAccent}"
+                       StrokeShape="RoundRectangle 10"
+                       Padding="12,6"
+                       AutomationId="InLibraryIndicator">
+                      <Label Text="✓  In your library"
+                          TextColor="{StaticResource White}"
+                          FontAttributes="Bold"
+                          HorizontalOptions="Center" />
+                  </Border>
+                <Label Text="{Binding Subtitle}"
+                       FontSize="13"
+                       HorizontalOptions="Center"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+            </VerticalStackLayout>
+            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                    StrokeShape="RoundRectangle 12"
+                    Padding="12"
+                    IsVisible="{Binding HasPublisher}">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding Publisher}" FontSize="13" />
+                    <Label Text="{Binding Series}"
+                           FontSize="13"
+                           FontAttributes="Bold"
+                           IsVisible="{Binding HasSeries}"
+                           AutomationId="SeriesLabel" />
+                </VerticalStackLayout>
+            </Border>
+            <Label Text="{Binding Description}"
+                   FontSize="13"
+                   LineBreakMode="WordWrap"
+                   AutomationId="BookDescription" />
+            <VerticalStackLayout Spacing="8" IsVisible="{Binding IsLoading}">
+                <ActivityIndicator IsRunning="True"
+                                    HorizontalOptions="Center"
+                                    WidthRequest="28"
+                                    HeightRequest="28" />
+            </VerticalStackLayout>
+            <VerticalStackLayout Spacing="8" IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotNull}}">
+                <Label Text="{Binding StatusMessage}"
+                       FontSize="13"
+                       LineBreakMode="WordWrap"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                       AutomationId="BookStatus" />
+            </VerticalStackLayout>
+            <Label Text="Download options"
+                   FontAttributes="Bold"
+                   FontSize="16"
+                   IsVisible="{Binding HasDownloadOptions}"
+                   AutomationId="DownloadOptionsHeader" />
+            <VerticalStackLayout x:Name="LinksCollection"
+                                 Spacing="0"
+                                 IsVisible="{Binding HasDownloadOptions}"
+                                 BindableLayout.ItemsSource="{Binding DownloadLinks}"
+                                 AutomationId="DownloadLinksCollection">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="m:DownloadLink">
+                        <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                                Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                                StrokeShape="RoundRectangle 12"
+                                Padding="12"
+                                Margin="0,4">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+                                    <Label Text="{Binding FormatName}"
+                                           FontAttributes="Bold"
+                                           LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding Size, Converter={StaticResource ByteSize}}"
+                                           FontSize="12"
+                                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1"
+                                        Text="Download"
+                                        Command="{Binding Source={x:Reference BookPage}, Path=BindingContext.DownloadCommand}"
+                                        CommandParameter="{Binding .}"
+                                        Background="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryAccent}}"
+                                        TextColor="{StaticResource White}"
+                                        MinimumHeightRequest="44" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+            <Button Text="Open downloads"
+                    Command="{Binding GoToDownloadsCommand}"
+                    HorizontalOptions="Center"
+                    Background="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryAccent}}"
+                    TextColor="{StaticResource White}"
+                    MinimumHeightRequest="48"
+                    AutomationId="GoToDownloadsButton" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

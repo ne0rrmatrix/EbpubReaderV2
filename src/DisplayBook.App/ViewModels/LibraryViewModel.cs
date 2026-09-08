@@ -200,6 +200,9 @@ public partial class LibraryViewModel(
         return navigationService.ShowBookDetailsAsync(book.Book);
     }
 
+    [RelayCommand]
+    private Task BrowseOpdsAsync() => navigationService.ShowOpdsServersAsync();
+
     [RelayCommand(CanExecute = nameof(CanEnterSelectionMode))]
     private void EnterSelectionMode()
     {

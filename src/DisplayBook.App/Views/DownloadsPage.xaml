@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             xmlns:conv="clr-namespace:DisplayBook.App.Views"
+             x:Class="DisplayBook.App.Views.DownloadsPage"
+             x:DataType="vm:DownloadsViewModel"
+             Title="Downloads">
+    <ContentPage.Resources>
+        <conv:DownloadStatusColorConverter x:Key="StatusColor" />
+        <conv:StringNotNullConverter x:Key="StringNotNull" />
+        <DataTemplate x:Key="ItemTemplate" x:DataType="vm:DownloadItemModel">
+            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                    StrokeShape="RoundRectangle 12"
+                    Padding="12"
+                    Margin="0,4">
+                <VerticalStackLayout Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Text="{Binding BookTitle}"
+                               FontAttributes="Bold"
+                               LineBreakMode="TailTruncation" />
+                        <Label Grid.Column="1"
+                               Text="{Binding StatusText}"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="{Binding Status, Converter={StaticResource StatusColor}}"
+                               VerticalOptions="Center" />
+                    </Grid>
+                    <Label Text="{Binding FileName}"
+                           FontSize="12"
+                           LineBreakMode="TailTruncation"
+                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <ProgressBar Progress="{Binding Percentage}"
+                                     HeightRequest="8"
+                                     Background="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray900}}" />
+                        <Label Grid.Column="1"
+                               Text="{Binding BytesLabel}"
+                               FontSize="12"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                    </Grid>
+                    <Label Text="{Binding Error}"
+                           FontSize="12"
+                           LineBreakMode="WordWrap"
+                           TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                           IsVisible="{Binding Error, Converter={StaticResource StringNotNull}}" />
+                    <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8"
+                          IsVisible="{Binding IsCancellable}">
+                        <Button Text="{Binding PauseResumeButtonText}"
+                                Command="{Binding PauseResumeCommand}"
+                                TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
+                                Background="Transparent"
+                                Padding="0" />
+                        <Button Grid.Column="1"
+                                Text="Cancel"
+                                Command="{Binding CancelCommand}"
+                                TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                                Background="Transparent"
+                                Padding="0" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </DataTemplate>
+    </ContentPage.Resources>
+    <ScrollView Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
+        <VerticalStackLayout Spacing="16">
+            <Button Text="‹  Back"
+                    Command="{Binding GoBackCommand}"
+                    HorizontalOptions="Start"
+                    Background="Transparent"
+                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
+                    Padding="0"
+                    AutomationId="DownloadsBackButton" />
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Downloads"
+                       FontSize="28"
+                       FontAttributes="Bold"
+                       AutomationId="DownloadsTitle" />
+                <Label Text="Books you have queued or downloaded from OPDS catalogs."
+                       FontSize="13"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+            </VerticalStackLayout>
+            <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
+                <Button Text="Pause all"
+                        Command="{Binding PauseAllCommand}"
+                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
+                        Background="Transparent"
+                        Padding="0"
+                        AutomationId="PauseAllButton" />
+                <Button Grid.Column="1"
+                        Text="Resume all"
+                        Command="{Binding ResumeAllCommand}"
+                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
+                        Background="Transparent"
+                        Padding="0"
+                        AutomationId="ResumeAllButton" />
+                <Button Grid.Column="2"
+                        Text="Clear finished"
+                        Command="{Binding ClearFinishedCommand}"
+                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
+                        Background="Transparent"
+                        Padding="0"
+                        AutomationId="ClearFinishedButton" />
+            </Grid>
+            <CollectionView x:Name="ItemsCollection"
+                            ItemsSource="{Binding Items}"
+                            ItemTemplate="{StaticResource ItemTemplate}"
+                            AutomationId="DownloadsCollection" />
+            <Label Text="{Binding StatusMessage}"
+                   FontSize="13"
+                   LineBreakMode="WordWrap"
+                   TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotNull}}"
+                   AutomationId="DownloadsStatus" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

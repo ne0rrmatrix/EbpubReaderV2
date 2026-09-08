@@ -35,7 +35,7 @@
     <Color x:Key="LibraryCardStrokeDark">#3D4652</Color>
     <Color x:Key="LibraryCoverLight">#E9EDF2</Color>
     <Color x:Key="LibraryCoverDark">#141619</Color>
-    <Color x:Key="LibraryMutedTextLight">#68758A</Color>
+    <Color x:Key="LibraryMutedTextLight">#5A6678</Color>
     <Color x:Key="LibraryMutedTextDark">#9AA5B5</Color>
     <Color x:Key="LibraryAccent">#236B5A</Color>
     <Color x:Key="LibraryAccentLightSurface">#E8F0ED</Color>

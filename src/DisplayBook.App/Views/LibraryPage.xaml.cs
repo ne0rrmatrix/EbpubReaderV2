@@ -30,13 +30,16 @@ public partial class LibraryPage : ContentPage
             return;
         }
 
-        BooksLayout.Span = width switch
+        if (BooksCollection.ItemsLayout is GridItemsLayout gridLayout)
         {
-            < 600 => 1,
-            < 900 => 3,
-            < 1600 => 4,
-            < 3000 => 5,
-            _ => 6
-        };
+            gridLayout.Span = width switch
+            {
+                < 600 => 1,
+                < 900 => 3,
+                < 1600 => 4,
+                < 3000 => 5,
+                _ => 6
+            };
+        }
     }
 }

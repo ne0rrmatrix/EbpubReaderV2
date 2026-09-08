@@ -16,21 +16,27 @@ The project is designed for Windows and Android and targets .NET 10.
 - Save the current chapter and page so a book can resume where it was last opened.
 - Store the library catalog and reading state locally using SQLite.
 - Use the same reader control on Windows and Android.
+- Browse Calibre and other OPDS catalogs over the network, discovered automatically via mDNS or added by URL.
+- Download books from OPDS catalogs into the local library with a resumable download queue.
 
 ## Solution structure
 
 ```text
 DisplayBook.slnx
-└── src
-	├── DisplayBook.App
-	│   ├── .NET MAUI application
-	│   ├── Library, book details, and reader pages
-	│   ├── EPUB import and local catalog services
-	│   └── Windows and Android platform code
-	└── DisplayBook.Viewer
-		├── Reusable .NET MAUI reader control library
-		├── WebView-based EPUB rendering
-		└── Reader bridge and EPUB viewer assets
+├── src
+│   ├── DisplayBook.App
+│   │   ├── .NET MAUI application
+│   │   ├── Library, book details, and reader pages
+│   │   ├── EPUB import and local catalog services
+│   │   ├── OPDS/Calibre browsing and download services
+│   │   └── Windows and Android platform code
+│   └── DisplayBook.Viewer
+│       ├── Reusable .NET MAUI reader control library
+│       ├── WebView-based EPUB rendering
+│       └── Reader bridge and EPUB viewer assets
+└── tests
+    └── DisplayBook.Tests
+        └── Unit tests for OPDS parsing and URL handling
 ```
 
 ## Supported platforms
@@ -161,6 +167,14 @@ The viewer project contains the reusable EPUB reader control:
 
 The app stores imported-book metadata and reading positions in a local SQLite database. Imported EPUB content is copied into the app's local storage so the reader can access it after the original file is moved or unavailable.
 
+### OPDS / Calibre browsing
+
+The app can browse remote OPDS catalogs (Calibre content servers) and download books into the local library. See [docs/OPDS.md](docs/OPDS.md) for setup, a sample server configuration, and security notes.
+
+- `Services\Opds` contains mDNS discovery of Calibre servers (`_calibre._tcp`), an OPDS 1.0/2.0 Atom feed parser, the server-profile repository, a feed cache, and the resumable download queue.
+- Discovered servers are found automatically on the local network; any OPDS feed can also be added manually by URL.
+- Downloaded books are imported into the same local library as imported EPUBs.
+
 ## Development notes
 
 - The project uses nullable reference types.
@@ -168,6 +182,11 @@ The app stores imported-book metadata and reading positions in a local SQLite da
 - The app uses CommunityToolkit.Maui and Microsoft.Data.Sqlite.
 - The reader is a WebView-based EPUB renderer rather than a native document viewer.
 - Do not add imported EPUB files to source control unless they are intentionally being used as test fixtures.
+- Unit tests live in `tests\DisplayBook.Tests` and cover the OPDS feed parser and URL normalizer:
+
+```powershell
+dotnet test .\tests\DisplayBook.Tests\DisplayBook.Tests.csproj
+```
 
 ## Troubleshooting
 

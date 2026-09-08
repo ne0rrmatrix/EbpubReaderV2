@@ -3,4 +3,7 @@
     <Project Path="src/DisplayBook.App/DisplayBook.App.csproj" />
     <Project Path="src/DisplayBook.Viewer/DisplayBook.Viewer.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DisplayBook.Tests/DisplayBook.Tests.csproj" />
+  </Folder>
 </Solution>

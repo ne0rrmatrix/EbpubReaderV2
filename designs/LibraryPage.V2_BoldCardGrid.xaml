@@ -49,14 +49,6 @@
                         Background="{StaticResource LibraryAccentLightSurface}"
                         TextColor="{StaticResource LibraryAccent}"
                         CornerRadius="12" />
-                <Button Text="Browse OPDS"
-                        Command="{Binding BrowseOpdsCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderWidth="1"
-                        CornerRadius="12"
-                        AutomationId="BrowseOpdsButton" />
             </HorizontalStackLayout>
             <HorizontalStackLayout Grid.Column="{OnIdiom Phone=0, Default=1}"
                                    Grid.Row="{OnIdiom Phone=1, Default=0}"
@@ -92,7 +84,6 @@
         <!-- Search + sort -->
         <Grid Grid.Row="1" ColumnDefinitions="{OnIdiom Phone='*', Default='*,Auto'}" RowDefinitions="{OnIdiom Phone='Auto,Auto', Default='Auto'}" ColumnSpacing="12">
             <SearchBar Placeholder="Search by title or author"
-                       PlaceholderColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}"
                        Text="{Binding SearchQuery, Mode=TwoWay}"
                        CancelButtonColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
                        HorizontalOptions="Fill" />

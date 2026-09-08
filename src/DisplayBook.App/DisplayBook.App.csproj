@@ -74,11 +74,32 @@
 		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.1" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="Zeroconf" Version="3.7.16" />
 	</ItemGroup>
 
 	<ItemGroup>
 	  <ProjectReference Include="..\DisplayBook.Viewer\DisplayBook.Viewer.csproj" />
 	</ItemGroup>
+
+	<!-- DevFlow agent for visual tree / screenshot tooling.
+	     Required for Copilot-triggered (dotnet_maui_debugProject) launches: the extension
+	     only injects this package via MauiDevFlow.targets on the very first Windows build,
+	     so a Debug-conditional reference keeps it present on every Debug rebuild.
+	     Match the version to the MAUI extension's bundled CLI (see MauiDevFlow.targets). -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<MauiDevFlowAgentVersion>0.1.0-preview.11.26317.2</MauiDevFlowAgentVersion>
+	</PropertyGroup>
+
+	<!-- Always present in Debug so Copilot-triggered launches (which pass -p:MauiDevFlowEnabled=true
+	     but only import the injecting targets on the first Windows build) still get the agent. -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiDevFlowAgentVersion)" Condition="'$(MauiDevFlowAgentVersion)' != ''" />
+	</ItemGroup>
+
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW</DefineConstants>
+	</PropertyGroup>
 
 </Project>

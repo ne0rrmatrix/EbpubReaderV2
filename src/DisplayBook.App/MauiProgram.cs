@@ -1,8 +1,11 @@
 ﻿using CommunityToolkit.Maui;
 using DisplayBook.App.Services;
+using DisplayBook.App.Services.Opds;
 using DisplayBook.App.ViewModels;
 using DisplayBook.App.Views;
 using DisplayBook.Viewer;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
 #if MAUI_DEVFLOW
@@ -32,6 +35,13 @@ public static class MauiProgram
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddSingleton<IBookCatalogService, BookCatalogService>();
 		builder.Services.AddSingleton<BookStorageService>();
+		builder.Services.AddHttpClient(OpdsConstants.HttpClientName)
+			.ConfigureHttpClient(client => client.Timeout = OpdsConstants.HttpClientTimeout);
+		builder.Services.AddHttpClient<IOpdsParserService, OpdsParserService>(OpdsConstants.HttpClientName);
+		builder.Services.AddSingleton<IBonjourDiscoveryService, BonjourDiscoveryService>();
+		builder.Services.AddSingleton<IOpdsServerRepository, OpdsServerRepository>();
+		builder.Services.AddSingleton<IOpdsCatalogCache, OpdsCatalogCache>();
+		builder.Services.AddSingleton<IDownloadQueueService, DownloadQueueService>();
 		builder.Services.AddSingleton<IBookDatabase, BookDatabase>();
 		builder.Services.AddSingleton<IBookPickerService, BookPickerService>();
 		builder.Services.AddSingleton<IBookImportService, BookImportService>();
@@ -40,6 +50,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddTransientWithShellRoute<BookDetailsPage, BookDetailsViewModel>("Details");
 		builder.Services.AddTransientWithShellRoute<ReaderPage, ReaderViewModel>("reader");
+		builder.Services.AddTransientWithShellRoute<OpdsServersPage, OpdsServersViewModel>("opds/servers");
+		builder.Services.AddTransientWithShellRoute<OpdsCatalogPage, OpdsCatalogViewModel>("opds/catalog");
+		builder.Services.AddTransientWithShellRoute<OpdsBookPage, OpdsBookViewModel>("opds/book");
+		builder.Services.AddTransientWithShellRoute<DownloadsPage, DownloadsViewModel>("opds/downloads");
 
 #if DEBUG
 		builder.Logging.AddDebug();

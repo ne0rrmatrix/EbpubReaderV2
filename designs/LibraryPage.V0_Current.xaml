@@ -1,26 +1,18 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<!--
-    Variation 2 — "Bold Card Grid"
-    Larger, gallery-style covers in a responsive card grid. Bigger cover art,
-    stronger title hierarchy, generous spacing. Closest to the current design
-    but with a more visual, "bookstore" feel. Fully drop-in (GridItemsLayout).
--->
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:models="clr-namespace:DisplayBook.App.Models"
              xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
-             xmlns:views="clr-namespace:DisplayBook.App.Views"
              x:Class="DisplayBook.App.Views.LibraryPage"
              x:Name="Page"
+             xmlns:views="clr-namespace:DisplayBook.App.Views"
              x:DataType="vm:LibraryViewModel"
              Title="Library">
-    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="{OnIdiom Phone=16, Default=32}" RowSpacing="20">
-
-        <!-- Header + primary actions -->
+        <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="{OnIdiom Phone=16, Default=24}" RowSpacing="16">
         <Grid ColumnDefinitions="{OnIdiom Phone='*', Default='*,Auto'}" RowDefinitions="{OnIdiom Phone='Auto,Auto', Default='Auto'}" ColumnSpacing="10">
             <VerticalStackLayout Spacing="4">
                 <Label Text="Your library"
-                       FontSize="34"
+                       FontSize="32"
                        FontAttributes="Bold"
                        SemanticProperties.HeadingLevel="Level1" />
                 <Label Text="Choose a book to read"
@@ -28,82 +20,72 @@
                        FontSize="16" />
             </VerticalStackLayout>
             <HorizontalStackLayout Grid.Column="{OnIdiom Phone=0, Default=1}"
-                                   Grid.Row="{OnIdiom Phone=1, Default=0}"
-                                   Spacing="{OnIdiom Phone=4, Default=8}"
-                                   VerticalOptions="Center"
-                                   IsVisible="{Binding IsNotSelectionMode}">
-                <Button Text="Select"
-                        Command="{Binding EnterSelectionModeCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderWidth="1"
-                        CornerRadius="12" />
-                <Button Text="Add EPUB"
-                        Command="{Binding ImportFileCommand}"
-                        Background="{StaticResource LibraryAccent}"
-                        TextColor="White"
-                        CornerRadius="12" />
-                <Button Text="Add folder"
-                        Command="{Binding ImportFolderCommand}"
-                        Background="{StaticResource LibraryAccentLightSurface}"
-                        TextColor="{StaticResource LibraryAccent}"
-                        CornerRadius="12" />
-                <Button Text="Browse OPDS"
-                        Command="{Binding BrowseOpdsCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderWidth="1"
-                        CornerRadius="12"
-                        AutomationId="BrowseOpdsButton" />
+                       Grid.Row="{OnIdiom Phone=1, Default=0}"
+                       Spacing="{OnIdiom Phone=4, Default=8}"
+                       VerticalOptions="Center"
+                       IsVisible="{Binding IsNotSelectionMode}">
+            <Button Text="Select"
+                Command="{Binding EnterSelectionModeCommand}"
+                Background="Transparent"
+                TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
+                BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
+                BorderWidth="1"
+                CornerRadius="10" />
+            <Button Text="Add EPUB"
+                Command="{Binding ImportFileCommand}"
+                 Background="{StaticResource LibraryAccent}"
+                TextColor="White"
+                CornerRadius="10" />
+            <Button Text="Add folder"
+                Command="{Binding ImportFolderCommand}"
+                 Background="{StaticResource LibraryAccentLightSurface}"
+                 TextColor="{StaticResource LibraryAccent}"
+                CornerRadius="10" />
             </HorizontalStackLayout>
             <HorizontalStackLayout Grid.Column="{OnIdiom Phone=0, Default=1}"
-                                   Grid.Row="{OnIdiom Phone=1, Default=0}"
-                                   Spacing="{OnIdiom Phone=2, Default=8}"
-                                   VerticalOptions="Center"
-                                   IsVisible="{Binding IsSelectionMode}">
-                <Label Text="{Binding SelectedCount, StringFormat='{0} selected'}"
+                       Grid.Row="{OnIdiom Phone=1, Default=0}"
+                       Spacing="{OnIdiom Phone=2, Default=8}"
                        VerticalOptions="Center"
-                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
-                <Button Text="Select all"
-                        Command="{Binding SelectAllCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        Padding="8,0" />
-                <Button Text="Clear"
-                        Command="{Binding ClearSelectionCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        Padding="8,0" />
-                <Button Text="Delete"
-                        Command="{Binding DeleteSelectedCommand}"
-                        Background="#A83A3A"
-                        TextColor="White"
-                        CornerRadius="12" />
-                <Button Text="Cancel"
-                        Command="{Binding ExitSelectionModeCommand}"
-                        Background="{StaticResource LibraryAccentLightSurface}"
-                        TextColor="{StaticResource LibraryAccent}"
-                        CornerRadius="12" />
+                       IsVisible="{Binding IsSelectionMode}">
+            <Label Text="{Binding SelectedCount, StringFormat='{0} selected'}"
+                   VerticalOptions="Center"
+                    TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+            <Button Text="Select all"
+                Command="{Binding SelectAllCommand}"
+                Background="Transparent"
+                TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
+                Padding="8,0" />
+            <Button Text="Clear"
+                Command="{Binding ClearSelectionCommand}"
+                Background="Transparent"
+                TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
+                Padding="8,0" />
+            <Button Text="Delete"
+                Command="{Binding DeleteSelectedCommand}"
+                Background="#A83A3A"
+                TextColor="White"
+                CornerRadius="10" />
+            <Button Text="Cancel"
+                Command="{Binding ExitSelectionModeCommand}"
+                 Background="{StaticResource LibraryAccentLightSurface}"
+                 TextColor="{StaticResource LibraryAccent}"
+                CornerRadius="10" />
             </HorizontalStackLayout>
         </Grid>
 
-        <!-- Search + sort -->
         <Grid Grid.Row="1" ColumnDefinitions="{OnIdiom Phone='*', Default='*,Auto'}" RowDefinitions="{OnIdiom Phone='Auto,Auto', Default='Auto'}" ColumnSpacing="12">
             <SearchBar Placeholder="Search by title or author"
-                       PlaceholderColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}"
-                       Text="{Binding SearchQuery, Mode=TwoWay}"
-                       CancelButtonColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                       HorizontalOptions="Fill" />
+                   Text="{Binding SearchQuery, Mode=TwoWay}"
+                   CancelButtonColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
+                   HorizontalOptions="Fill" />
             <Picker Grid.Column="{OnIdiom Phone=0, Default=1}"
-                    Grid.Row="{OnIdiom Phone=1, Default=0}"
-                    Title="Sort library"
-                    ItemsSource="{Binding SortOptions}"
-                    SelectedItem="{Binding SortOption, Mode=TwoWay}"
-                    WidthRequest="{OnIdiom Phone=-1, Default=190}"
-                    HorizontalOptions="{OnIdiom Phone=Fill, Default=Center}"
-                    VerticalOptions="Center" />
+                Grid.Row="{OnIdiom Phone=1, Default=0}"
+                Title="Sort library"
+                ItemsSource="{Binding SortOptions}"
+                SelectedItem="{Binding SortOption, Mode=TwoWay}"
+                WidthRequest="{OnIdiom Phone=-1, Default=190}"
+                HorizontalOptions="{OnIdiom Phone=Fill, Default=Center}"
+                VerticalOptions="Center" />
         </Grid>
 
         <Label Grid.Row="2"
@@ -112,28 +94,27 @@
                IsVisible="{Binding HasError}"
                LineBreakMode="WordWrap" />
 
-        <!-- Card grid -->
         <RefreshView Grid.Row="3"
                      IsRefreshing="{Binding IsRefreshing}"
                      Command="{Binding LoadCommand}">
             <CollectionView x:Name="BooksCollection"
-                            ItemsSource="{Binding VisibleBooks}"
+                    ItemsSource="{Binding VisibleBooks}"
                             SelectionMode="None"
                             ItemSizingStrategy="MeasureAllItems">
                 <CollectionView.ItemsLayout>
                     <GridItemsLayout x:Name="BooksLayout"
                                      Orientation="Vertical"
                                      Span="2"
-                                     HorizontalItemSpacing="22"
-                                     VerticalItemSpacing="28" />
+                                     HorizontalItemSpacing="18"
+                                     VerticalItemSpacing="24" />
                 </CollectionView.ItemsLayout>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:LibraryBookItem">
                         <Border Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
                                 Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
                                 StrokeThickness="1"
-                                StrokeShape="RoundRectangle 16"
-                                Padding="12">
+                                StrokeShape="RoundRectangle 14"
+                                Padding="10">
                             <Border.Triggers>
                                 <DataTrigger TargetType="Border"
                                              Binding="{Binding IsSelected}"
@@ -147,28 +128,28 @@
                                 <TapGestureRecognizer Command="{Binding Source={x:Reference Page}, Path=ViewModel.OpenDetailsCommand, x:DataType=views:LibraryPage}"
                                                       CommandParameter="{Binding}" />
                             </Border.GestureRecognizers>
-                            <Grid RowDefinitions="{OnIdiom Phone='340,Auto,Auto', Default='400,Auto,Auto'}" RowSpacing="10">
+                            <Grid RowDefinitions="{OnIdiom Phone='300,Auto,Auto', Default='360,Auto,Auto'}" RowSpacing="9">
                                 <Grid Grid.Row="0">
                                     <Border Background="{AppThemeBinding Light={StaticResource LibraryCoverLight}, Dark={StaticResource LibraryCoverDark}}"
                                             StrokeThickness="0"
-                                            StrokeShape="RoundRectangle 10"
+                                            StrokeShape="RoundRectangle 8"
                                             Padding="0">
                                         <Image Source="{Binding CoverPath}"
-                                               Aspect="AspectFill"
+                                               Aspect="AspectFit"
                                                HorizontalOptions="Fill"
                                                VerticalOptions="Fill"
                                                SemanticProperties.Description="{Binding Title}" />
                                     </Border>
                                     <Border HorizontalOptions="End"
                                             VerticalOptions="Start"
-                                            Margin="10"
+                                            Margin="8"
                                             Padding="0"
-                                            WidthRequest="34"
-                                            HeightRequest="34"
+                                            WidthRequest="32"
+                                            HeightRequest="32"
                                             StrokeThickness="0"
-                                            StrokeShape="RoundRectangle 17"
+                                            StrokeShape="RoundRectangle 16"
                                             Background="{StaticResource LibraryAccent}"
-                                            IsVisible="{Binding Source={x:Reference Page}, Path=ViewModel.IsSelectionMode, x:DataType=views:LibraryPage}">
+                                             IsVisible="{Binding Source={x:Reference Page}, Path=ViewModel.IsSelectionMode, x:DataType=views:LibraryPage}">
                                         <Label Text="✓"
                                                TextColor="White"
                                                FontSize="20"
@@ -180,13 +161,13 @@
                                 <Label Grid.Row="1"
                                        Text="{Binding Title}"
                                        FontAttributes="Bold"
-                                       FontSize="17"
+                                       FontSize="16"
                                        LineBreakMode="TailTruncation"
                                        MaxLines="2" />
                                 <Label Grid.Row="2"
                                        Text="{Binding Author}"
-                                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
-                                       FontSize="14"
+                                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                       FontSize="13"
                                        LineBreakMode="TailTruncation"
                                        MaxLines="1" />
                             </Grid>
@@ -208,15 +189,13 @@
                                HorizontalOptions="Center"
                                IsVisible="{Binding IsSearchEmpty}" />
                         <Label Text="Try a different title or author."
-                               TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
                                HorizontalOptions="Center"
                                IsVisible="{Binding IsSearchEmpty}" />
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
             </CollectionView>
         </RefreshView>
-
-        <!-- Import progress overlay -->
         <Grid Grid.RowSpan="4"
               Background="#99000000"
               IsVisible="{Binding IsImporting}"
@@ -238,7 +217,7 @@
                                    FontSize="24"
                                    FontAttributes="Bold" />
                             <Label Text="{Binding ImportStage}"
-                                   TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                    TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
                                    FontSize="15"
                                    LineBreakMode="TailTruncation"
                                    MaxLines="1"
@@ -248,14 +227,16 @@
                                Text="{Binding ImportProgressPercent}"
                                FontSize="28"
                                FontAttributes="Bold"
-                               TextColor="{StaticResource LibraryAccent}"
+                                TextColor="{StaticResource LibraryAccent}"
                                HorizontalTextAlignment="End"
                                VerticalOptions="Center" />
                     </Grid>
+
                     <ProgressBar Progress="{Binding ImportProgress}"
-                                 ProgressColor="{StaticResource LibraryAccent}"
-                                 Background="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                                  ProgressColor="{StaticResource LibraryAccent}"
+                                  Background="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
                                  HeightRequest="10" />
+
                     <Label Text="{Binding ImportCurrentItem}"
                            FontSize="14"
                            LineBreakMode="TailTruncation"
@@ -263,7 +244,7 @@
                            HeightRequest="20" />
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <Label Text="{Binding ImportProgressSummary}"
-                               TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
                                VerticalOptions="Center" />
                         <Button Grid.Column="1"
                                 Text="Cancel"

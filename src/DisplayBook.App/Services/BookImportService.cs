@@ -24,25 +24,52 @@ public sealed class BookImportService(
             return [];
         }
 
-        if (!string.Equals(Path.GetExtension(file.FileName), ".epub", StringComparison.OrdinalIgnoreCase))
+        ValidateEpubFileName(file.FileName);
+        await using var source = await file.OpenReadAsync();
+        return await ImportArchiveAsync(source, file.FileName, progress, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BookSummary>> ImportLocalFileAsync(
+        string filePath,
+        IProgress<BookImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ValidateEpubFileName(filePath);
+        if (!File.Exists(filePath))
         {
-            throw new InvalidDataException("Please choose a file with the .epub extension.");
+            throw new FileNotFoundException("The downloaded EPUB no longer exists.", filePath);
         }
 
+        await using var source = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 81920,
+            useAsync: true);
+        return await ImportArchiveAsync(source, Path.GetFileName(filePath), progress, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<BookSummary>> ImportArchiveAsync(
+        Stream source,
+        string originalFileName,
+        IProgress<BookImportProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         var importId = Guid.NewGuid().ToString("N");
         var importRoot = Path.Combine(FileSystem.CacheDirectory, "DisplayBookImports", importId);
         var stagingRoot = Path.Combine(importRoot, "Book");
         Directory.CreateDirectory(stagingRoot);
         try
         {
-            ReportProgress(progress, "Importing book", file.FileName, 0, 1);
-            await using var source = await file.OpenReadAsync();
-            using var archive = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: false);
+            ReportProgress(progress, "Importing book", originalFileName, 0, 1);
+            using var archive = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true);
             ExtractArchive(archive, stagingRoot, cancellationToken);
             var contentHash = await ComputeDirectoryHashAsync(stagingRoot, cancellationToken);
             var knownHashes = await GetKnownContentHashesAsync(progress, cancellationToken);
-            var book = await SaveImportedBookAsync(stagingRoot, file.FileName, importId, contentHash, knownHashes, cancellationToken);
-            ReportProgress(progress, "Import complete", book?.Title ?? file.FileName, 1, 1);
+            var book = await SaveImportedBookAsync(stagingRoot, originalFileName, importId, contentHash, knownHashes, cancellationToken);
+            ReportProgress(progress, "Import complete", book?.Title ?? originalFileName, 1, 1);
             return book is null ? [] : [book];
         }
         finally
@@ -375,6 +402,14 @@ public sealed class BookImportService(
         int total)
     {
         progress?.Report(new BookImportProgress(stage, currentItem, completed, total));
+    }
+
+    private static void ValidateEpubFileName(string fileName)
+    {
+        if (!string.Equals(Path.GetExtension(fileName), ".epub", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Please choose a file with the .epub extension.");
+        }
     }
 
     private static void DeleteDirectory(string path)
