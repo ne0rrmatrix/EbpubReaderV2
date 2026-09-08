@@ -7,4 +7,7 @@
        NavBarIsVisible="False">
        <ShellContent Route="MainPage"
                      ContentTemplate="{DataTemplate views:LibraryPage}" />
+       <Shell.BackButtonBehavior>
+              <BackButtonBehavior IsVisible="False" IsEnabled="False" />
+       </Shell.BackButtonBehavior>
 </Shell>

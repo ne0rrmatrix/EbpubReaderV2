@@ -4,6 +4,10 @@
              xmlns:viewer="clr-namespace:DisplayBook.Viewer.Controls"
              x:Class="DisplayBook.Viewer.Controls.EpubReaderView"
              Background="Black">
+
+    <Shell.BackButtonBehavior>
+        <BackButtonBehavior IsVisible="False" IsEnabled="False" />
+    </Shell.BackButtonBehavior>
     <viewer:ReaderWebView x:Name="ReaderWebView"
                           AutomationId="EpubReaderWebView"
                           HorizontalOptions="Fill"

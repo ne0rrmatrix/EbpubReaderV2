@@ -14,6 +14,10 @@
              x:Name="Page"
              x:DataType="vm:LibraryViewModel"
              Title="Library">
+
+     <Shell.BackButtonBehavior>
+        <BackButtonBehavior IsVisible="False" IsEnabled="False" />
+    </Shell.BackButtonBehavior>
     <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="{OnIdiom Phone=16, Default=32}" RowSpacing="20">
 
         <!-- Header + primary actions -->
