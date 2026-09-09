@@ -317,8 +317,15 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
             entry.Categories.Add(new OpdsCategory { Term = entry.Series, Label = entry.Series, Scheme = SeriesScheme });
         }
 
-        entry.ExtendedMetadata[Tags.Language] = FirstLocal(entryEl, Tags.Language)?.Value;
-        entry.ExtendedMetadata[Tags.Publisher] = FirstLocal(entryEl, Tags.Publisher)?.Value;
+        if (FirstLocal(entryEl, Tags.Language)?.Value is { } language)
+        {
+            entry.ExtendedMetadata[Tags.Language] = language;
+        }
+
+        if (FirstLocal(entryEl, Tags.Publisher)?.Value is { } publisher)
+        {
+            entry.ExtendedMetadata[Tags.Publisher] = publisher;
+        }
 
         foreach (var idEl in Locals(entryEl, Tags.Identifier))
         {
@@ -482,8 +489,15 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
             }
         }
 
-        entry.ExtendedMetadata[Tags.Language] = (FirstLocal(desc, Tags.InLanguage) ?? FirstLocal(desc, Tags.Language))?.Value;
-        entry.ExtendedMetadata[Tags.Publisher] = (FirstLocal(desc, Tags.Provider) ?? FirstLocal(desc, Tags.Publisher))?.Value;
+        if ((FirstLocal(desc, Tags.InLanguage) ?? FirstLocal(desc, Tags.Language))?.Value is { } language)
+        {
+            entry.ExtendedMetadata[Tags.Language] = language;
+        }
+
+        if ((FirstLocal(desc, Tags.Provider) ?? FirstLocal(desc, Tags.Publisher))?.Value is { } publisher)
+        {
+            entry.ExtendedMetadata[Tags.Publisher] = publisher;
+        }
 
         return entry;
     }

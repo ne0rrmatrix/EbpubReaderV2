@@ -68,22 +68,23 @@
                 <fieldset>
                     <legend>Theme</legend>
                     <div class="settings-choice-row">
+                        <label><input type="radio" name="theme" value="original"> Original</label>
                         <label><input type="radio" name="theme" value="paper"> Paper</label>
                         <label><input type="radio" name="theme" value="sepia"> Sepia</label>
                         <label><input type="radio" name="theme" value="night"> Night</label>
                     </div>
                 </fieldset>
                 <div class="settings-grid">
-                    <label>Font family<select name="fontFamily"><option value="serif">Serif</option><option value="sans">Sans</option><option value="humanist">Humanist</option><option value="monospace">Monospace</option></select></label>
+                    <label>Font family<select name="fontFamily"><option value="original">Original</option><option value="serif">Serif</option><option value="sans">Sans</option><option value="humanist">Humanist</option><option value="monospace">Monospace</option></select></label>
                     <label>Pagination<select name="paginationMode"><option value="paged">Paginated</option><option value="scroll">Continuous scroll</option></select></label>
                     <label>Columns<select name="columnMode"><option value="single">One column</option><option value="two">Two columns (wide screens)</option></select></label>
                     <label>Reading width<select name="lineLength"><option value="100%">Full width</option><option value="75ch">Wide</option><option value="65ch">Comfortable</option><option value="55ch">Narrow</option></select></label>
                     <label>Alignment<select name="textAlignment"><option value="auto">Publication default</option><option value="left">Left</option><option value="justify">Justified</option></select></label>
-                    <label>Hyphenation<select name="hyphenation"><option value="auto">Automatic</option><option value="none">Off</option></select></label>
-                    <label>Paragraph spacing<select name="paragraphSpacing"><option value="0">Compact</option><option value="0.35em">Relaxed</option><option value="0.7em">Spacious</option></select></label>
-                    <label>Paragraph indent<select name="paragraphIndent"><option value="0">None</option><option value="1em">Standard</option><option value="2em">Large</option></select></label>
+                    <label>Hyphenation<select name="hyphenation"><option value="original">Publication default</option><option value="auto">Automatic</option><option value="none">Off</option></select></label>
+                    <label>Paragraph spacing<select name="paragraphSpacing"><option value="original">Publication default</option><option value="0">Compact</option><option value="0.35em">Relaxed</option><option value="0.7em">Spacious</option></select></label>
+                    <label>Paragraph indent<select name="paragraphIndent"><option value="original">Publication default</option><option value="0">None</option><option value="1em">Standard</option><option value="2em">Large</option></select></label>
                     <label>Image treatment<select name="imageTreatment"><option value="normal">Normal</option><option value="dim">Dim</option><option value="invert">Invert</option><option value="dim-invert">Dim and invert</option></select></label>
-                    <label>Font weight<select name="fontWeight"><option value="normal">Normal</option><option value="600">Medium</option><option value="700">Bold</option></select></label>
+                    <label>Font weight<select name="fontWeight"><option value="original">Publication default</option><option value="normal">Normal</option><option value="600">Medium</option><option value="700">Bold</option></select></label>
                     <label>Word spacing<select name="wordSpacing"><option value="0">Normal</option><option value="0.08em">Wide</option><option value="0.16em">Extra wide</option></select></label>
                     <label>Letter spacing<select name="letterSpacing"><option value="normal">Normal</option><option value="0.03em">Wide</option><option value="0.06em">Extra wide</option></select></label>
                 </div>

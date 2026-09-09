@@ -73,9 +73,9 @@ public sealed partial class CatalogEntryModel(OpdsEntry entry, bool isBook, Opds
 
     public string Title { get; } = string.IsNullOrWhiteSpace(entry.Title) ? "(untitled)" : entry.Title;
 
-    public string Subtitle => isBook
+    public string Subtitle => IsBook
         ? FormatAuthors()
-        : (entry.Summary ?? string.Empty);
+        : (Entry.Summary ?? string.Empty);
 
     public string? CoverUrl { get; } = entry.Cover?.ThumbnailUrl ?? entry.Cover?.Url;
 
@@ -86,7 +86,7 @@ public sealed partial class CatalogEntryModel(OpdsEntry entry, bool isBook, Opds
 
     private string FormatAuthors()
     {
-        var names = entry.Authors
+        var names = Entry.Authors
             .Where(a => !string.IsNullOrWhiteSpace(a.Name))
             .Select(a => a.Name)
             .ToList();

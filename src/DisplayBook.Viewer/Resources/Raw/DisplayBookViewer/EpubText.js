@@ -15,36 +15,36 @@
     const SETTINGS_STORAGE_VERSION = 1;
     const WIDE_VIEWPORT_MINIMUM = 1200;
     const DEFAULT_SETTINGS = Object.freeze({
-        theme: "sepia",
-        fontFamily: "serif",
+        theme: "original",
+        fontFamily: "original",
         fontSize: "100%",
-        lineHeight: "1.5",
+        lineHeight: "original",
         paginationMode: "paged",
         columnMode: "single",
         columnCount: "1",
         lineLength: "100%",
         textAlignment: "auto",
-        hyphenation: "auto",
-        paragraphSpacing: "0",
-        paragraphIndent: "1em",
+        hyphenation: "original",
+        paragraphSpacing: "original",
+        paragraphIndent: "original",
         wordSpacing: "0",
         letterSpacing: "normal",
-        fontWeight: "normal",
+        fontWeight: "original",
         imageTreatment: "normal"
     });
     const SETTING_CHOICES = {
-        theme: new Set(["paper", "sepia", "night"]),
-        fontFamily: new Set(["serif", "sans", "humanist", "monospace"]),
+        theme: new Set(["original", "paper", "sepia", "night"]),
+        fontFamily: new Set(["original", "serif", "sans", "humanist", "monospace"]),
         paginationMode: new Set(["paged", "scroll"]),
         columnMode: new Set(["single", "two"]),
         lineLength: new Set(["100%", "75ch", "65ch", "55ch"]),
         textAlignment: new Set(["auto", "left", "justify"]),
-        hyphenation: new Set(["auto", "none"]),
-        paragraphSpacing: new Set(["0", "0.35em", "0.7em"]),
-        paragraphIndent: new Set(["0", "1em", "2em"]),
+        hyphenation: new Set(["original", "auto", "none"]),
+        paragraphSpacing: new Set(["original", "0", "0.35em", "0.7em"]),
+        paragraphIndent: new Set(["original", "0", "1em", "2em"]),
         wordSpacing: new Set(["0", "0.08em", "0.16em"]),
         letterSpacing: new Set(["normal", "0.03em", "0.06em"]),
-        fontWeight: new Set(["normal", "600", "700"]),
+        fontWeight: new Set(["original", "normal", "600", "700"]),
         imageTreatment: new Set(["normal", "dim", "invert", "dim-invert"])
     };
 
@@ -118,7 +118,7 @@
         if (name === "fontSize" && /^(?:8[5-9]|9\d|1[0-4]\d|150)%$/u.test(value)) {
             return value;
         }
-        if (name === "lineHeight" && /^(?:1\.[2-9]|2(?:\.0)?)$/u.test(value)) {
+        if (name === "lineHeight" && (value === "original" || /^(?:1\.[2-9]|2(?:\.0)?)$/u.test(value))) {
             return value;
         }
         return fallback;
@@ -210,13 +210,17 @@
                 chromeBorder: "rgba(255, 255, 255, 0.18)",
                 chromeAccent: "#66e0c1"
             }
-        }[settings.theme];
-        document.documentElement.style.setProperty("--reader-surface", theme.background);
-        document.documentElement.style.setProperty("--reader-chrome-surface", theme.chromeSurface);
-        document.documentElement.style.setProperty("--reader-chrome-ink", theme.chromeInk);
-        document.documentElement.style.setProperty("--reader-chrome-muted", theme.chromeMuted);
-        document.documentElement.style.setProperty("--reader-chrome-border", theme.chromeBorder);
-        document.documentElement.style.setProperty("--reader-chrome-accent", theme.chromeAccent);
+        };
+        // The app chrome (toolbars, panels) always needs a look, even when the
+        // book content itself is left in its unstyled "original" state.
+        const chromePreset = theme[settings.theme] ?? theme.paper;
+        const contentTheme = theme[settings.theme];
+        document.documentElement.style.setProperty("--reader-surface", chromePreset.background);
+        document.documentElement.style.setProperty("--reader-chrome-surface", chromePreset.chromeSurface);
+        document.documentElement.style.setProperty("--reader-chrome-ink", chromePreset.chromeInk);
+        document.documentElement.style.setProperty("--reader-chrome-muted", chromePreset.chromeMuted);
+        document.documentElement.style.setProperty("--reader-chrome-border", chromePreset.chromeBorder);
+        document.documentElement.style.setProperty("--reader-chrome-accent", chromePreset.chromeAccent);
         const fontFamily = {
             serif: '"Iowan Old Style", Georgia, serif',
             sans: '"Segoe UI", Arial, sans-serif',
@@ -231,30 +235,34 @@
         }[settings.imageTreatment];
 
         const variables = {
-            "--USER__backgroundColor": theme.background,
-            "--USER__textColor": theme.text,
-            "--USER__linkColor": theme.link,
+            "--USER__backgroundColor": contentTheme?.background,
+            "--USER__textColor": contentTheme?.text,
+            "--USER__linkColor": contentTheme?.link,
             "--USER__colCount": settings.columnCount,
             "--USER__lineLength": settings.lineLength,
-            "--USER__textAlign": settings.textAlignment,
-            "--USER__bodyHyphens": settings.hyphenation,
+            "--USER__textAlign": settings.textAlignment === "auto" ? undefined : settings.textAlignment,
+            "--USER__bodyHyphens": settings.hyphenation === "original" ? undefined : settings.hyphenation,
             "--USER__fontFamily": fontFamily,
             "--USER__fontSize": settings.fontSize,
-            "--USER__lineHeight": settings.lineHeight,
-            "--USER__paraSpacing": settings.paragraphSpacing,
-            "--USER__paraIndent": settings.paragraphIndent,
+            "--USER__lineHeight": settings.lineHeight === "original" ? undefined : settings.lineHeight,
+            "--USER__paraSpacing": settings.paragraphSpacing === "original" ? undefined : settings.paragraphSpacing,
+            "--USER__paraIndent": settings.paragraphIndent === "original" ? undefined : settings.paragraphIndent,
             "--USER__wordSpacing": settings.wordSpacing,
             "--USER__letterSpacing": settings.letterSpacing,
-            "--USER__fontWeight": settings.fontWeight,
+            "--USER__fontWeight": settings.fontWeight === "original" ? undefined : settings.fontWeight,
             "--USER__darkenImages": imageTreatment.darken,
             "--USER__invertImages": imageTreatment.invert
         };
         for (const [name, value] of Object.entries(variables)) {
-            root.style.setProperty(name, value);
+            if (value === undefined) {
+                root.style.removeProperty(name);
+            } else {
+                root.style.setProperty(name, value);
+            }
         }
         notifyNative("themeChanged", {
             theme: settings.theme,
-            background: theme.background
+            background: chromePreset.background
         });
         if (settings.paginationMode === "scroll") {
             root.style.setProperty("readium-scroll-on", "");
@@ -281,16 +289,21 @@
         }
         for (const [name, value] of Object.entries(state.settings)) {
             const control = form.elements.namedItem(name);
+            const isOriginalLineHeight = name === "lineHeight" && value === "original";
             if (control instanceof RadioNodeList) {
                 for (const radio of control) {
                     radio.checked = radio.value === value;
                 }
             } else if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
-                control.value = name === "fontSize" ? value.replace("%", "") : value;
+                if (name === "fontSize") {
+                    control.value = value.replace("%", "");
+                } else {
+                    control.value = isOriginalLineHeight ? "1.5" : value;
+                }
             }
             const output = form.querySelector(`[data-for="${name}"]`);
             if (output) {
-                output.textContent = value;
+                output.textContent = isOriginalLineHeight ? "Original" : value;
             }
         }
     }
@@ -525,11 +538,19 @@
         const title = getLocalNameNodes(packageDocument, "title")[0]?.textContent?.trim() ?? "Untitled publication";
         const author = getLocalNameNodes(packageDocument, "creator")[0]?.textContent?.trim() ?? "";
 
+        const navXhtmlItem = Array.from(manifest.values()).find((item) => item.properties.split(/\s+/u).includes("nav"));
+        const tocId = spineElement.getAttribute("toc");
+        const ncxItem = (tocId && manifest.get(tocId)) ||
+            Array.from(manifest.values()).find((item) => item.mediaType === "application/x-dtbncx+xml");
+        const nav = navXhtmlItem
+            ? { ...navXhtmlItem, navType: "xhtml" }
+            : (ncxItem ? { ...ncxItem, navType: "ncx" } : undefined);
+
         return {
             manifest,
             metadata: { author, title },
             spine,
-            nav: Array.from(manifest.values()).find((item) => item.properties.split(/\s+/u).includes("nav"))
+            nav
         };
     }
 
@@ -631,7 +652,7 @@
                 margin: 0 !important;
                 padding-inline: 0 !important;
                 box-sizing: border-box !important;
-                background: var(--USER__backgroundColor, #f6f1e8) !important;
+                background: var(--USER__backgroundColor, transparent) !important;
             }
 
             :root::-webkit-scrollbar {
@@ -674,11 +695,14 @@
             }
 
             /* EPUB chapters sometimes add asymmetric margins to a direct wrapper.
-               Re-center that wrapper without changing paragraph indentation. */
+               Re-center that wrapper without changing paragraph indentation. Left
+               unimportant so a publication's own margin/alignment rules (e.g. a
+               class deliberately left- or right-aligning a block) still win by
+               specificity instead of being forced back to center. */
             body > * {
                 max-width: 100% !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
+                margin-left: auto;
+                margin-right: auto;
                 box-sizing: border-box !important;
             }
 
@@ -946,8 +970,17 @@
         });
     }
 
+    function isElementNode(node) {
+        // `instanceof Element` fails for nodes that belong to the reading
+        // frame's document: it's a different window/realm than this script's,
+        // so its elements aren't instances of *this* window's Element
+        // constructor even though they're genuine elements. nodeType is a
+        // plain data property and works the same across realms.
+        return Boolean(node) && node.nodeType === Node.ELEMENT_NODE;
+    }
+
     function isInteractiveTarget(target) {
-        return target instanceof Element && Boolean(target.closest("a, button, input, select, textarea, video, audio, summary, [contenteditable=\"true\"]"));
+        return isElementNode(target) && Boolean(target.closest("a, button, input, select, textarea, video, audio, summary, [contenteditable=\"true\"]"));
     }
 
     function hasTextSelection(frameDocument) {
@@ -980,7 +1013,7 @@
     function installFrameInputHandlers(frameDocument) {
         let pointerStart = null;
         frameDocument.addEventListener("click", (event) => {
-            const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+            const link = isElementNode(event.target) ? event.target.closest("a[href]") : null;
             if (link) {
                 handleContentLink(event, link);
                 return;
@@ -1053,7 +1086,7 @@
             }
             return;
         }
-        if (event.target instanceof Element && event.target.matches("input, select, textarea, [contenteditable=\"true\"]")) {
+        if (isElementNode(event.target) && event.target.matches("input, select, textarea, [contenteditable=\"true\"]")) {
             return;
         }
 
@@ -1073,13 +1106,17 @@
     }
 
     function handleContentLink(event, link) {
+        // Always stop the iframe from following the link itself: an href that
+        // doesn't resolve to a spine chapter (an external URL, mailto:, a
+        // resource outside the spine) must never be allowed to navigate the
+        // frame for real, or the reader loses control of it entirely.
+        event.preventDefault();
         const targetUrl = getAbsoluteUrl(link.getAttribute("href"), state.documentUrl);
         const targetIndex = getSpineIndex(targetUrl);
         if (targetIndex < 0) {
             return;
         }
 
-        event.preventDefault();
         const target = new URL(targetUrl);
         loadResource(targetIndex, target.hash).catch(setError);
     }
@@ -1263,13 +1300,7 @@
         }
     }
 
-    async function loadContents(navItem) {
-        if (!navItem) {
-            return;
-        }
-
-        const navUrl = navItem.href;
-        const navText = await fetchText(navUrl);
+    function parseXhtmlToc(navText, navUrl) {
         const navDocument = new DOMParser().parseFromString(navText, "application/xhtml+xml");
         const links = Array.from(navDocument.querySelectorAll("nav a[href], a[href]"));
         const toc = [];
@@ -1290,6 +1321,45 @@
                 spineIndex
             });
         }
+        return toc;
+    }
+
+    function parseNcxToc(navText, navUrl) {
+        const navDocument = new DOMParser().parseFromString(navText, "application/xml");
+        if (navDocument.querySelector("parsererror")) {
+            throw new Error("The EPUB NCX navigation document is not valid XML.");
+        }
+
+        const toc = [];
+        for (const navPoint of getLocalNameNodes(navDocument, "navPoint")) {
+            const href = getLocalNameNodes(navPoint, "content")[0]?.getAttribute("src");
+            if (!href) {
+                continue;
+            }
+            const targetUrl = getAbsoluteUrl(href, navUrl);
+            const target = new URL(targetUrl);
+            const spineIndex = getSpineIndex(target.href);
+            if (spineIndex < 0) {
+                continue;
+            }
+            const label = getLocalNameNodes(navPoint, "text")[0]?.textContent?.trim();
+            toc.push({
+                fragment: target.hash,
+                label: label || getSpineLabel(spineIndex),
+                spineIndex
+            });
+        }
+        return toc;
+    }
+
+    async function loadContents(navItem) {
+        if (!navItem) {
+            return;
+        }
+
+        const navUrl = navItem.href;
+        const navText = await fetchText(navUrl);
+        const toc = navItem.navType === "ncx" ? parseNcxToc(navText, navUrl) : parseXhtmlToc(navText, navUrl);
 
         state.toc = toc;
         elements.contentsList.replaceChildren();
