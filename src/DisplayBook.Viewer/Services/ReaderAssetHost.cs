@@ -19,6 +19,7 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
     public async Task InitializeAsync(
         WebView webView,
         Func<string, Task>? navigationHandler = null,
+        Action<string>? dictionaryLookupRequested = null,
         CancellationToken cancellationToken = default)
     {
         await InitializationLock.WaitAsync(cancellationToken);
@@ -35,7 +36,7 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
                 await source.CopyToAsync(target, cancellationToken);
             }
 
-            await ConfigurePlatformWebViewAsync(webView, ContentRoot, navigationHandler, cancellationToken);
+            await ConfigurePlatformWebViewAsync(webView, ContentRoot, navigationHandler, dictionaryLookupRequested, cancellationToken);
         }
         finally
         {
@@ -67,6 +68,7 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
         WebView webView,
         string contentRoot,
         Func<string, Task>? navigationHandler,
+        Action<string>? dictionaryLookupRequested,
         CancellationToken cancellationToken);
     private static partial Uri CreateViewerUri(string publicationRoot, string opfRelativePath);
 }

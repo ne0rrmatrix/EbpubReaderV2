@@ -32,5 +32,44 @@
                        HorizontalOptions="Center" />
             </VerticalStackLayout>
         </Grid>
+        <Grid x:Name="DefinitionOverlay"
+              BackgroundColor="#80000000"
+              IsVisible="False"
+              VerticalOptions="End">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnDefinitionScrimTapped" />
+            </Grid.GestureRecognizers>
+            <Border BackgroundColor="#F5F0E6"
+                    StrokeThickness="0"
+                    Padding="20"
+                    Margin="0,0,0,0"
+                    VerticalOptions="End"
+                    MaximumHeightRequest="320">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="16,16,0,0" />
+                </Border.StrokeShape>
+                <Border.GestureRecognizers>
+                    <!-- Swallows taps on the card itself so they don't fall through to the scrim's dismiss handler. -->
+                    <TapGestureRecognizer Tapped="OnDefinitionCardTapped" />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                    <Label x:Name="DefinitionWordLabel"
+                           Grid.Row="0"
+                           TextColor="#2C241B"
+                           FontSize="20"
+                           FontAttributes="Bold" />
+                    <ScrollView Grid.Row="1">
+                        <Label x:Name="DefinitionTextLabel"
+                               TextColor="#2C241B"
+                               FontSize="15"
+                               LineBreakMode="WordWrap" />
+                    </ScrollView>
+                    <Button Grid.Row="2"
+                            Text="Close"
+                            HorizontalOptions="End"
+                            Clicked="OnDefinitionCloseClicked" />
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </ContentView>

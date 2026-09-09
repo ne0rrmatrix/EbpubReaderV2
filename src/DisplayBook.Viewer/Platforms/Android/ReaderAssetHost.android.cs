@@ -8,11 +8,17 @@ public sealed partial class ReaderAssetHost
         Microsoft.Maui.Controls.WebView webView,
         string contentRoot,
         Func<string, Task>? navigationHandler,
+        Action<string>? dictionaryLookupRequested,
         CancellationToken cancellationToken)
     {
-        if (webView.Handler?.PlatformView is not Android.Webkit.WebView nativeWebView)
+        if (webView.Handler?.PlatformView is not DisplayBook.Viewer.Handlers.ReaderSelectionWebView nativeWebView)
         {
             throw new InvalidOperationException("The Android reader WebView is not ready for local content hosting.");
+        }
+
+        if (dictionaryLookupRequested is not null)
+        {
+            nativeWebView.SelectionLookupRequested += (_, selection) => dictionaryLookupRequested(selection);
         }
 
         var context = nativeWebView.Context ?? throw new InvalidOperationException("The Android reader WebView has no context.");

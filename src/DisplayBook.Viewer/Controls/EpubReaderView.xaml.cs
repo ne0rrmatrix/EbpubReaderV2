@@ -9,6 +9,7 @@ namespace DisplayBook.Viewer.Controls;
 public partial class EpubReaderView : ContentView
 {
     private readonly ReaderAssetHost _assetHost = new();
+    private readonly IDictionaryLookupService _dictionaryLookupService = new DictionaryLookupService();
     private bool _hasLoadedPublication;
     private bool _isLoading;
     private bool _isReadyForLocationChanges;
@@ -98,7 +99,7 @@ public partial class EpubReaderView : ContentView
         LoadingOverlay.IsVisible = true;
         try
         {
-            await _assetHost.InitializeAsync(ReaderWebView, HandleNativeNavigationAsync, cancellationToken);
+            await _assetHost.InitializeAsync(ReaderWebView, HandleNativeNavigationAsync, HandleDictionaryLookupRequested, cancellationToken);
             _hasLoadedPublication = true;
             _isReadyForLocationChanges = false;
             _readerReadyReceived = false;
@@ -204,6 +205,24 @@ public partial class EpubReaderView : ContentView
         return HandleNavigationAsync(url, cancelNavigation: null);
     }
 
+    private void HandleDictionaryLookupRequested(string selection)
+    {
+        _ = HandleDictionaryLookupRequestedAsync(selection);
+    }
+
+    private async Task HandleDictionaryLookupRequestedAsync(string selection)
+    {
+        try
+        {
+            var result = await _dictionaryLookupService.LookupAsync(selection);
+            ShowDefinition(selection, result);
+        }
+        catch (Exception exception)
+        {
+            RaiseReaderError(exception.Message);
+        }
+    }
+
     private async Task HandleNavigationAsync(string? url, Action? cancelNavigation)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
@@ -305,6 +324,14 @@ public partial class EpubReaderView : ContentView
                     : message.Payload.ToString();
                 RaiseReaderError(string.IsNullOrWhiteSpace(error) ? "The reader could not open the publication." : error);
                 break;
+            case ReaderBridgeMessageTypes.DictionaryLookupRequested:
+                if (message.Payload.TryGetProperty("text", out var selectionElement) &&
+                    selectionElement.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(selectionElement.GetString()))
+                {
+                    HandleDictionaryLookupRequested(selectionElement.GetString()!);
+                }
+                break;
         }
     }
 
@@ -312,6 +339,29 @@ public partial class EpubReaderView : ContentView
     {
         LoadingOverlay.IsVisible = false;
         ReaderError?.Invoke(this, message);
+    }
+
+    private void ShowDefinition(string selection, DictionaryDefinition? result)
+    {
+        DefinitionWordLabel.Text = result?.Word ?? selection.Trim();
+        DefinitionTextLabel.Text = result?.Definition ?? $"No definition found for “{selection.Trim()}”.";
+        DefinitionOverlay.IsVisible = true;
+    }
+
+    private void OnDefinitionScrimTapped(object? sender, TappedEventArgs e)
+    {
+        DefinitionOverlay.IsVisible = false;
+    }
+
+    private void OnDefinitionCardTapped(object? sender, TappedEventArgs e)
+    {
+        // Intentionally empty: swallows the tap so it doesn't bubble to the scrim's
+        // dismiss handler when the user taps inside the definition card.
+    }
+
+    private void OnDefinitionCloseClicked(object? sender, EventArgs e)
+    {
+        DefinitionOverlay.IsVisible = false;
     }
 
     private void CompleteInitialReaderReady()

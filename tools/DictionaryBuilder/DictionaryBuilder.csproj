@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Standalone dev utility. Not part of DisplayBook.slnx and not built as part of the
+    app - it's run manually, once in a while, to regenerate
+    src/DisplayBook.Viewer/Resources/Raw/Dictionary/websters1913.db from the public
+    domain Project Gutenberg source text. See ../../src/DisplayBook.Viewer/Resources/Raw/Dictionary/SOURCE.md
+    for provenance and licensing details.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DictionaryBuilder</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

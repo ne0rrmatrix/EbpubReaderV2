@@ -61,6 +61,7 @@
         loadingCover: document.getElementById("reader-loading-cover"),
         loadingLabel: document.getElementById("reader-loading-label"),
         location: document.getElementById("reader-location"),
+        lookupButton: document.getElementById("lookup-button"),
         next: document.getElementById("next-page"),
         previous: document.getElementById("previous-page"),
         progress: document.getElementById("progress-value"),
@@ -88,6 +89,7 @@
         opfUrl: "",
         pageCount: 1,
         pendingLoad: null,
+        pendingLookupText: "",
         publicationStyles: new Map(),
         readerStyles: new Map(),
         resourceCache: new Map(),
@@ -988,6 +990,61 @@
         return Boolean(selection && !selection.isCollapsed && selection.toString().trim());
     }
 
+    const LOOKUP_BUTTON_LABEL_MAX_LENGTH = 24;
+
+    function hideLookupButton() {
+        elements.lookupButton.hidden = true;
+        state.pendingLookupText = "";
+    }
+
+    function truncateForLookupLabel(text) {
+        return text.length > LOOKUP_BUTTON_LABEL_MAX_LENGTH
+            ? `${text.slice(0, LOOKUP_BUTTON_LABEL_MAX_LENGTH)}…`
+            : text;
+    }
+
+    // The lookup button lives in the OUTER document (a sibling of the <iframe> in
+    // .book-viewport), not inside the reading frame, and it's pinned to a fixed spot
+    // rather than tracked to the selection's on-screen position. Two earlier attempts
+    // both put a button inside the frame's own document, positioned right next to the
+    // selection -- and on Android it was reliably killed within a second of appearing.
+    // The reading frame is one native Android WebView; the OS's own text-selection
+    // toolbar/handles are a platform-level overlay drawn on top of that WebView's
+    // surface, anchored right next to the selection -- not something any in-page
+    // z-index can out-stack, and not something confined to "inside the iframe" either.
+    // A fixed, out-of-the-way spot avoids competing with it for the same screen
+    // position instead of trying to win a stacking fight it can't win, and staying
+    // outside the iframe means it's immune to the reading frame's own pagination
+    // reflows/scrolls (which were also fighting the old in-frame version).
+    function installSelectionLookupHandler(frameDocument) {
+        hideLookupButton();
+        let settleTimer = 0;
+
+        function refreshOrHideButton() {
+            const selection = frameDocument.defaultView?.getSelection();
+            const text = selection && !selection.isCollapsed && selection.rangeCount > 0
+                ? selection.toString().trim()
+                : "";
+
+            if (!text) {
+                hideLookupButton();
+                return;
+            }
+
+            state.pendingLookupText = text;
+            elements.lookupButton.textContent = `Look up "${truncateForLookupLabel(text)}"`;
+            elements.lookupButton.hidden = false;
+        }
+
+        frameDocument.addEventListener("selectionchange", () => {
+            window.clearTimeout(settleTimer);
+            settleTimer = window.setTimeout(refreshOrHideButton, 220);
+        });
+
+        const scroller = frameDocument.scrollingElement;
+        scroller?.addEventListener("scroll", refreshOrHideButton, { passive: true });
+    }
+
     function setReaderChromeVisible(isVisible) {
         state.chromeVisible = isVisible;
         elements.readerShell.classList.toggle("reader-shell--immersive", !isVisible);
@@ -1011,6 +1068,8 @@
     }
 
     function installFrameInputHandlers(frameDocument) {
+        installSelectionLookupHandler(frameDocument);
+
         let pointerStart = null;
         frameDocument.addEventListener("click", (event) => {
             const link = isElementNode(event.target) ? event.target.closest("a[href]") : null;
@@ -1414,6 +1473,13 @@
         elements.readerBack.addEventListener("click", () => notifyNative("requestExit"));
         elements.previous.addEventListener("click", goPrevious);
         elements.next.addEventListener("click", goNext);
+        elements.lookupButton.addEventListener("click", () => {
+            if (state.pendingLookupText) {
+                notifyNative("dictionaryLookupRequested", { text: state.pendingLookupText });
+            }
+
+            hideLookupButton();
+        });
         elements.progressSlider.addEventListener("input", (event) => {
             seekToProgress(event.target.value);
             previewProgress(event.target.value);
