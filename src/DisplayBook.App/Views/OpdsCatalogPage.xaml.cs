@@ -13,9 +13,24 @@ public partial class OpdsCatalogPage : ContentPage, IQueryAttributable
         _viewModel = viewModel;
         BindingContext = viewModel;
         InitializeComponent();
+        SizeChanged += OnPageSizeChanged;
     }
 
     internal OpdsCatalogViewModel ViewModel => _viewModel;
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        var width = Width;
+        if (width <= 0)
+        {
+            return;
+        }
+
+        if (EntriesCollection.ItemsLayout is GridItemsLayout gridLayout)
+        {
+            gridLayout.Span = ResponsiveGridSpan.Compute(width);
+        }
+    }
 
     protected override void OnDisappearing()
     {

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DisplayBook.App.Models;
+using DisplayBook.App.Services;
 using DisplayBook.App.Views;
 
 namespace DisplayBook.App.ViewModels;
@@ -77,7 +78,8 @@ public sealed partial class CatalogEntryModel(OpdsEntry entry, bool isBook, Opds
         ? FormatAuthors()
         : (Entry.Summary ?? string.Empty);
 
-    public string? CoverUrl { get; } = entry.Cover?.ThumbnailUrl ?? entry.Cover?.Url;
+    public string? CoverUrl { get; } = CalibreCoverUrl.Upgrade(
+        string.IsNullOrWhiteSpace(entry.Cover?.Url) ? entry.Cover?.ThumbnailUrl : entry.Cover.Url);
 
     public bool HasCover => !string.IsNullOrWhiteSpace(CoverUrl);
 

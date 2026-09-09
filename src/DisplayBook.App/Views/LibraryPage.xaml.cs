@@ -32,14 +32,7 @@ public partial class LibraryPage : ContentPage
 
         if (BooksCollection.ItemsLayout is GridItemsLayout gridLayout)
         {
-            gridLayout.Span = width switch
-            {
-                < 600 => 1,
-                < 900 => 3,
-                < 1600 => 4,
-                < 3000 => 5,
-                _ => 6
-            };
+            gridLayout.Span = ResponsiveGridSpan.Compute(width);
         }
     }
 }

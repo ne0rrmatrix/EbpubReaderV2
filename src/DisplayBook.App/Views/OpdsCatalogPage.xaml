@@ -2,11 +2,96 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             xmlns:conv="clr-namespace:DisplayBook.App.Views"
              x:Class="DisplayBook.App.Views.OpdsCatalogPage"
              x:DataType="vm:OpdsCatalogViewModel"
              Title="OPDS catalog">
-    <Grid RowDefinitions="Auto,*,Auto" Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
-        <VerticalStackLayout Grid.Row="0" Spacing="16">
+    <ContentPage.Resources>
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+        <conv:StringNotNullConverter x:Key="StringNotNull" />
+
+        <DataTemplate x:Key="BookCardTemplate" x:DataType="vm:CatalogEntryModel">
+            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 10"
+                    Padding="6">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding OpenCommand}" />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="180,Auto,Auto" RowSpacing="4">
+                    <Border Grid.Row="0"
+                            Background="{AppThemeBinding Light={StaticResource LibraryCoverLight}, Dark={StaticResource LibraryCoverDark}}"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 6"
+                            Padding="0">
+                        <Grid>
+                            <Label Text="📖"
+                                   FontSize="28"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   IsVisible="{Binding HasCover, Converter={StaticResource InverseBool}}" />
+                            <Image Source="{Binding CoverUrl}"
+                                   Aspect="AspectFill"
+                                   HorizontalOptions="Fill"
+                                   VerticalOptions="Fill"
+                                   IsVisible="{Binding HasCover}"
+                                   SemanticProperties.Description="{Binding Title}" />
+                        </Grid>
+                    </Border>
+                    <Label Grid.Row="1"
+                           Text="{Binding Title}"
+                           FontAttributes="Bold"
+                           FontSize="12"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="2" />
+                    <Label Grid.Row="2"
+                           Text="{Binding Subtitle}"
+                           FontSize="10"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="1"
+                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="NavigationCardTemplate" x:DataType="vm:CatalogEntryModel">
+            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 10"
+                    Padding="12"
+                    VerticalOptions="Fill">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding OpenCommand}" />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="6" VerticalOptions="Center">
+                    <Label Text="📂"
+                           FontSize="24"
+                           HorizontalOptions="Center" />
+                    <Label Text="{Binding Title}"
+                           FontAttributes="Bold"
+                           FontSize="13"
+                           HorizontalTextAlignment="Center"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="2" />
+                    <Label Text="{Binding Subtitle}"
+                           FontSize="10"
+                           HorizontalTextAlignment="Center"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="2"
+                           IsVisible="{Binding Subtitle, Converter={StaticResource StringNotNull}}"
+                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                </VerticalStackLayout>
+            </Border>
+        </DataTemplate>
+
+        <conv:CatalogEntryTemplateSelector x:Key="EntryTemplateSelector"
+                                            BookTemplate="{StaticResource BookCardTemplate}"
+                                            NavigationTemplate="{StaticResource NavigationCardTemplate}" />
+    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto,*,Auto" Padding="{OnIdiom Phone='10,6,10,10', Default='16,10,16,16'}">
+        <VerticalStackLayout Grid.Row="0" Spacing="8">
             <Button Text="‹  Servers"
                     Command="{Binding NavigateBackCommand}"
                     HorizontalOptions="Start"
@@ -14,17 +99,17 @@
                     TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
                     Padding="0"
                     AutomationId="CatalogBackButton" />
-            <VerticalStackLayout Spacing="4">
+            <VerticalStackLayout Spacing="2">
                 <Label Text="{Binding Title}"
-                       FontSize="28"
+                       FontSize="18"
                        FontAttributes="Bold"
                        AutomationId="CatalogTitle" />
                 <Label Text="{Binding Subtitle}"
-                       FontSize="13"
+                       FontSize="12"
                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
             </VerticalStackLayout>
             <Label Text="{Binding CrumbsText}"
-                   FontSize="12"
+                   FontSize="11"
                    TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
                    IsVisible="{Binding CanGoBack}"
                    AutomationId="BreadcrumbLabel" />
@@ -44,64 +129,30 @@
                         Command="{Binding SearchCommand}"
                         Background="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryAccent}}"
                         TextColor="{StaticResource White}"
-                        MinimumHeightRequest="44"
                         AutomationId="SearchButton" />
             </Grid>
             <ActivityIndicator IsRunning="{Binding IsLoading}"
                                 IsVisible="{Binding IsLoading}"
                                 HorizontalOptions="Center"
-                                WidthRequest="28"
-                                HeightRequest="28"
+                                WidthRequest="22"
+                                HeightRequest="22"
                                 AutomationId="CatalogLoadingIndicator" />
         </VerticalStackLayout>
         <CollectionView Grid.Row="1"
                         x:Name="EntriesCollection"
                         ItemsSource="{Binding Entries}"
+                        ItemTemplate="{StaticResource EntryTemplateSelector}"
+                        ItemSizingStrategy="MeasureAllItems"
                         AutomationId="EntriesCollection">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:CatalogEntryModel">
-                        <Grid>
-                            <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding OpenCommand}" />
-                            </Grid.GestureRecognizers>
-                            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
-                                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
-                                    StrokeShape="RoundRectangle 12"
-                                    Padding="12"
-                                    Margin="0,4">
-                                <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
-                                    <Border WidthRequest="72"
-                                            HeightRequest="72"
-                                            VerticalOptions="Center"
-                                            Background="{AppThemeBinding Light={StaticResource LibraryCoverLight}, Dark={StaticResource LibraryCoverDark}}">
-                                        <Grid>
-                                            <Label Text="📖"
-                                                   FontSize="28"
-                                                   HorizontalOptions="Center"
-                                                   VerticalOptions="Center" />
-                                            <Image Source="{Binding CoverUrl}"
-                                                   Aspect="Fill"
-                                                   IsVisible="{Binding HasCover}" />
-                                        </Grid>
-                                    </Border>
-                                    <VerticalStackLayout Grid.Column="1"
-                                                         VerticalOptions="Center"
-                                                         Spacing="4">
-                                        <Label Text="{Binding Title}"
-                                               FontAttributes="Bold"
-                                               LineBreakMode="TailTruncation" />
-                                        <Label Text="{Binding Subtitle}"
-                                               FontSize="12"
-                                               LineBreakMode="TailTruncation"
-                                               TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
-                                    </VerticalStackLayout>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
+                <CollectionView.ItemsLayout>
+                    <GridItemsLayout x:Name="EntriesLayout"
+                                     Orientation="Vertical"
+                                     Span="1"
+                                     HorizontalItemSpacing="10"
+                                     VerticalItemSpacing="12" />
+                </CollectionView.ItemsLayout>
         </CollectionView>
-        <VerticalStackLayout Grid.Row="2" Spacing="12" Margin="0,12,0,0">
+        <VerticalStackLayout Grid.Row="2" Spacing="8" Margin="0,8,0,0">
             <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
                 <Button Text="← Previous"
                         Command="{Binding GoBackCommand}"
@@ -118,7 +169,7 @@
                         AutomationId="NextPageButton" />
             </Grid>
             <Label Text="{Binding StatusMessage}"
-                   FontSize="13"
+                   FontSize="12"
                    LineBreakMode="WordWrap"
                    TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
                    AutomationId="CatalogStatus" />
