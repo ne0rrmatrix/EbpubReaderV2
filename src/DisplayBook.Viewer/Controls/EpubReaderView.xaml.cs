@@ -35,6 +35,13 @@ public partial class EpubReaderView : ContentView
         typeof(EpubReaderView),
         EpubLocator.Empty);
 
+    public static readonly BindableProperty CoverImageSourceProperty = BindableProperty.Create(
+        nameof(CoverImageSource),
+        typeof(ImageSource),
+        typeof(EpubReaderView),
+        default(ImageSource),
+        propertyChanged: OnCoverImageSourceChanged);
+
     public EpubReaderView()
     {
         InitializeComponent();
@@ -60,6 +67,12 @@ public partial class EpubReaderView : ContentView
         set => SetValue(StartLocatorProperty, value);
     }
 
+    public ImageSource CoverImageSource
+    {
+        get => (ImageSource)GetValue(CoverImageSourceProperty);
+        set => SetValue(CoverImageSourceProperty, value);
+    }
+
     public event EventHandler<ReaderMessageEventArgs>? MessageReceived;
     public event EventHandler? ReaderReady;
     public event EventHandler<EpubLocator>? LocationChanged;
@@ -82,6 +95,7 @@ public partial class EpubReaderView : ContentView
 
         cancellationToken.ThrowIfCancellationRequested();
         _isLoading = true;
+        LoadingOverlay.IsVisible = true;
         try
         {
             await _assetHost.InitializeAsync(ReaderWebView, HandleNativeNavigationAsync, cancellationToken);
@@ -106,6 +120,12 @@ public partial class EpubReaderView : ContentView
         var resource = JsonSerializer.Serialize(locator.ResourceHref, ReaderJsonContext.Default.String);
         var script = $"window.DisplayBookReader?.setLocator({resource}, {locator.Page});";
         await ReaderWebView.EvaluateJavaScriptAsync(script);
+    }
+
+    private static void OnCoverImageSourceChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        var reader = (EpubReaderView)bindable;
+        reader.LoadingCoverImage.Source = (ImageSource?)newValue;
     }
 
     private static async void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
@@ -290,12 +310,14 @@ public partial class EpubReaderView : ContentView
 
     private void RaiseReaderError(string message)
     {
+        LoadingOverlay.IsVisible = false;
         ReaderError?.Invoke(this, message);
     }
 
     private void CompleteInitialReaderReady()
     {
         _isReadyForLocationChanges = true;
+        LoadingOverlay.IsVisible = false;
         ReaderReady?.Invoke(this, EventArgs.Empty);
     }
 

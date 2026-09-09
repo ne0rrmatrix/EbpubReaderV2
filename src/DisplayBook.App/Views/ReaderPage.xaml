@@ -12,6 +12,7 @@
                            PublicationRoot="{Binding Book.PublicationRoot}"
                            PublicationOpfPath="{Binding Book.PublicationOpfPath}"
                            StartLocator="{Binding Locator}"
+                           CoverImageSource="{Binding Book.CoverPath}"
                            HorizontalOptions="Fill"
                            VerticalOptions="Fill" />
 </ContentPage>

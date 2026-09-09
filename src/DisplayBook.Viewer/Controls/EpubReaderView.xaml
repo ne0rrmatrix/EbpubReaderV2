@@ -8,10 +8,29 @@
     <Shell.BackButtonBehavior>
         <BackButtonBehavior IsVisible="False" IsEnabled="False" />
     </Shell.BackButtonBehavior>
-    <viewer:ReaderWebView x:Name="ReaderWebView"
-                          AutomationId="EpubReaderWebView"
-                          HorizontalOptions="Fill"
-                          VerticalOptions="Fill"
-                          Navigating="OnWebViewNavigating"
-                          Navigated="OnWebViewNavigated" />
+    <Grid>
+        <viewer:ReaderWebView x:Name="ReaderWebView"
+                              AutomationId="EpubReaderWebView"
+                              HorizontalOptions="Fill"
+                              VerticalOptions="Fill"
+                              Navigating="OnWebViewNavigating"
+                              Navigated="OnWebViewNavigated" />
+        <Grid x:Name="LoadingOverlay"
+              BackgroundColor="Black"
+              InputTransparent="True">
+            <VerticalStackLayout HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="16">
+                <Image x:Name="LoadingCoverImage"
+                       WidthRequest="220"
+                       MaximumHeightRequest="320"
+                       Aspect="AspectFit" />
+                <Label x:Name="LoadingLabel"
+                       Text="Opening publication…"
+                       TextColor="White"
+                       FontSize="14"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+        </Grid>
+    </Grid>
 </ContentView>
