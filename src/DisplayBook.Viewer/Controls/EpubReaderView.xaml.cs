@@ -351,6 +351,7 @@ public partial class EpubReaderView : ContentView
     private void OnDefinitionScrimTapped(object? sender, TappedEventArgs e)
     {
         DefinitionOverlay.IsVisible = false;
+        _ = ClearSelectionAsync();
     }
 
     private void OnDefinitionCardTapped(object? sender, TappedEventArgs e)
@@ -362,6 +363,19 @@ public partial class EpubReaderView : ContentView
     private void OnDefinitionCloseClicked(object? sender, EventArgs e)
     {
         DefinitionOverlay.IsVisible = false;
+        _ = ClearSelectionAsync();
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        try
+        {
+            await ReaderWebView.EvaluateJavaScriptAsync("window.DisplayBookReader?.clearSelection();");
+        }
+        catch (Exception exception)
+        {
+            RaiseReaderError(exception.Message);
+        }
     }
 
     private void CompleteInitialReaderReady()

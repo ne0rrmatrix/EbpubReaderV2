@@ -1567,7 +1567,13 @@
         });
     }
 
-    window.DisplayBookReader = { setLocator, setSettings };
+    function clearSelection() {
+        const frameDocument = elements.frame.contentDocument;
+        frameDocument?.defaultView?.getSelection()?.removeAllRanges();
+        hideLookupButton();
+    }
+
+    window.DisplayBookReader = { setLocator, setSettings, clearSelection };
 
     function scheduleBackgroundPreload(publication) {
         const preload = () => {
