@@ -72,7 +72,8 @@
         settingsForm: document.getElementById("settings-form"),
         settingsPanel: document.getElementById("settings-panel"),
         settingsReset: document.getElementById("settings-reset"),
-        settingsToggle: document.getElementById("settings-toggle")
+        settingsToggle: document.getElementById("settings-toggle"),
+        viewport: document.getElementById("book-viewport")
     };
 
     const state = {
@@ -90,6 +91,7 @@
         pageCount: 1,
         pendingLoad: null,
         pendingLookupText: "",
+        pendingLookupRect: null,
         publicationStyles: new Map(),
         readerStyles: new Map(),
         resourceCache: new Map(),
@@ -990,11 +992,42 @@
         return Boolean(selection && !selection.isCollapsed && selection.toString().trim());
     }
 
+    // The single source of truth for "what's selected and where". Both the in-page
+    // lookup button and the native platform bridges (which call this directly via
+    // window.DisplayBookReader.getSelectionInfo()) go through here so the reported
+    // selection rect is always frame-offset-adjusted the same way. The rect is in the
+    // OUTER document's coordinate space -- i.e. CSS pixels of the page hosting the
+    // <iframe> -- which is the same coordinate space the native WebView control itself
+    // is measured in, so callers can use it directly to anchor UI.
+    function getSelectionInfo() {
+        const frameDocument = elements.frame.contentDocument;
+        const selection = frameDocument?.defaultView?.getSelection();
+        if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+            return null;
+        }
+
+        const text = selection.toString().trim();
+        if (!text) {
+            return null;
+        }
+
+        const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+        const frameRect = elements.frame.getBoundingClientRect();
+        return {
+            text,
+            left: frameRect.left + selectionRect.left,
+            top: frameRect.top + selectionRect.top,
+            right: frameRect.left + selectionRect.right,
+            bottom: frameRect.top + selectionRect.bottom
+        };
+    }
+
     const LOOKUP_BUTTON_LABEL_MAX_LENGTH = 24;
 
     function hideLookupButton() {
         elements.lookupButton.hidden = true;
         state.pendingLookupText = "";
+        state.pendingLookupRect = null;
     }
 
     function truncateForLookupLabel(text) {
@@ -1003,37 +1036,63 @@
             : text;
     }
 
+    const LOOKUP_BUTTON_GAP = 10;
+    const LOOKUP_BUTTON_MARGIN = 8;
+
     // The lookup button lives in the OUTER document (a sibling of the <iframe> in
-    // .book-viewport), not inside the reading frame, and it's pinned to a fixed spot
-    // rather than tracked to the selection's on-screen position. Two earlier attempts
-    // both put a button inside the frame's own document, positioned right next to the
-    // selection -- and on Android it was reliably killed within a second of appearing.
-    // The reading frame is one native Android WebView; the OS's own text-selection
-    // toolbar/handles are a platform-level overlay drawn on top of that WebView's
-    // surface, anchored right next to the selection -- not something any in-page
-    // z-index can out-stack, and not something confined to "inside the iframe" either.
-    // A fixed, out-of-the-way spot avoids competing with it for the same screen
-    // position instead of trying to win a stacking fight it can't win, and staying
-    // outside the iframe means it's immune to the reading frame's own pagination
-    // reflows/scrolls (which were also fighting the old in-frame version).
+    // .book-viewport), not inside the reading frame -- an in-frame button was tried
+    // twice before and was reliably killed by the reading frame's own pagination
+    // reflows. Living outside the frame avoids that, but the button is still
+    // positioned dynamically, right above the selection (or below it if there's no
+    // room), using the same rect getSelectionInfo() reports -- just translated from
+    // document/viewport coordinates into .book-viewport's own local coordinate space,
+    // since that's the button's positioned ancestor.
+    function positionLookupButton(info) {
+        const viewport = elements.viewport;
+        const button = elements.lookupButton;
+        if (!viewport || !button) {
+            return;
+        }
+
+        const containerRect = viewport.getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        const selLeft = info.left - containerRect.left;
+        const selRight = info.right - containerRect.left;
+        const selTop = info.top - containerRect.top;
+        const selBottom = info.bottom - containerRect.top;
+
+        const maxLeft = Math.max(LOOKUP_BUTTON_MARGIN, containerRect.width - buttonRect.width - LOOKUP_BUTTON_MARGIN);
+        const left = Math.min(
+            Math.max(LOOKUP_BUTTON_MARGIN, ((selLeft + selRight) / 2) - (buttonRect.width / 2)),
+            maxLeft
+        );
+
+        const above = selTop - LOOKUP_BUTTON_GAP - buttonRect.height;
+        const maxTop = Math.max(LOOKUP_BUTTON_MARGIN, containerRect.height - buttonRect.height - LOOKUP_BUTTON_MARGIN);
+        const top = above >= LOOKUP_BUTTON_MARGIN
+            ? above
+            : Math.min(selBottom + LOOKUP_BUTTON_GAP, maxTop);
+
+        button.style.left = `${left}px`;
+        button.style.top = `${top}px`;
+    }
+
     function installSelectionLookupHandler(frameDocument) {
         hideLookupButton();
         let settleTimer = 0;
 
         function refreshOrHideButton() {
-            const selection = frameDocument.defaultView?.getSelection();
-            const text = selection && !selection.isCollapsed && selection.rangeCount > 0
-                ? selection.toString().trim()
-                : "";
-
-            if (!text) {
+            const info = getSelectionInfo();
+            if (!info) {
                 hideLookupButton();
                 return;
             }
 
-            state.pendingLookupText = text;
-            elements.lookupButton.textContent = `Look up "${truncateForLookupLabel(text)}"`;
+            state.pendingLookupText = info.text;
+            state.pendingLookupRect = info;
+            elements.lookupButton.textContent = `Look up "${truncateForLookupLabel(info.text)}"`;
             elements.lookupButton.hidden = false;
+            positionLookupButton(info);
         }
 
         frameDocument.addEventListener("selectionchange", () => {
@@ -1475,7 +1534,17 @@
         elements.next.addEventListener("click", goNext);
         elements.lookupButton.addEventListener("click", () => {
             if (state.pendingLookupText) {
-                notifyNative("dictionaryLookupRequested", { text: state.pendingLookupText });
+                notifyNative("dictionaryLookupRequested", {
+                    text: state.pendingLookupText,
+                    rect: state.pendingLookupRect
+                        ? {
+                            left: state.pendingLookupRect.left,
+                            top: state.pendingLookupRect.top,
+                            right: state.pendingLookupRect.right,
+                            bottom: state.pendingLookupRect.bottom
+                        }
+                        : null
+                });
             }
 
             hideLookupButton();
@@ -1573,7 +1642,7 @@
         hideLookupButton();
     }
 
-    window.DisplayBookReader = { setLocator, setSettings, clearSelection };
+    window.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo };
 
     function scheduleBackgroundPreload(publication) {
         const preload = () => {

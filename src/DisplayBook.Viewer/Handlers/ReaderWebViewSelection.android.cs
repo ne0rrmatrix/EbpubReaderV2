@@ -88,12 +88,14 @@ internal sealed class ReaderSelectionActionModeCallback(ReaderSelectionWebView v
 
     /// <summary>
     /// The public Android WebView API has no way to read the current selection directly,
-    /// so it's read back via JS (<c>window.getSelection()</c>) using the same
-    /// <see cref="EvaluateJavaScriptAsyncRequest"/> plumbing MAUI's own WebView uses.
+    /// so it's read back via the reader's own <c>getSelectionInfo()</c> JS helper, using
+    /// the same <see cref="EvaluateJavaScriptAsyncRequest"/> plumbing MAUI's own WebView
+    /// uses.
     /// </summary>
     private async Task HandleLookupAsync()
     {
-        var request = new EvaluateJavaScriptAsyncRequest("window.getSelection()?.toString() ?? ''");
+        var request = new EvaluateJavaScriptAsyncRequest(
+            "JSON.stringify(window.DisplayBookReader?.getSelectionInfo()?.text ?? null)");
         view.EvaluateJavaScript(request);
         var rawResult = await request.Task;
         var selectedText = JsonSerializer.Deserialize(rawResult, ReaderJsonContext.Default.String)?.Trim();
