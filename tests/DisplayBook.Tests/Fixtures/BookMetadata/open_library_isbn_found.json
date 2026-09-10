@@ -1,0 +1,24 @@
+{
+  "ISBN:9780132350884": {
+    "title": "Clean Code",
+    "subtitle": "A Handbook of Agile Software Craftsmanship",
+    "authors": [
+      { "name": "Robert C. Martin", "url": "https://openlibrary.org/authors/OL1394449A/Robert_C._Martin" }
+    ],
+    "identifiers": {
+      "isbn_10": ["0132350882"],
+      "isbn_13": ["9780132350884"]
+    },
+    "publishers": [{ "name": "Prentice Hall" }],
+    "publish_date": "2008",
+    "number_of_pages": 464,
+    "cover": {
+      "small": "https://covers.openlibrary.org/b/id/6790108-S.jpg",
+      "medium": "https://covers.openlibrary.org/b/id/6790108-M.jpg",
+      "large": "https://covers.openlibrary.org/b/id/6790108-L.jpg"
+    },
+    "description": { "type": "/type/text", "value": "A handbook of agile software craftsmanship, described as an object per Open Library's inconsistent shape." },
+    "url": "https://openlibrary.org/books/OL22894549M/Clean_Code",
+    "key": "/books/OL22894549M"
+  }
+}

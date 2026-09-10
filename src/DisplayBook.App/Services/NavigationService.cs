@@ -42,6 +42,8 @@ public sealed class NavigationService(
         return shell.DisplayAlertAsync(title, message, accept, cancel);
     }
 
+    public Task OpenExternalLinkAsync(Uri uri) => Launcher.Default.OpenAsync(uri);
+
     public Task ShowOpdsServersAsync()
         => GetShell().GoToAsync("opds/servers");
 

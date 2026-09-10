@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Metadata update — V3 Source wizard</title>
+<style>
+  :root[data-theme="light"]{
+    --page:#ffffff; --card:#F7F8FA; --card-stroke:#D7DDE5; --cover:#E9EDF2;
+    --muted:#5A6678; --text:#1f1f1f; --accent:#236B5A; --accent-surface:#E8F0ED;
+    --error:#B42318; --error-surface:#FBEAE8; --selection:#5BD6B5; --back:#236B5A;
+    --warn:#8A5A00; --warn-surface:#FCF0D9; --shadow: 0 1px 2px rgba(20,25,30,.06);
+    --code-bg:#12141a; --code-text:#c9d6e3;
+  }
+  :root[data-theme="dark"]{
+    --page:#141414; --card:#25282D; --card-stroke:#3D4652; --cover:#141619;
+    --muted:#9AA5B5; --text:#F2F3F5; --accent:#2E8B73; --accent-surface:#1E3E35;
+    --error:#FF8A80; --error-surface:#3A2320; --selection:#5BD6B5; --back:#66E0C1;
+    --warn:#E8C15C; --warn-surface:#3A3320; --shadow: 0 1px 2px rgba(0,0,0,.4);
+    --code-bg:#0a0b0d; --code-text:#9fe3c7;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:#EEF0F3; color:var(--text); }
+  [data-theme="dark"] body{ background:#0b0c0d; }
+  .mock-toolbar{ max-width:960px; margin:0 auto; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; color:#556; }
+  .mock-toolbar h1{ font-size:14px; margin:0; font-weight:700; color:#334; }
+  .mock-toolbar .sub{ font-size:12px; color:#889; }
+  .mock-btn{ border:1px solid #cfd6df; background:#fff; color:#334; padding:6px 10px; border-radius:8px; font-size:12px; cursor:pointer; }
+  .frame-wrap{ display:flex; justify-content:center; padding:0 16px 40px; }
+  .frame{
+    width:420px; max-width:100%; background:var(--page); border-radius:28px; box-shadow:0 20px 60px rgba(0,0,0,.18);
+    overflow:hidden; border:1px solid rgba(0,0,0,.06); min-height:820px;
+  }
+  .page{ padding:16px 18px 32px; }
+  .back{ color:var(--back); font-weight:600; font-size:14px; background:none; border:none; padding:6px 0; cursor:pointer; }
+  .page-title{ font-size:19px; font-weight:800; margin:6px 0 2px; }
+  .page-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
+
+  .steps{ display:flex; gap:6px; margin-bottom:18px; }
+  .step-dot{ flex:1; height:4px; border-radius:4px; background:var(--card-stroke); }
+  .step-dot.done{ background:var(--accent); }
+
+  .section{ border:1px solid var(--card-stroke); border-radius:14px; background:var(--card); padding:14px; margin-bottom:14px; }
+  .section-title{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin-bottom:10px; }
+
+  .field{ margin-bottom:10px; }
+  .field label{ display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; font-weight:600; }
+  .field input, .field select{
+    width:100%; border:1px solid var(--card-stroke); background:var(--page); border-radius:8px; padding:9px 10px; font-size:13px; color:var(--text);
+  }
+  .row2{ display:flex; gap:8px; }
+  .row2 > .field{ flex:1; }
+
+  .btn{ display:block; width:100%; text-align:center; padding:12px; border-radius:12px; font-weight:700; font-size:13.5px; border:none; cursor:pointer; }
+  .btn-primary{ background:var(--accent); color:#fff; }
+  .btn-outline{ background:transparent; color:var(--accent); border:1.5px solid var(--accent); }
+  .btn-ghost{ background:transparent; color:var(--muted); border:1px solid var(--card-stroke); }
+
+  .step{ display:none; }
+  .step.active{ display:block; }
+
+  .spinner{ width:28px; height:28px; border-radius:50%; border:3px solid var(--card-stroke); border-top-color:var(--accent); animation:spin .8s linear infinite; margin:14px auto; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .loading-text{ text-align:center; font-size:12.5px; color:var(--muted); }
+
+  .candidate{ display:flex; gap:10px; padding:10px; border:1px solid var(--card-stroke); border-radius:10px; margin-bottom:8px; cursor:pointer; background:var(--page); }
+  .candidate.selected{ border-color:var(--accent); background:var(--accent-surface); }
+  .candidate-cover{ width:40px; height:58px; border-radius:5px; background:#d8cba8; flex:none; }
+  .candidate-info{ min-width:0; flex:1; }
+  .candidate-title{ font-size:12.5px; font-weight:700; line-height:1.3; }
+  .candidate-sub{ font-size:11px; color:var(--muted); margin-top:2px; }
+  .candidate-score{ font-size:10px; font-weight:700; color:var(--accent); margin-top:4px; }
+
+  .diff-row{ display:grid; grid-template-columns:22px 90px 1fr; gap:8px; padding:9px 0; border-top:1px dashed var(--card-stroke); align-items:start; }
+  .diff-row:first-child{ border-top:none; }
+  .diff-row input[type=checkbox]{ margin-top:3px; accent-color:var(--accent); width:15px; height:15px; }
+  .diff-label{ font-size:11px; font-weight:700; color:var(--muted); padding-top:1px; }
+  .diff-old{ font-size:12px; color:var(--muted); text-decoration:line-through; opacity:.75; }
+  .diff-new{ font-size:12.5px; color:var(--text); font-weight:600; margin-top:2px; }
+  .diff-new input{ width:100%; border:1px solid var(--card-stroke); border-radius:6px; padding:5px 7px; font-size:12px; background:var(--page); color:var(--text); }
+
+  details.debug{ margin-top:6px; }
+  details.debug summary{ font-size:11.5px; color:var(--muted); cursor:pointer; font-weight:600; }
+  .debug-box{ background:var(--code-bg); color:var(--code-text); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:10.5px; line-height:1.6; padding:10px; border-radius:8px; margin-top:8px; white-space:pre-wrap; }
+
+  .status-banner{ display:flex; gap:10px; align-items:flex-start; padding:12px; border-radius:10px; font-size:12.5px; line-height:1.45; }
+  .status-banner.blocked{ background:var(--warn-surface); color:var(--warn); }
+  .status-banner.error{ background:var(--error-surface); color:var(--error); }
+  .status-banner.ok{ background:var(--accent-surface); color:var(--accent); }
+  .status-banner .ic{ font-size:16px; flex:none; }
+
+  .btn-row{ display:flex; gap:8px; margin-top:14px; }
+  .btn-row .btn{ flex:1; }
+</style>
+</head>
+<body>
+
+  <div class="mock-toolbar">
+    <div>
+      <h1>V3 · Dedicated "Update metadata" screen</h1>
+      <div class="sub">A full wizard reached from Book Details: identify → pick a candidate → review each field with manual overrides → apply. Exposes match confidence and raw fetch info for debugging.</div>
+    </div>
+    <button class="mock-btn" onclick="toggleTheme()">🌗 Theme</button>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame">
+      <div class="page">
+        <button class="back" onclick="setStep(1)">‹ Book details</button>
+        <div class="page-title">Update metadata</div>
+        <div class="page-sub">The Fellowship of the Ring · J. R. R. Tolkien</div>
+
+        <div class="steps">
+          <div class="step-dot done" data-dot="1"></div>
+          <div class="step-dot" data-dot="2"></div>
+          <div class="step-dot" data-dot="3"></div>
+        </div>
+
+        <!-- Step 1: Identify -->
+        <div class="step active" data-step="1">
+          <div class="section">
+            <div class="section-title">Identify</div>
+            <div class="row2">
+              <div class="field">
+                <label>Region</label>
+                <select><option>com (US)</option><option>co.uk</option><option>de</option><option>ca</option></select>
+              </div>
+              <div class="field">
+                <label>ISBN / ASIN (optional)</label>
+                <input type="text" placeholder="e.g. 9780618640157" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Title</label>
+              <input type="text" value="The Fellowship of the Ring" />
+            </div>
+            <div class="field">
+              <label>Author</label>
+              <input type="text" value="J. R. R. Tolkien" />
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="fetchNow()">Fetch from Amazon</button>
+        </div>
+
+        <!-- Step 2: Candidates / loading / errors -->
+        <div class="step" data-step="2">
+
+          <div id="loadingBlock">
+            <div class="spinner"></div>
+            <div class="loading-text">Searching Amazon (US) storefront…</div>
+          </div>
+
+          <div id="candidatesBlock" style="display:none;">
+            <div class="section-title" style="margin-bottom:8px;">Pick the best match</div>
+
+            <div class="candidate selected" onclick="selectCandidate(this)">
+              <div class="candidate-cover"></div>
+              <div class="candidate-info">
+                <div class="candidate-title">The Fellowship of the Ring: Being the First Part of The Lord of the Rings</div>
+                <div class="candidate-sub">J.R.R. Tolkien · Houghton Mifflin Harcourt</div>
+                <div class="candidate-score">96% match · ASIN B000JSMDP4</div>
+              </div>
+            </div>
+            <div class="candidate" onclick="selectCandidate(this)">
+              <div class="candidate-cover" style="background:#c9c3b0;"></div>
+              <div class="candidate-info">
+                <div class="candidate-title">The Lord of the Rings: 50th Anniversary Edition</div>
+                <div class="candidate-sub">J.R.R. Tolkien · Houghton Mifflin</div>
+                <div class="candidate-score">61% match · ASIN B000OI0GJC</div>
+              </div>
+            </div>
+
+            <details class="debug">
+              <summary>Debug info</summary>
+              <div class="debug-box">status: ok
+region: com
+search_url: https://www.amazon.com/s?k=The+Fellowship...
+candidates_parsed: 8
+top_score: 0.96
+elapsed_ms: 842</div>
+            </details>
+
+            <button class="btn btn-primary" style="margin-top:14px;" onclick="setStep(3)">Continue with selected</button>
+          </div>
+
+          <div id="blockedBlock" style="display:none;">
+            <div class="status-banner blocked">
+              <span class="ic">⚠</span>
+              <div><b>Amazon blocked this request</b><br/>Robot-check page returned instead of results. Wait a few minutes, switch region, or retry.</div>
+            </div>
+            <details class="debug">
+              <summary>Debug info</summary>
+              <div class="debug-box">status: robot_check
+region: com
+http_status: 200
+title_marker: "robot check"
+elapsed_ms: 311</div>
+            </details>
+            <div class="btn-row">
+              <button class="btn btn-outline" onclick="fetchNow()">Retry</button>
+              <button class="btn btn-ghost" onclick="setStep(1)">Back</button>
+            </div>
+          </div>
+
+          <div id="notfoundBlock" style="display:none;">
+            <div class="status-banner error">
+              <span class="ic">✕</span>
+              <div><b>No results</b><br/>Nothing matched closely enough on Amazon (US). Try editing the title/author or switch region.</div>
+            </div>
+            <button class="btn btn-outline" style="margin-top:14px;" onclick="setStep(1)">Edit search</button>
+          </div>
+
+        </div>
+
+        <!-- Step 3: Review & apply -->
+        <div class="step" data-step="3">
+          <div class="section">
+            <div class="section-title">Review changes</div>
+
+            <div class="diff-row">
+              <input type="checkbox" checked />
+              <div class="diff-label">Title</div>
+              <div>
+                <div class="diff-old">The Fellowship of the Ring</div>
+                <input type="text" value="The Fellowship of the Ring: Being the First Part of The Lord of the Rings" />
+              </div>
+            </div>
+            <div class="diff-row">
+              <input type="checkbox" checked />
+              <div class="diff-label">Publisher</div>
+              <div>
+                <div class="diff-old">(none)</div>
+                <input type="text" value="Houghton Mifflin Harcourt" />
+              </div>
+            </div>
+            <div class="diff-row">
+              <input type="checkbox" checked />
+              <div class="diff-label">Published</div>
+              <div>
+                <div class="diff-old">(none)</div>
+                <input type="text" value="2012-09-04" />
+              </div>
+            </div>
+            <div class="diff-row">
+              <input type="checkbox" checked />
+              <div class="diff-label">Series</div>
+              <div>
+                <div class="diff-old">(none)</div>
+                <input type="text" value="The Lord of the Rings, Book 1" />
+              </div>
+            </div>
+            <div class="diff-row">
+              <input type="checkbox" />
+              <div class="diff-label">Description</div>
+              <div>
+                <div class="diff-new">In ancient times the Rings of Power were crafted by the Elven-smiths, and Sauron, the Dark Lord, forged the One Ring, filling it with his own power so that he could rule all others…</div>
+              </div>
+            </div>
+            <div class="diff-row">
+              <input type="checkbox" checked />
+              <div class="diff-label">Cover</div>
+              <div class="diff-new">Replace with Amazon hi-res cover</div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="setStep('applied')">Apply changes</button>
+            <button class="btn btn-ghost" onclick="setStep(1)">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Applied -->
+        <div class="step" data-step="applied">
+          <div class="status-banner ok">
+            <span class="ic">✓</span>
+            <div><b>Metadata updated</b><br/>5 fields changed, cover replaced. Original values are kept — undo anytime from Book Details.</div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:14px;" onclick="setStep(1)">Done</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="mock-toolbar" style="justify-content:center; gap:8px; flex-wrap:wrap;">
+    <span class="sub">Jump to:</span>
+    <button class="mock-btn" onclick="setStep(1)">1. Identify</button>
+    <button class="mock-btn" onclick="fetchNow()">2. Loading → candidates</button>
+    <button class="mock-btn" onclick="showBlocked()">2. Blocked</button>
+    <button class="mock-btn" onclick="showNotFound()">2. Not found</button>
+    <button class="mock-btn" onclick="setStep(3)">3. Review</button>
+    <button class="mock-btn" onclick="setStep('applied')">Applied</button>
+  </div>
+
+<script>
+  function toggleTheme(){
+    var html = document.documentElement;
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+  }
+  function setStep(n){
+    document.querySelectorAll('.step').forEach(function(el){
+      el.classList.toggle('active', String(el.dataset.step) === String(n));
+    });
+    document.querySelectorAll('.step-dot').forEach(function(dot){
+      var dn = Number(dot.dataset.dot);
+      dot.classList.toggle('done', typeof n === 'number' ? dn <= n : true);
+    });
+    ['loadingBlock','candidatesBlock','blockedBlock','notfoundBlock'].forEach(function(id){
+      document.getElementById(id).style.display = 'none';
+    });
+    if(n === 2){ document.getElementById('loadingBlock').style.display = 'block'; }
+  }
+  function fetchNow(){
+    setStep(2);
+    setTimeout(function(){
+      document.getElementById('loadingBlock').style.display = 'none';
+      document.getElementById('candidatesBlock').style.display = 'block';
+    }, 1000);
+  }
+  function showBlocked(){
+    setStep(2);
+    document.getElementById('loadingBlock').style.display = 'none';
+    document.getElementById('blockedBlock').style.display = 'block';
+  }
+  function showNotFound(){
+    setStep(2);
+    document.getElementById('loadingBlock').style.display = 'none';
+    document.getElementById('notfoundBlock').style.display = 'block';
+  }
+  function selectCandidate(el){
+    document.querySelectorAll('.candidate').forEach(function(c){ c.classList.remove('selected'); });
+    el.classList.add('selected');
+  }
+</script>
+</body>
+</html>

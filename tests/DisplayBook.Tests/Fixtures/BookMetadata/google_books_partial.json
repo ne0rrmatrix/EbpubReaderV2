@@ -1,0 +1,14 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 1,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "abc123",
+      "volumeInfo": {
+        "title": "A Sparse Record",
+        "authors": ["Some Author"]
+      }
+    }
+  ]
+}

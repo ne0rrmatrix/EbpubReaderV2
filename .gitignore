@@ -362,3 +362,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local-only Google Books API key, bundled as a MauiAsset so it reaches mobile
+# builds too (env vars don't cross the host/device boundary). Never commit a key.
+src/DisplayBook.App/Resources/Raw/googlebooks_apikey.txt

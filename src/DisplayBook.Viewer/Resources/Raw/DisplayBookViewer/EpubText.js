@@ -731,7 +731,7 @@
                 overflow: visible !important;
             }
 
-            body.cover-page {
+            :root.cover-page body.cover-page {
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
@@ -744,8 +744,8 @@
                 overflow: hidden !important;
             }
 
-            body.cover-page img,
-            body.cover-page svg {
+            :root.cover-page body.cover-page img,
+            :root.cover-page body.cover-page svg {
                 display: block !important;
                 width: auto !important;
                 height: auto !important;
@@ -755,7 +755,7 @@
                 object-fit: contain !important;
             }
 
-            body.cover-page svg {
+            :root.cover-page body.cover-page svg {
                 width: 100vw !important;
                 height: 100vh !important;
             }
@@ -788,8 +788,7 @@
         const hasOnlyCoverMedia = media.length === 1 &&
             !body.querySelector("video, audio, canvas, table, form") &&
             text.length === 0;
-        const isCoverPage = body.classList.contains("cover-page") ||
-            (state.currentSpineIndex === 0 && hasOnlyCoverMedia);
+        const isCoverPage = body.classList.contains("cover-page") || hasOnlyCoverMedia;
 
         if (isCoverPage) {
             for (const svg of body.querySelectorAll("svg")) {

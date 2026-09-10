@@ -2,9 +2,16 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+             xmlns:bookMeta="clr-namespace:DisplayBook.App.Models.BookMetadata"
+             xmlns:conv="clr-namespace:DisplayBook.App.Views"
              x:Class="DisplayBook.App.Views.BookDetailsPage"
              x:DataType="vm:BookDetailsViewModel"
              Title="Book details">
+    <ContentPage.Resources>
+        <conv:EnumEqualsConverter x:Key="StateIs" />
+        <conv:EnumNotEqualsConverter x:Key="StateIsNot" />
+        <conv:InverseBoolConverter x:Key="Not" />
+    </ContentPage.Resources>
         <Grid RowDefinitions="Auto,*" Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}" RowSpacing="16">
         <Button Text="‹  Library"
                 Command="{Binding BackCommand}"
@@ -28,27 +35,27 @@
                     HorizontalOptions="Center"
                     VerticalOptions="Center">
                 <Image AutomationId="BookCover"
-                       Source="{Binding Book.CoverPath}"
+                       Source="{Binding BookCoverPath}"
                        HeightRequest="{OnIdiom Phone=300, Default=360}"
                        WidthRequest="{OnIdiom Phone=216, Default=260}"
                        Aspect="AspectFit"
-                       SemanticProperties.Description="{Binding Book.Title}" />
+                       SemanticProperties.Description="{Binding BookTitle}" />
             </Border>
 
             <Grid Grid.Column="{OnIdiom Phone=0, Default=1}"
                   Grid.Row="{OnIdiom Phone=1, Default=0}"
-                  RowDefinitions="Auto,Auto,Auto,*,Auto"
+                  RowDefinitions="Auto,Auto,Auto,*,Auto,Auto"
                   RowSpacing="12"
                   VerticalOptions="Fill">
                 <Label AutomationId="BookTitle"
-                       Text="{Binding Book.Title}"
+                       Text="{Binding BookTitle}"
                        FontSize="{OnIdiom Phone=28, Default=32}"
                        FontAttributes="Bold"
                        LineBreakMode="TailTruncation"
                        MaxLines="2"
                        SemanticProperties.HeadingLevel="Level1" />
                 <Label Grid.Row="1"
-                       Text="{Binding Book.Author}"
+                       Text="{Binding BookAuthor}"
                        FontSize="18"
                        TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray300}}"
                        LineBreakMode="TailTruncation" />
@@ -60,7 +67,7 @@
                         Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
                         <Label Text="Language" FontAttributes="Bold" />
-                        <Label Grid.Column="1" Text="{Binding Book.Language}" LineBreakMode="TailTruncation" />
+                        <Label Grid.Column="1" Text="{Binding BookLanguage}" LineBreakMode="TailTruncation" />
                         <Label Grid.Row="1" Text="Format" FontAttributes="Bold" />
                         <Label Grid.Row="1" Grid.Column="1" Text="Reflowable EPUB" />
                     </Grid>
@@ -68,7 +75,7 @@
 
                 <Label Grid.Row="3"
                        AutomationId="BookDescription"
-                       Text="{Binding Book.Description}"
+                       Text="{Binding BookDescription}"
                        TextType="Html"
                        FontSize="15"
                        LineHeight="1.25"
@@ -85,6 +92,191 @@
                         CornerRadius="12"
                         HeightRequest="52"
                         FontAttributes="Bold" />
+
+                <VerticalStackLayout Grid.Row="5" Spacing="10">
+                    <Button AutomationId="UpdateMetadataButton"
+                            Text="↻  Update metadata"
+                            Command="{Binding UpdateMetadataCommand}"
+                            IsVisible="{Binding PanelState, Converter={StaticResource StateIs}, ConverterParameter=Idle}"
+                            BorderColor="{StaticResource LibraryAccent}"
+                            BorderWidth="1.5"
+                            Background="Transparent"
+                            TextColor="{StaticResource LibraryAccent}"
+                            CornerRadius="12"
+                            HeightRequest="48"
+                            FontAttributes="Bold" />
+
+                    <Border AutomationId="MetadataUpdatePanel"
+                            IsVisible="{Binding PanelState, Converter={StaticResource StateIsNot}, ConverterParameter=Idle}"
+                            Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                            Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="14">
+                        <VerticalStackLayout Spacing="12">
+
+                            <!-- Loading -->
+                            <VerticalStackLayout Spacing="10"
+                                                  IsVisible="{Binding PanelState, Converter={StaticResource StateIs}, ConverterParameter=Loading}"
+                                                  HorizontalOptions="Center">
+                                <ActivityIndicator IsRunning="True" Color="{StaticResource LibraryAccent}" />
+                                <Label Text="Searching for a match…"
+                                       FontSize="12"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                                <Button Text="Cancel"
+                                        Command="{Binding CancelMetadataFetchCommand}"
+                                        Background="Transparent"
+                                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                        FontSize="12"
+                                        Padding="0" />
+                            </VerticalStackLayout>
+
+                            <!-- Found: diff checklist -->
+                            <VerticalStackLayout Spacing="10"
+                                                  IsVisible="{Binding PanelState, Converter={StaticResource StateIs}, ConverterParameter=Found}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Text="Suggested changes" FontAttributes="Bold" FontSize="13" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding SourceAttributionText}"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="{StaticResource LibraryAccent}"
+                                           VerticalOptions="Center">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding OpenSourceLinkCommand}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                                <Label Text="{Binding SourceLine}"
+                                       FontSize="11"
+                                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+
+                                <CollectionView ItemsSource="{Binding ProposedChanges}"
+                                                SelectionMode="None">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="bookMeta:MetadataFieldChange">
+                                            <Grid ColumnDefinitions="Auto,*"
+                                                  ColumnSpacing="10"
+                                                  Padding="0,8">
+                                                <CheckBox IsChecked="{Binding IsSelected}"
+                                                          Color="{StaticResource LibraryAccent}"
+                                                          VerticalOptions="Start" />
+                                                <VerticalStackLayout Grid.Column="1"
+                                                                     Spacing="3"
+                                                                     IsVisible="{Binding IsCover, Converter={StaticResource Not}}">
+                                                    <Label Text="{Binding Label}"
+                                                           FontSize="11"
+                                                           FontAttributes="Bold"
+                                                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                                                    <Label Text="{Binding OldValueDisplay, StringFormat='Was: {0}'}"
+                                                           FontSize="12"
+                                                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                                                    <Label Text="{Binding NewValueDisplay, StringFormat='Now: {0}'}"
+                                                           FontSize="13"
+                                                           FontAttributes="Bold"
+                                                           MaxLines="4"
+                                                           LineBreakMode="TailTruncation" />
+                                                </VerticalStackLayout>
+                                                <Grid Grid.Column="1"
+                                                      ColumnDefinitions="Auto,*"
+                                                      ColumnSpacing="10"
+                                                      IsVisible="{Binding IsCover}">
+                                                    <Label Text="Cover" FontSize="11" FontAttributes="Bold"
+                                                           TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                                                    <Image Grid.Column="1"
+                                                           Source="{Binding NewValueDisplay}"
+                                                           HeightRequest="52"
+                                                           WidthRequest="36"
+                                                           Aspect="AspectFit"
+                                                           HorizontalOptions="Start" />
+                                                </Grid>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Button Text="Apply selected"
+                                            Command="{Binding ApplyMetadataCommand}"
+                                            Background="{StaticResource LibraryAccent}"
+                                            TextColor="White"
+                                            CornerRadius="10"
+                                            HeightRequest="44" />
+                                    <Button Grid.Column="1"
+                                            Text="Discard"
+                                            Command="{Binding ClosePanelCommand}"
+                                            Background="Transparent"
+                                            BorderColor="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                                            BorderWidth="1"
+                                            TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                            CornerRadius="10"
+                                            HeightRequest="44" />
+                                </Grid>
+                            </VerticalStackLayout>
+
+                            <!-- Rate limited / not found -->
+                            <VerticalStackLayout Spacing="10"
+                                                  IsVisible="{Binding PanelState, Converter={StaticResource StateIs}, ConverterParameter=RateLimited}">
+                                <Label Text="{Binding StatusMessage}"
+                                       FontSize="12.5"
+                                       TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Button Text="Try again"
+                                            Command="{Binding UpdateMetadataCommand}"
+                                            BorderColor="{StaticResource LibraryAccent}"
+                                            BorderWidth="1"
+                                            Background="Transparent"
+                                            TextColor="{StaticResource LibraryAccent}"
+                                            CornerRadius="10"
+                                            HeightRequest="42" />
+                                    <Button Grid.Column="1"
+                                            Text="Close"
+                                            Command="{Binding ClosePanelCommand}"
+                                            Background="Transparent"
+                                            TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                            CornerRadius="10"
+                                            HeightRequest="42" />
+                                </Grid>
+                            </VerticalStackLayout>
+
+                            <VerticalStackLayout Spacing="10"
+                                                  IsVisible="{Binding PanelState, Converter={StaticResource StateIs}, ConverterParameter=NotFound}">
+                                <Label Text="{Binding StatusMessage}"
+                                       FontSize="12.5"
+                                       TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}" />
+                                <Button Text="Close"
+                                        Command="{Binding ClosePanelCommand}"
+                                        BorderColor="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                                        BorderWidth="1"
+                                        Background="Transparent"
+                                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                                        CornerRadius="10"
+                                        HeightRequest="42" />
+                            </VerticalStackLayout>
+
+                            <!-- Applied -->
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="8"
+                                  IsVisible="{Binding PanelState, Converter={StaticResource StateIs}, ConverterParameter=Applied}">
+                                <Label Text="✓" TextColor="{StaticResource LibraryAccent}" FontAttributes="Bold" VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding StatusMessage}"
+                                       FontSize="12.5"
+                                       TextColor="{StaticResource LibraryAccent}"
+                                       VerticalOptions="Center" />
+                                <Button Grid.Column="2"
+                                        Text="Undo"
+                                        Command="{Binding UndoMetadataCommand}"
+                                        IsVisible="{Binding CanUndo}"
+                                        Background="Transparent"
+                                        TextColor="{StaticResource LibraryAccent}"
+                                        FontAttributes="Bold"
+                                        Padding="0" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
             </Grid>
             </Grid>
         </ScrollView>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Metadata update — mockups index</title>
+<style>
+  body{ margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:#EEF0F3; color:#1f1f1f; }
+  .wrap{ max-width:760px; margin:0 auto; padding:40px 24px 80px; }
+  h1{ font-size:24px; margin:0 0 6px; }
+  p.lead{ color:#556; font-size:14.5px; line-height:1.6; }
+  .card{ background:#fff; border:1px solid #D7DDE5; border-radius:14px; padding:20px 22px; margin:18px 0; }
+  .card h2{ font-size:16px; margin:0 0 6px; }
+  .card .where{ font-size:12px; font-weight:700; color:#236B5A; background:#E8F0ED; display:inline-block; padding:3px 9px; border-radius:20px; margin-bottom:10px; }
+  .card p{ font-size:13.5px; line-height:1.6; color:#334; margin:8px 0; }
+  .card ul{ margin:8px 0; padding-left:18px; font-size:13px; color:#445; line-height:1.6; }
+  .card a.open{ display:inline-block; margin-top:10px; font-size:13px; font-weight:700; color:#236B5A; text-decoration:none; border:1.5px solid #236B5A; padding:8px 14px; border-radius:8px; }
+  .card a.open:hover{ background:#E8F0ED; }
+  .note{ background:#FCF0D9; border-left:3px solid #8A5A00; padding:14px 16px; border-radius:8px; font-size:13px; line-height:1.6; color:#5c3d00; margin:24px 0; }
+  code{ background:#12141a; color:#c9d6e3; padding:1px 6px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Amazon metadata update — UI concepts</h1>
+  <p class="lead">
+    Three placements/flows for offering "update metadata from Amazon" on a per-book basis, matching
+    <code>DisplayBook.App</code>'s current color tokens and the Book Details page layout. Open each file
+    directly in a browser — no server needed. Use the demo controls at the bottom of each mockup to step
+    through every state (loading, match found, blocked, not found, applied).
+  </p>
+
+  <div class="note">
+    <b>Practicality note:</b> the Python scraper (<code>ScrapeAmazonApi</code>) can't run as-is inside MAUI —
+    there's no Python runtime on iOS/Android. The plan is to port <code>parsing.py</code>'s CSS-selector,
+    defensive-fallback approach to C# (AngleSharp + HttpClient), reusing the same fixture-based test strategy
+    (modern/legacy/robot-check/not-found HTML) so it stays testable offline. All three concepts below assume
+    that backend and differ only in where the feature lives and how much of the fetch/match/review flow is exposed.
+  </div>
+
+  <div class="card">
+    <span class="where">Book Details · inline panel</span>
+    <h2>V1 — Inline panel</h2>
+    <p>An outline "Update metadata" button under "Open book". Tapping it expands a panel in place with a
+      checklist diff (old vs. new, one checkbox per field) and Apply/Discard. Everything happens on the
+      existing page — no navigation, no modal.</p>
+    <ul>
+      <li>Lowest implementation cost, fewest new screens.</li>
+      <li>Diff/checklist keeps the "review before overwrite" safety net.</li>
+      <li>Gets cramped if you also want a manual search / region picker / candidate list.</li>
+    </ul>
+    <a class="open" href="MetadataUpdate.V1_InlinePanel.html">Open mockup →</a>
+  </div>
+
+  <div class="card">
+    <span class="where">Book Details · bottom sheet</span>
+    <h2>V2 — Review sheet</h2>
+    <p>A small ↻ icon next to the title opens a bottom sheet holding the whole fetch → review → apply flow,
+      with a compact region + search-text override at the top for when the auto-match is wrong. Book Details
+      itself stays visually unchanged.</p>
+    <ul>
+      <li>Keeps Book Details page uncluttered; feature is opt-in and out of the way.</li>
+      <li>Per-field "Keep current / Use Amazon" toggle instead of a plain checkbox — reads a bit clearer.</li>
+      <li>Manual override is present but limited to editing the search query, not raw field values.</li>
+    </ul>
+    <a class="open" href="MetadataUpdate.V2_ReviewSheet.html">Open mockup →</a>
+  </div>
+
+  <div class="card">
+    <span class="where">Dedicated screen</span>
+    <h2>V3 — Source wizard</h2>
+    <p>A full "Update metadata" screen (reached from Book Details, same pattern as OpdsBookPage): identify
+      (region / ISBN·ASIN / title / author) → candidate picker with match scores → per-field review with
+      editable text overrides → apply. Includes an expandable debug panel with raw fetch status.</p>
+    <ul>
+      <li>Closest parity with the Python CLI/plugin's capabilities (search, scoring, manual ASIN entry).</li>
+      <li>Debug panel directly supports the "robust for debugging and testing" requirement.</li>
+      <li>Heaviest to build; best fit if you expect to lean on this a lot or need to unblock bad auto-matches often.</li>
+    </ul>
+    <a class="open" href="MetadataUpdate.V3_SourceWizard.html">Open mockup →</a>
+  </div>
+
+  <p class="lead" style="margin-top:28px;">
+    All three share the same underlying states (idle, loading, found/candidates, blocked, not found, applied)
+    — whichever placement you pick, that state machine is the thing to build first and share across views.
+  </p>
+</div>
+</body>
+</html>

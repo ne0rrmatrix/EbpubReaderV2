@@ -17,6 +17,8 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; buildMultitargeting; buildTransitive; contentFiles; analyzers; native</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -28,6 +30,17 @@
 		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\DownloadFileNaming.cs" Link="App\Services\Opds\DownloadFileNaming.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Services\BookMetadataMatcher.cs" Link="App\Services\BookMetadataMatcher.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Models\BookSummary.cs" Link="App\Models\BookSummary.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\BookMetadata\*.cs" Link="App\Services\BookMetadata\%(Filename)%(Extension)" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\EpubPackageReader.cs" Link="App\Services\EpubPackageReader.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Models\BookMetadata\*.cs" Link="App\Models\BookMetadata\%(Filename)%(Extension)" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\INavigationService.cs" Link="App\Services\INavigationService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\IBookMetadataService.cs" Link="App\Services\IBookMetadataService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\IBookCatalogService.cs" Link="App\Services\IBookCatalogService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\ViewModels\BookDetailsViewModel.cs" Link="App\ViewModels\BookDetailsViewModel.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="Fixtures\BookMetadata\*.json" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>

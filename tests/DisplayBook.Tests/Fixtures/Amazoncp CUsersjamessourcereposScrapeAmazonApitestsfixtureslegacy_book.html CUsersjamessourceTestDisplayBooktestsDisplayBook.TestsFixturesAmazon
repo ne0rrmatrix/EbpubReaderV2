@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <meta charset="utf-8">
+  <title>Fluent C# in .NET Core: In-Depth Guide to .NET Core (3rd Edition) : Andrew C. Kulkarni : Books - Amazon.com</title>
+  <meta property="og:image" content="https://m.media-amazon.com/images/I/81EXAMPLE._AC_SL1500_.jpg">
+</head>
+<body data-element-type="desktop-book-detail-page">
+  <div id="dp-container">
+    <div id="title_expandoWrapper_feature_div">
+      <span id="productTitle" class="a-size-large a-color-primary">
+        Fluent C# in .NET Core: In-Depth Guide to .NET Core (3rd Edition)
+      </span>
+      <div id="bylineInfo_feature_div">
+        <span id="bylineInfo" class="a-size-medium a-color-secondary">
+          By Andrew C. Kulkarni (Author)
+        </span>
+      </div>
+    </div>
+
+    <div id="imageBlock_feature_div">
+      <img id="landingImage"
+           src="https://m.media-amazon.com/images/I/81EXAMPLE._AC_SL1500_.jpg"
+           data-old-hires="https://m.media-amazon.com/images/I/81EXAMPLE.jpg"
+           srcset="https://m.media-amazon.com/images/I/81EXAMPLE._AC_SL1500_.jpg">
+    </div>
+
+    <!-- Series / details in the modern list layout -->
+    <div id="detailBulletsWrapper_feature_div">
+      <ul class="a-list-vertical">
+        <li class="a-spacing-small">
+          <span class="a-text-bold">Series: </span>
+          <span><a href="/series/xx">The Fluent Series</a> #3</span>
+        </li>
+        <li class="a-spacing-small">
+          <span class="a-text-bold">Publisher: </span>
+          <span><a href="/o?asin=9781491946212">O&#39;Reilly Media</a></span>
+        </li>
+        <li class="a-spacing-small">
+          <span class="a-text-bold">Publication date: </span>
+          <span>March 1, 2019</span>
+        </li>
+        <li class="a-spacing-small">
+          <span class="a-text-bold">Series Number: </span>
+          <span>3</span>
+        </li>
+        <li class="a-spacing-small">
+          <span class="a-text-bold">Language: </span>
+          <span>English</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Feature bullets (description fallback) -->
+    <div id="featurebullets_feature_div">
+      <ul id="featurebullets">
+        <li>Coverage of the new .NET Core APIs.</li>
+        <li>Practical, project-based examples.</li>
+        <li>Coverage of the language features.</li>
+      </ul>
+    </div>
+
+    <!-- Primary description -->
+    <div id="productDescription_feature_div">
+      <div id="productDescription">
+        <span id="bookDescription" class="a-section a-spacing-small">
+          Learn everything you need to know about the .NET Core platform in
+          this in-depth guide. Fluent C# walks you through the language
+          features and the new APIs with practical examples so you can build
+          modern, cross-platform applications.
+        </span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

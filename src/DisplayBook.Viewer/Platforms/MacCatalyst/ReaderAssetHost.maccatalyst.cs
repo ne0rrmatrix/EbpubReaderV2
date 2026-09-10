@@ -1,0 +1,49 @@
+namespace DisplayBook.Viewer.Services;
+
+public sealed partial class ReaderAssetHost
+{
+    private static partial Task ConfigurePlatformWebViewAsync(
+        Microsoft.Maui.Controls.WebView webView,
+        string contentRoot,
+        Func<string, Task>? navigationHandler,
+        Action<string>? dictionaryLookupRequested,
+        CancellationToken cancellationToken)
+    {
+        if (webView.Handler?.PlatformView is null)
+        {
+            throw new InvalidOperationException("The Apple reader WebView is not ready for local content hosting.");
+        }
+
+        if (navigationHandler is not null)
+        {
+            webView.Navigating += (_, args) =>
+            {
+                if (!Uri.TryCreate(args.Url, UriKind.Absolute, out var uri) ||
+                    !string.Equals(uri.Scheme, "displaybook", StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(uri.Host, "bridge", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                args.Cancel = true;
+                _ = navigationHandler(uri.ToString());
+            };
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    private static partial Uri CreateViewerUri(string publicationRoot, string opfRelativePath)
+    {
+        var opf = CreateOpfQuery(publicationRoot, opfRelativePath);
+        var viewerPath = Path.Combine(ContentRoot, "DisplayBookViewer", "index.html");
+        var uri = new UriBuilder("file", string.Empty)
+        {
+            Path = viewerPath,
+            Query = $"opf={opf}&bridge=displaybook%3A%2F%2Fbridge"
+        };
+
+        return uri.Uri;
+    }
+}

@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Maui;
 using DisplayBook.App.Services;
+using DisplayBook.App.Services.BookMetadata;
 using DisplayBook.App.Services.Opds;
 using DisplayBook.App.ViewModels;
 using DisplayBook.App.Views;
@@ -45,6 +46,19 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IBookDatabase, BookDatabase>();
 		builder.Services.AddSingleton<IBookPickerService, BookPickerService>();
 		builder.Services.AddSingleton<IBookImportService, BookImportService>();
+		builder.Services.AddHttpClient(BookMetadataConstants.GoogleBooksClientName)
+			.ConfigureHttpClient(client => client.Timeout = BookMetadataConstants.HttpClientTimeout);
+		builder.Services.AddHttpClient(BookMetadataConstants.OpenLibraryClientName)
+			.ConfigureHttpClient(client =>
+			{
+				client.Timeout = BookMetadataConstants.HttpClientTimeout;
+				client.DefaultRequestHeaders.UserAgent.ParseAdd(BookMetadataConstants.OpenLibraryUserAgent);
+			});
+		builder.Services.AddSingleton(sp =>
+			new GoogleBooksClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(BookMetadataConstants.GoogleBooksClientName)));
+		builder.Services.AddSingleton(sp =>
+			new OpenLibraryClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(BookMetadataConstants.OpenLibraryClientName)));
+		builder.Services.AddSingleton<IBookMetadataService, BookMetadataService>();
 		builder.Services.AddSingleton<INavigationService, NavigationService>();
 		builder.Services.AddSingletonWithShellRoute<LibraryPage, LibraryViewModel>("library");
 		builder.Services.AddSingleton<AppShell>();

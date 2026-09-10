@@ -16,4 +16,6 @@ public sealed record BookSummary(
     string LocatorResourceHref,
     int LocatorPage,
     int LocatorPageCount,
-    string ContentHash = "");
+    string ContentHash = "",
+    string Isbn = "",
+    string Asin = "");

@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <title>Amazon.com</title>
+</head>
+<body>
+  <div id="search">
+    <h1>We're sorry, we couldn't find that item</h1>
+    <p>Sorry, we can't find the item you are looking for. Try searching
+       for it or browsing a related category.</p>
+  </div>
+</body>
+</html>

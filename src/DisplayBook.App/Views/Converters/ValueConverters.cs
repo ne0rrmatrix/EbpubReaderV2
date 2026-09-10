@@ -123,6 +123,51 @@ public sealed class StringNotNullConverter : IValueConverter
 }
 
 /// <summary>
+/// Compares a bound value (typically an enum) against the converter <c>parameter</c>
+/// (its string form, e.g. <c>x:Static</c> or a plain string matching <c>ToString()</c>).
+/// Used to gate per-state layout visibility off a single state property.
+/// </summary>
+public sealed class EnumEqualsConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null || parameter is null)
+        {
+            return false;
+        }
+
+        return string.Equals(value.ToString(), parameter.ToString(), StringComparison.Ordinal);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+/// <summary>
+/// The negation of <see cref="EnumEqualsConverter"/> — visible whenever the bound value
+/// does NOT match the converter <c>parameter</c>.
+/// </summary>
+public sealed class EnumNotEqualsConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null || parameter is null)
+        {
+            return true;
+        }
+
+        return !string.Equals(value.ToString(), parameter.ToString(), StringComparison.Ordinal);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+/// <summary>
 /// Maps a <see cref="Models.DownloadStatus"/> to a fixed color that reads well on both light
 /// and dark themes (used for status text and progress bars).
 /// </summary>

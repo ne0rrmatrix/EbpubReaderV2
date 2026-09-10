@@ -9,6 +9,9 @@ public interface INavigationService
     Task GoBackAsync();
     Task<bool> ConfirmAsync(string title, string message, string accept, string cancel);
 
+    /// <summary>Opens a URL in the system browser (e.g. a metadata-source attribution link).</summary>
+    Task OpenExternalLinkAsync(Uri uri);
+
     /// <summary>Opens the OPDS servers page (manual entry, discovered + saved servers).</summary>
     Task ShowOpdsServersAsync();
 

@@ -21,6 +21,10 @@ public sealed partial class ReaderWebViewHandler
     /// </summary>
     protected override Android.Webkit.WebView CreatePlatformView()
     {
+#if DEBUG
+        Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
+#endif
+
         var platformView = new ReaderSelectionWebView(this, Context!)
         {
             LayoutParameters = new LayoutParams(LayoutParams.MatchParent, LayoutParams.MatchParent)
@@ -30,7 +34,10 @@ public sealed partial class ReaderWebViewHandler
         settings.JavaScriptEnabled = true;
         settings.DomStorageEnabled = true;
         settings.SetSupportMultipleWindows(true);
-
+        settings.SetSupportZoom(false);
+        settings.BuiltInZoomControls = false;
+        settings.UseWideViewPort = true;
+        
         if (OperatingSystem.IsAndroidVersionAtLeast(23) &&
             Context?.ApplicationInfo?.Flags.HasFlag(ApplicationInfoFlags.HardwareAccelerated) == false)
         {

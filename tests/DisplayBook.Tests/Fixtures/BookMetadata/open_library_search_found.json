@@ -1,0 +1,15 @@
+{
+  "start": 0,
+  "num_found": 1,
+  "docs": [
+    {
+      "title": "Clean Code",
+      "author_name": ["Robert C. Martin"],
+      "cover_i": 6790108,
+      "isbn": ["0132350882", "9780132350884"],
+      "publisher": ["Prentice Hall"],
+      "first_publish_year": 2008,
+      "key": "/works/OL5750638W"
+    }
+  ]
+}

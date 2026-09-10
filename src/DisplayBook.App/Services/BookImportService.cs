@@ -188,7 +188,8 @@ public sealed class BookImportService(
             string.Empty,
             0,
             1,
-            contentHash);
+            contentHash,
+            metadata.Isbn);
 
         try
         {
