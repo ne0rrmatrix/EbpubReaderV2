@@ -1,11 +1,13 @@
 # DisplayBook.Viewer
 
-`DisplayBook.Viewer` is a reusable .NET MAUI class library for displaying reflowable EPUB publications in a WebView. It supports Windows and Android and provides reader navigation, themes, settings, table-of-contents navigation, and location events that a host application can use to save and restore reading progress.
+`DisplayBook.Viewer` is a reusable .NET MAUI class library for displaying reflowable EPUB publications in a WebView. It supports Windows, Android, iOS, and macOS (via Mac Catalyst), and provides reader navigation, themes, settings, table-of-contents navigation, and location events that a host application can use to save and restore reading progress.
 
 The library is part of the DisplayBook repository and currently targets:
 
 - `net10.0-windows10.0.19041.0`
 - `net10.0-android`
+- `net10.0-ios`
+- `net10.0-maccatalyst`
 
 ## What the library provides
 
@@ -248,6 +250,16 @@ Reader settings are currently controlled by the bundled reader UI. `EpubReaderSe
 - Android API 21 or later.
 - Android WebView with JavaScript enabled.
 - The library serves content through Android WebView asset loading from application storage.
+
+### iOS
+
+- iOS 15.0 or later.
+- The library serves content to WKWebView as `file://` URLs from the app's local content directory.
+
+### macOS (Mac Catalyst)
+
+- macOS via Mac Catalyst 15.0 or later.
+- The library serves content the same way as iOS, using WKWebView and `file://` URLs.
 
 The host should not replace the reader WebView handler or disable JavaScript for the reader control.
 

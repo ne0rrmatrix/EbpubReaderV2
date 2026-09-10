@@ -124,4 +124,9 @@
 	  <AndroidPackageFormat>apk</AndroidPackageFormat>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="$(TargetFramework.Contains('-ios')) and '$(Configuration)' == 'Release'">
+	  <UseInterpreter>all</UseInterpreter>
+	  <MtouchInterpreter>all</MtouchInterpreter>
+	</PropertyGroup>
+
 </Project>

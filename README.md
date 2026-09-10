@@ -2,7 +2,7 @@
 
 DisplayBook is a cross-platform EPUB reader built with .NET MAUI. It provides a local library for importing EPUB books, book details and cover information, and a focused reading experience with pagination, themes, reader settings, table of contents navigation, and saved reading positions.
 
-The project is designed for Windows and Android and targets .NET 10.
+The project targets .NET 10 and runs on Windows, Android, iOS, and macOS (via Mac Catalyst).
 
 ## Features
 
@@ -15,7 +15,7 @@ The project is designed for Windows and Android and targets .NET 10.
 - Adjust reader settings such as font, font size, line spacing, alignment, and pagination mode.
 - Save the current chapter and page so a book can resume where it was last opened.
 - Store the library catalog and reading state locally using SQLite.
-- Use the same reader control on Windows and Android.
+- Use the same reader control on Windows, Android, iOS, and macOS.
 - Browse Calibre and other OPDS catalogs over the network, discovered automatically via mDNS or added by URL.
 - Download books from OPDS catalogs into the local library with a resumable download queue.
 
@@ -29,7 +29,7 @@ DisplayBook.slnx
 │   │   ├── Library, book details, and reader pages
 │   │   ├── EPUB import and local catalog services
 │   │   ├── OPDS/Calibre browsing and download services
-│   │   └── Windows and Android platform code
+│   │   └── Windows, Android, iOS, and macOS platform code
 │   └── DisplayBook.Viewer
 │       ├── Reusable .NET MAUI reader control library
 │       ├── WebView-based EPUB rendering
@@ -44,9 +44,11 @@ DisplayBook.slnx
 | Platform | Target framework | Minimum platform version |
 | --- | --- | --- |
 | Windows | `net10.0-windows10.0.19041.0` | Windows 10 build 19041 |
-| Android | `net10.0-android` | Android API 21 |
+| Android | `net10.0-android` | Android API 26 |
+| iOS | `net10.0-ios` | iOS 15.0 |
+| macOS (Mac Catalyst) | `net10.0-maccatalyst` | macOS via Mac Catalyst 15.0 |
 
-The Windows app is configured as an unpackaged application (`WindowsPackageType=None`).
+The Windows app is configured as an unpackaged application (`WindowsPackageType=None`). Building iOS and Mac Catalyst requires a Mac with Xcode installed.
 
 ## Prerequisites
 
@@ -54,12 +56,13 @@ Install the following before building:
 
 1. **Git**
 2. **.NET 10 SDK**
-3. **Visual Studio 2026** with the following workloads:
+3. **Visual Studio 2026** (Windows/Android) or **Visual Studio for Mac / Xcode command-line builds** (iOS/Mac Catalyst) with the following workloads:
    - .NET Multi-platform App UI development
    - .NET desktop development
    - Android SDK tools, if building for Android
 4. **Android SDK and an emulator or connected device**, if running the Android target
 5. **WebView2 Runtime**, if it is not already installed on Windows
+6. **A Mac with Xcode installed**, if building for iOS or Mac Catalyst. iOS and Mac Catalyst cannot be built on Windows or Linux.
 
 To verify the .NET SDK, open PowerShell and run:
 
@@ -132,6 +135,48 @@ To deploy and run from Visual Studio, select an Android emulator or device as th
 
 Depending on the installed .NET MAUI workload and Android tooling, the exact device deployment command can vary. Visual Studio is the recommended way to launch the Android app for the first time.
 
+## Build and run iOS
+
+Building and running iOS targets requires a Mac with Xcode installed.
+
+Build the iOS target (device build):
+
+```bash
+dotnet build src/DisplayBook.App/DisplayBook.App.csproj \
+  -f net10.0-ios \
+  -c Debug
+```
+
+To build and run on a booted iOS Simulator, pass the simulator's runtime identifier and UDID (list available simulators with `xcrun simctl list devices available`):
+
+```bash
+dotnet build src/DisplayBook.App/DisplayBook.App.csproj \
+  -f net10.0-ios \
+  -c Debug \
+  -p:RuntimeIdentifier=iossimulator-arm64
+
+xcrun simctl install <SIMULATOR_UDID> src/DisplayBook.App/bin/Debug/net10.0-ios/iossimulator-arm64/DisplayBook.App.app
+xcrun simctl launch <SIMULATOR_UDID> com.ahdf.EpubReaderV2
+```
+
+To deploy to a physical device, a valid Apple Developer signing identity and provisioning profile are required. Visual Studio or Visual Studio Code with the .NET MAUI extension is the recommended way to select a device and launch the app.
+
+## Build and run Mac Catalyst
+
+Build the Mac Catalyst target:
+
+```bash
+dotnet build src/DisplayBook.App/DisplayBook.App.csproj \
+  -f net10.0-maccatalyst \
+  -c Debug
+```
+
+The built app bundle can be launched directly:
+
+```bash
+open src/DisplayBook.App/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/EpubReaderV2.app
+```
+
 ## Use the app
 
 1. Start DisplayBook.
@@ -153,7 +198,7 @@ The application project contains the user-facing MAUI application:
 - `Views` contains the library, book details, and reader pages.
 - `ViewModels` contains MVVM state and commands.
 - `Services` contains EPUB import, storage, SQLite catalog, and navigation services.
-- `Platforms` contains platform-specific Windows and Android behavior.
+- `Platforms` contains platform-specific Windows, Android, iOS, and MacCatalyst behavior.
 
 ### DisplayBook.Viewer
 
@@ -201,6 +246,14 @@ Check that the WebView2 Runtime is installed and that the EPUB import completed 
 ### Android build or deployment fails
 
 Verify that the Android workload, SDK, emulator/device, and required SDK platforms are installed. Visual Studio's Android tooling diagnostics can identify missing SDK components.
+
+### iOS or Mac Catalyst build fails, or can only be built on a Mac
+
+iOS and Mac Catalyst require Xcode and can only be built on macOS; there is no cross-compilation path from Windows or Linux. Verify Xcode is installed and its command-line tools are selected (`xcode-select -p`), and that the .NET MAUI iOS/Mac Catalyst workload components are installed (`dotnet workload list`).
+
+### OPDS/Calibre discovery finds nothing on iOS or macOS
+
+iOS and macOS require explicit permission to use the local network, and the app must declare the Bonjour service type it looks for. Both are already declared in `Info.plist` (`NSLocalNetworkUsageDescription`, `NSBonjourServices`); if discovery still finds nothing, confirm the local-network permission prompt was accepted (Settings → Privacy & Security → Local Network on iOS) and prefer testing on a physical device — mDNS discovery in the iOS Simulator is unreliable. Calibre's OPDS server is also plain HTTP, which iOS/macOS block by default; the `NSAppTransportSecurity` / `NSAllowsLocalNetworking` exception in `Info.plist` allows this for local-network hosts only.
 
 ### Build artifacts appear stale
 

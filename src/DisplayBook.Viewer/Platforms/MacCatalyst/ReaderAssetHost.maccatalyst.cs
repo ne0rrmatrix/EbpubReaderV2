@@ -37,13 +37,8 @@ public sealed partial class ReaderAssetHost
     private static partial Uri CreateViewerUri(string publicationRoot, string opfRelativePath)
     {
         var opf = CreateOpfQuery(publicationRoot, opfRelativePath);
-        var viewerPath = Path.Combine(ContentRoot, "DisplayBookViewer", "index.html");
-        var uri = new UriBuilder("file", string.Empty)
-        {
-            Path = viewerPath,
-            Query = $"opf={opf}&bridge=displaybook%3A%2F%2Fbridge"
-        };
-
-        return uri.Uri;
+        return new Uri(
+            $"{AppleContentScheme}://{AppleContentHost}/DisplayBookViewer/index.html?opf={opf}&bridge=displaybook%3A%2F%2Fbridge",
+            UriKind.Absolute);
     }
 }

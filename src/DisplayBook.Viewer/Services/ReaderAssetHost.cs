@@ -62,7 +62,16 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
         return Uri.EscapeDataString(relativeOpfPath);
     }
 
-    private static string ContentRoot => Path.Combine(FileSystem.AppDataDirectory, "ReaderContent");
+    internal static string ContentRoot => Path.Combine(FileSystem.AppDataDirectory, "ReaderContent");
+
+    /// <summary>
+    /// Custom WKWebView URL scheme used to serve reader content on iOS/MacCatalyst.
+    /// A plain <c>file://</c> load only grants WKWebView read access to the folder
+    /// containing the loaded page, which blocks <c>fetch()</c> calls to publication
+    /// files stored in a sibling folder under <see cref="ContentRoot"/>.
+    /// </summary>
+    internal const string AppleContentScheme = "displaybookcontent";
+    internal const string AppleContentHost = "local";
 
     private static partial Task ConfigurePlatformWebViewAsync(
         WebView webView,

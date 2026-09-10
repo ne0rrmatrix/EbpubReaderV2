@@ -152,9 +152,8 @@
                                        FontSize="11"
                                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
 
-                                <CollectionView ItemsSource="{Binding ProposedChanges}"
-                                                SelectionMode="None">
-                                    <CollectionView.ItemTemplate>
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding ProposedChanges}">
+                                    <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="bookMeta:MetadataFieldChange">
                                             <Grid ColumnDefinitions="Auto,*"
                                                   ColumnSpacing="10"
@@ -193,8 +192,8 @@
                                                 </Grid>
                                             </Grid>
                                         </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
 
                                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                                     <Button Text="Apply selected"

@@ -11,6 +11,8 @@ namespace DisplayBook.Viewer;
 /// </summary>
 [SupportedOSPlatform("Android21.0")]
 [SupportedOSPlatform("Windows10.0.17763")]
+[SupportedOSPlatform("iOS15.0")]
+[SupportedOSPlatform("MacCatalyst15.0")]
 public static class AppBuilderExtensions
 {
     /// <summary>
