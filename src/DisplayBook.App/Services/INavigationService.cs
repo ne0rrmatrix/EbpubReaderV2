@@ -26,4 +26,7 @@ public interface INavigationService
 
     /// <summary>Opens the downloads page showing queued and active downloads.</summary>
     Task ShowDownloadsAsync();
+
+    /// <summary>Opens the settings page (sync sign-in/sign-out).</summary>
+    Task ShowSettingsAsync();
 }

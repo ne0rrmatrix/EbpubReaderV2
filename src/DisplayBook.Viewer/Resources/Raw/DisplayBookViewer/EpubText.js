@@ -507,6 +507,11 @@
 
             manifest.set(id, {
                 href: getAbsoluteUrl(href, opfUrl),
+                // The raw, un-absolutized href from the OPF (e.g. "OEBPS/chapter1.xhtml").
+                // Unlike `href`, this doesn't embed this device's local hosting path (which
+                // includes a per-device-random book folder id), so it's the only form of a
+                // resource's identity that's safe to persist for cross-device sync.
+                relativeHref: href,
                 id,
                 mediaType: item.getAttribute("media-type") ?? "",
                 properties: item.getAttribute("properties") ?? ""
@@ -561,6 +566,17 @@
     function getSpineIndex(url) {
         const resourceUrl = stripFragment(url);
         return state.spine.findIndex((item) => stripFragment(item.href) === resourceUrl);
+    }
+
+    // Only for locators coming from native (setLocator): those carry the portable
+    // OPF-relative href (see relativeHref in parsePackage), not an absolute URL, since an
+    // absolute URL embeds this device's own local hosting path and would never match a
+    // locator synced from a different device. Internal navigation (links, TOC) always
+    // resolves and matches absolute URLs via getSpineIndex above -- that's unrelated to sync
+    // and unaffected by this.
+    function getSpineIndexByRelativeHref(relativeHref) {
+        const normalized = relativeHref.replace(/^\.\//u, "").split("#")[0];
+        return state.spine.findIndex((item) => item.relativeHref.replace(/^\.\//u, "") === normalized);
     }
 
     function getSpineLabel(spineIndex) {
@@ -848,6 +864,138 @@
         );
     }
 
+    // Device-independent reading position: a character offset into the
+    // chapter's text (counted across all SHOW_TEXT nodes under <body> in
+    // document order), independent of how the current device paginates the
+    // chapter into columns/pages. Sampled/resolved via the same Range API
+    // getSelectionInfo() already uses, just driven by caretRangeFromPoint
+    // instead of a user selection.
+    const CHAR_OFFSET_SAMPLE_INSET_X = 6;
+    const CHAR_OFFSET_SAMPLE_Y_FRACTIONS = [0.15, 0.35, 0.5, 0.65, 0.85];
+
+    function getCaretRangeAtPoint(frameDocument, x, y) {
+        if (typeof frameDocument.caretRangeFromPoint === "function") {
+            return frameDocument.caretRangeFromPoint(x, y);
+        }
+        if (typeof frameDocument.caretPositionFromPoint === "function") {
+            const position = frameDocument.caretPositionFromPoint(x, y);
+            if (!position?.offsetNode) {
+                return null;
+            }
+            const range = frameDocument.createRange();
+            range.setStart(position.offsetNode, position.offset);
+            range.collapse(true);
+            return range;
+        }
+        return null;
+    }
+
+    function textOffsetOfRange(frameDocument, range) {
+        if (!range?.startContainer) {
+            return null;
+        }
+        const walker = frameDocument.createTreeWalker(frameDocument.body, NodeFilter.SHOW_TEXT);
+        let offset = 0;
+        let node = walker.nextNode();
+        while (node) {
+            if (node === range.startContainer) {
+                return offset + range.startOffset;
+            }
+            offset += node.textContent.length;
+            node = walker.nextNode();
+        }
+        return null;
+    }
+
+    function getCharOffsetAtViewportStart() {
+        const frameDocument = elements.frame.contentDocument;
+        if (!frameDocument?.body) {
+            return null;
+        }
+
+        const frameHeight = Math.max(1, elements.frame.clientHeight);
+        for (const fraction of CHAR_OFFSET_SAMPLE_Y_FRACTIONS) {
+            const range = getCaretRangeAtPoint(frameDocument, CHAR_OFFSET_SAMPLE_INSET_X, Math.round(frameHeight * fraction));
+            const offset = textOffsetOfRange(frameDocument, range);
+            if (offset !== null) {
+                return offset;
+            }
+        }
+        return null;
+    }
+
+    function findRangeAtTextOffset(frameDocument, targetOffset) {
+        const walker = frameDocument.createTreeWalker(frameDocument.body, NodeFilter.SHOW_TEXT);
+        let offset = 0;
+        let node = walker.nextNode();
+        let lastNode = null;
+        while (node) {
+            const length = node.textContent.length;
+            if (targetOffset <= offset + length) {
+                const range = frameDocument.createRange();
+                const localOffset = Math.max(0, Math.min(length, targetOffset - offset));
+                range.setStart(node, localOffset);
+                range.collapse(true);
+                return range;
+            }
+            offset += length;
+            lastNode = node;
+            node = walker.nextNode();
+        }
+        if (lastNode) {
+            const range = frameDocument.createRange();
+            range.setStart(lastNode, lastNode.textContent.length);
+            range.collapse(true);
+            return range;
+        }
+        return null;
+    }
+
+    function scrollRangeIntoView(range) {
+        const scroller = getFrameScroller();
+        if (!range || !scroller) {
+            return false;
+        }
+
+        const target = range.startContainer.nodeType === Node.ELEMENT_NODE
+            ? range.startContainer
+            : range.startContainer.parentElement;
+
+        if (state.settings.paginationMode === "scroll") {
+            if (!target) {
+                return false;
+            }
+            target.scrollIntoView({ block: "start" });
+            return true;
+        }
+
+        const rect = range.getClientRects()[0];
+        if (!rect) {
+            if (!target) {
+                return false;
+            }
+            target.scrollIntoView({ block: "start" });
+            state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round(scroller.scrollLeft / state.viewportWidth)));
+            return true;
+        }
+
+        const targetLeft = scroller.scrollLeft + rect.left;
+        state.currentPage = Math.max(0, Math.min(state.pageCount - 1, Math.round(targetLeft / state.viewportWidth)));
+        scrollToCurrentPage();
+        return true;
+    }
+
+    function resolveCharOffset(offset) {
+        if (typeof offset !== "number" || offset < 0) {
+            return false;
+        }
+        const frameDocument = elements.frame.contentDocument;
+        if (!frameDocument?.body) {
+            return false;
+        }
+        return scrollRangeIntoView(findRangeAtTextOffset(frameDocument, offset));
+    }
+
     function updateProgress() {
         const position = state.currentSpineIndex + ((state.currentPage + 1) / Math.max(1, state.pageCount));
         const percentage = Math.min(100, Math.max(0, (position / state.spine.length) * 100));
@@ -902,9 +1050,10 @@
         }
         if (state.isReady && item) {
             notifyNative("locationChanged", {
-                resourceHref: item.href,
+                resourceHref: item.relativeHref,
                 page: state.currentPage,
-                pageCount: state.pageCount
+                pageCount: state.pageCount,
+                charOffset: getCharOffsetAtViewportStart() ?? -1
             });
         }
     }
@@ -1344,7 +1493,7 @@
         }
     }
 
-    async function loadResource(spineIndex, fragment = "", openAtEnd = false) {
+    async function loadResource(spineIndex, fragment = "", openAtEnd = false, charOffset = null) {
         const item = state.spine[spineIndex];
         if (!item) {
             return;
@@ -1360,7 +1509,7 @@
 
         const token = ++state.loadToken;
         await new Promise((resolve, reject) => {
-            state.pendingLoad = { fragment, openAtEnd, reject, resolve, token };
+            state.pendingLoad = { fragment, openAtEnd, charOffset, reject, resolve, token };
             const cachedHtml = state.resourceCache.get(stripFragment(item.href));
             if (cachedHtml !== undefined) {
                 elements.frame.removeAttribute("src");
@@ -1387,7 +1536,9 @@
             installFrameInputHandlers(elements.frame.contentDocument);
             state.isReady = true;
             measurePageLayout();
-            if (pendingLoad.openAtEnd) {
+            if (typeof pendingLoad.charOffset === "number" && pendingLoad.charOffset >= 0 && resolveCharOffset(pendingLoad.charOffset)) {
+                // Position already applied by resolveCharOffset.
+            } else if (pendingLoad.openAtEnd) {
                 state.currentPage = state.pageCount - 1;
                 scrollToCurrentPage();
             } else if (pendingLoad.fragment) {
@@ -1403,7 +1554,7 @@
             setLoading(false);
             elements.error.hidden = true;
             notifyNative("readerReady", {
-                resourceHref: state.spine[state.currentSpineIndex].href,
+                resourceHref: state.spine[state.currentSpineIndex].relativeHref,
                 page: state.currentPage,
                 pageCount: state.pageCount
             });
@@ -1601,18 +1752,52 @@
         });
     }
 
-    function setLocator(resourceHref, page = 0) {
-        const targetIndex = getSpineIndex(resourceHref);
-        if (targetIndex < 0) {
+    function setLocator(resourceHref, page = 0, charOffset = -1) {
+        if (!resourceHref) {
+            updateUi();
             return;
         }
+
+        // Prefer the portable relative-href match (what every current build reports and
+        // syncs); fall back to the legacy absolute-URL match for locators saved to this
+        // device's own database before that switch. If neither resolves -- e.g. a locator
+        // synced from a device whose copy of the book doesn't line up, or from a build
+        // predating one of these formats -- fall through to opening at the current/first
+        // chapter rather than doing nothing: the native side is waiting for a
+        // locationChanged to know the reader finished loading, and it must always get one
+        // or the loading screen hangs forever.
+        const byRelativeHref = getSpineIndexByRelativeHref(resourceHref);
+        const byAbsoluteUrl = byRelativeHref >= 0 ? -1 : getSpineIndex(resourceHref);
+        const isGenuineMatch = byRelativeHref >= 0 || byAbsoluteUrl >= 0;
+        const targetIndex = isGenuineMatch ? Math.max(byRelativeHref, byAbsoluteUrl) : state.currentSpineIndex;
+
+        // page/charOffset only mean anything relative to the chapter they were captured
+        // in. If we couldn't actually find that chapter, applying them to whatever
+        // chapter we fell back to would land on a plausible-looking but meaningless
+        // position -- and that bad position would then get saved right back as if it
+        // were real. Land on the start of the fallback chapter instead.
+        const normalizedPage = isGenuineMatch ? page : 0;
+        const normalizedCharOffset = isGenuineMatch && typeof charOffset === "number" && charOffset >= 0 ? charOffset : null;
 
         if (targetIndex !== state.currentSpineIndex) {
-            loadResource(targetIndex).then(() => goToPage(page)).catch(setError);
+            loadResource(targetIndex, "", false, normalizedCharOffset)
+                .then(() => {
+                    // If a char offset was supplied, handleFrameLoad already resolved
+                    // it (and fired the resulting updateUi) before this promise
+                    // settled -- only fall back to the raw page number here.
+                    if (normalizedCharOffset === null) {
+                        goToPage(normalizedPage);
+                    }
+                })
+                .catch(setError);
             return;
         }
 
-        goToPage(page);
+        if (normalizedCharOffset === null || !resolveCharOffset(normalizedCharOffset)) {
+            goToPage(normalizedPage);
+        } else {
+            updateUi();
+        }
     }
 
     function setSettings(settings = {}) {

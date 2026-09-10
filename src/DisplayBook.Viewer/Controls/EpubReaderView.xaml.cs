@@ -119,7 +119,7 @@ public partial class EpubReaderView : ContentView
     {
         cancellationToken.ThrowIfCancellationRequested();
         var resource = JsonSerializer.Serialize(locator.ResourceHref, ReaderJsonContext.Default.String);
-        var script = $"window.DisplayBookReader?.setLocator({resource}, {locator.Page});";
+        var script = $"window.DisplayBookReader?.setLocator({resource}, {locator.Page}, {locator.CharOffset});";
         await ReaderWebView.EvaluateJavaScriptAsync(script);
     }
 
@@ -290,9 +290,17 @@ public partial class EpubReaderView : ContentView
                 {
                     if (!_isReadyForLocationChanges)
                     {
-                        if (_pendingStartLocator is null ||
-                            !string.Equals(locator.ResourceHref, _pendingStartLocator.ResourceHref, StringComparison.Ordinal) ||
-                            locator.Page != _pendingStartLocator.Page)
+                        // Not matched by ResourceHref: the JS setLocator() call this responds
+                        // to always resolves to *some* chapter and always reports exactly one
+                        // locationChanged when it's done (falling back to the current chapter
+                        // if the requested one can't be found, e.g. an old locator format or a
+                        // locator synced from a device whose copy of the book doesn't line up)
+                        // — and it's also free to land on a different page than requested, e.g.
+                        // when resolving a CharOffset to wherever that text falls on this
+                        // device's pagination. Since this is the only source of a
+                        // locationChanged before the reader is marked ready, the first one to
+                        // arrive here is unambiguously the response to that call.
+                        if (_pendingStartLocator is null)
                         {
                             break;
                         }

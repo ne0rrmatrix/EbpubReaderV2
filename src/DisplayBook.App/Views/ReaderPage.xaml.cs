@@ -47,7 +47,20 @@ public partial class ReaderPage : ContentPage
 #if ANDROID
         RestoreSystemUi();
 #endif
+        _ = FlushPendingSyncAsync();
         base.OnDisappearing();
+    }
+
+    private async Task FlushPendingSyncAsync()
+    {
+        try
+        {
+            await _viewModel.FlushPendingSyncAsync();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Could not flush the pending reading-position sync.");
+        }
     }
 
 #if ANDROID

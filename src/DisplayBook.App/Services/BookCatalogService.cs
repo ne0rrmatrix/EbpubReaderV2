@@ -24,9 +24,9 @@ public sealed class BookCatalogService(IBookDatabase database) : IBookCatalogSer
         return database.AddBookAsync(book, coverRelativePath, cancellationToken);
     }
 
-    public Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, CancellationToken cancellationToken = default)
+    public Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, int charOffset = -1, CancellationToken cancellationToken = default)
     {
-        return database.SaveLocatorAsync(bookId, resourceHref, page, pageCount, cancellationToken);
+        return database.SaveLocatorAsync(bookId, resourceHref, page, pageCount, charOffset, cancellationToken);
     }
 
     public Task<BookSummary> UpdateMetadataAsync(string bookId, BookSummary updated, string? newCoverRelativePath, CancellationToken cancellationToken = default)

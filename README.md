@@ -63,6 +63,7 @@ Install the following before building:
 4. **Android SDK and an emulator or connected device**, if running the Android target
 5. **WebView2 Runtime**, if it is not already installed on Windows
 6. **A Mac with Xcode installed**, if building for iOS or Mac Catalyst. iOS and Mac Catalyst cannot be built on Windows or Linux.
+7. **[Firebase CLI](https://firebase.google.com/docs/cli)** (`npm install -g firebase-tools`), only if you want to set up your own Firebase project for the cross-device sync feature — see [Optional integrations](#optional-integrations) below. Not required to build or run the app.
 
 To verify the .NET SDK, open PowerShell and run:
 
@@ -189,6 +190,55 @@ open src/DisplayBook.App/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/EpubRea
 
 Books and the SQLite catalog are stored in the platform's application data directory. The exact location depends on the operating system and app identity.
 
+## Optional integrations
+
+The app builds and runs fully without either of these — they add metadata lookup and cross-device sync on top of the core reader.
+
+### Google Books metadata lookup
+
+When importing a book, DisplayBook can look up richer metadata (title, author, description, cover) from the Google Books API. This works without any setup — keyless requests are allowed — but Google throttles keyless traffic heavily, so lookups may fail or be rate-limited in practice.
+
+To use your own API key:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create or select a project, enable the **Books API**, and create an API key.
+2. Provide the key to the app with one of the following (checked in this order, first match wins):
+   - The `DISPLAYBOOK_GOOGLE_BOOKS_API_KEY` environment variable. Desktop/dev only — environment variables do not reach an Android or iOS build running on a device or emulator.
+   - A local file at `src/DisplayBook.App/Resources/Raw/googlebooks_apikey.txt` containing just the key, with nothing else in it. This file is gitignored and bundled into the app package at build time, so it is the only option that reaches every platform (Windows, Android, iOS, Mac Catalyst) from one local setup.
+
+No key works too — Open Library is used as a fallback metadata source and needs no key at all.
+
+### Firebase sync (reading position across devices)
+
+Signing in from the Settings page lets DisplayBook sync your reading position across devices (with optional TOTP two-factor authentication). It talks to Firebase Authentication and Cloud Firestore directly over REST — no native Firebase SDK is used, so behavior is identical on every platform, including Windows, which has no first-party Firebase SDK.
+
+The app ships pointed at the maintainer's Firebase project. To use your own instead:
+
+1. Create a Firebase project at [the Firebase console](https://console.firebase.google.com/) (or `firebase projects:create`).
+2. In **Project settings → General**, add a **Web app**. This is only used as a credential source for the REST API — no web app is actually deployed. Copy the generated **Web API key**.
+3. Under **Build → Authentication**, click **Get started** (first time only for a new project), then on the **Sign-in method** tab enable the **Email/Password** provider.
+4. Under **Build → Firestore Database**, create a Firestore database (Native mode).
+5. Optional — to support the app's two-factor authentication (TOTP): under **Authentication → Sign-in method → Advanced → Multi-factor authentication**, enable **Authenticator apps (TOTP)**. This may prompt a free upgrade to Identity Platform the first time; that's expected and has no cost implications for TOTP itself (only phone/SMS-based MFA, which this app doesn't use, is billed).
+6. Point the Firebase CLI at your project and deploy the Firestore security rules and Email/Password provider config already checked into this repo (`firestore.rules`, `firebase.json`):
+
+   ```powershell
+   firebase login
+   firebase use --add
+   firebase deploy --only firestore,auth
+   ```
+
+   `firebase login` opens a browser to sign in with the Google account that owns (or has at least Editor access to) the Firebase project — it's a one-time step per machine, and the same command the Firebase CLI prerequisite in [Prerequisites](#prerequisites) refers to. `firebase use --add` then lets you pick that project from a list and give it a local alias (`default` is fine) so later `firebase` commands in this repo target it instead of the maintainer's project.
+
+7. Update `src/DisplayBook.App/Services/Sync/FirebaseOptions.cs` with your project's values:
+
+   ```csharp
+   public const string ProjectId = "your-project-id";
+   public const string WebApiKey = "your-web-api-key";
+   ```
+
+   A Firebase Web API key is not a secret in the way an OAuth client secret is — access to your data is enforced by the Firestore security rules and Authentication, not by hiding this value — so it's fine for this file to stay in source control.
+
+Without this setup, the app still builds and runs normally; signing in on the Settings page will just fail until it points at a real Firebase project.
+
 ## Architecture overview
 
 ### DisplayBook.App
@@ -197,7 +247,7 @@ The application project contains the user-facing MAUI application:
 
 - `Views` contains the library, book details, and reader pages.
 - `ViewModels` contains MVVM state and commands.
-- `Services` contains EPUB import, storage, SQLite catalog, and navigation services.
+- `Services` contains EPUB import, storage, SQLite catalog, navigation, and sync services.
 - `Platforms` contains platform-specific Windows, Android, iOS, and MacCatalyst behavior.
 
 ### DisplayBook.Viewer
@@ -220,6 +270,13 @@ The app can browse remote OPDS catalogs (Calibre content servers) and download b
 - Discovered servers are found automatically on the local network; any OPDS feed can also be added manually by URL.
 - Downloaded books are imported into the same local library as imported EPUBs.
 
+### Cross-device sync
+
+`Services\Sync` implements sign-in and reading-position sync against Firebase, entirely over REST (no native Firebase SDK), so it behaves identically on every supported platform. See [Firebase sync](#firebase-sync-reading-position-across-devices) above for setup.
+
+- `FirebaseAuthService` handles email/password sign-up/sign-in, TOTP multi-factor authentication, and refresh-token renewal, persisting session state in MAUI `SecureStorage`.
+- `PositionSyncService` pushes the current reading position to Firestore (debounced) and pulls the newest position — keyed by each book's content hash, not its local id, since the local id is randomly generated per device at import — before a book is opened, adopting it only if newer than the local save.
+
 ## Development notes
 
 - The project uses nullable reference types.
@@ -227,6 +284,7 @@ The app can browse remote OPDS catalogs (Calibre content servers) and download b
 - The app uses CommunityToolkit.Maui and Microsoft.Data.Sqlite.
 - The reader is a WebView-based EPUB renderer rather than a native document viewer.
 - Do not add imported EPUB files to source control unless they are intentionally being used as test fixtures.
+- `firebase.json`, `.firebaserc`, `firestore.rules`, and `firestore.indexes.json` at the repository root are Firebase CLI project files for the sync feature's Firestore rules and Email/Password provider config — see [Firebase sync](#firebase-sync-reading-position-across-devices) above.
 - Unit tests live in `tests\DisplayBook.Tests` and cover the OPDS feed parser and URL normalizer:
 
 ```powershell

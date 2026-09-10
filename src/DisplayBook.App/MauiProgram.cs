@@ -2,6 +2,7 @@
 using DisplayBook.App.Services;
 using DisplayBook.App.Services.BookMetadata;
 using DisplayBook.App.Services.Opds;
+using DisplayBook.App.Services.Sync;
 using DisplayBook.App.ViewModels;
 using DisplayBook.App.Views;
 using DisplayBook.Viewer;
@@ -59,6 +60,17 @@ public static class MauiProgram
 		builder.Services.AddSingleton(sp =>
 			new OpenLibraryClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(BookMetadataConstants.OpenLibraryClientName)));
 		builder.Services.AddSingleton<IBookMetadataService, BookMetadataService>();
+		builder.Services.AddHttpClient(SyncConstants.HttpClientName)
+			.ConfigureHttpClient(client => client.Timeout = SyncConstants.HttpClientTimeout);
+		builder.Services.AddSingleton<IFirebaseAuthService>(sp =>
+			new FirebaseAuthService(
+				sp.GetRequiredService<IHttpClientFactory>().CreateClient(SyncConstants.HttpClientName),
+				sp.GetRequiredService<ILogger<FirebaseAuthService>>()));
+		builder.Services.AddSingleton<IPositionSyncService>(sp =>
+			new PositionSyncService(
+				sp.GetRequiredService<IHttpClientFactory>().CreateClient(SyncConstants.HttpClientName),
+				sp.GetRequiredService<IFirebaseAuthService>(),
+				sp.GetRequiredService<ILogger<PositionSyncService>>()));
 		builder.Services.AddSingleton<INavigationService, NavigationService>();
 		builder.Services.AddSingletonWithShellRoute<LibraryPage, LibraryViewModel>("library");
 		builder.Services.AddSingleton<AppShell>();
@@ -68,6 +80,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<OpdsCatalogPage, OpdsCatalogViewModel>("opds/catalog");
 		builder.Services.AddTransientWithShellRoute<OpdsBookPage, OpdsBookViewModel>("opds/book");
 		builder.Services.AddTransientWithShellRoute<DownloadsPage, DownloadsViewModel>("opds/downloads");
+		builder.Services.AddTransientWithShellRoute<SettingsPage, SettingsViewModel>("settings");
 
 #if DEBUG
 		builder.Logging.AddDebug();

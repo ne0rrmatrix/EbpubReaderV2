@@ -27,7 +27,9 @@ public sealed class NavigationService(
         var currentBook = (await catalogService.GetBooksAsync())
             .FirstOrDefault(candidate => string.Equals(candidate.Id, book.Id, StringComparison.Ordinal)) ?? book;
         var page = serviceProvider.GetRequiredService<ReaderPage>();
-        ((ReaderViewModel)page.BindingContext).SetBook(currentBook);
+        var viewModel = (ReaderViewModel)page.BindingContext;
+        viewModel.SetBook(currentBook);
+        await viewModel.ApplyRemoteLocatorIfNewerAsync();
         await GetNavigation().PushAsync(page);
     }
 
@@ -86,6 +88,9 @@ public sealed class NavigationService(
 
     public Task ShowDownloadsAsync()
         => GetShell().GoToAsync("opds/downloads");
+
+    public Task ShowSettingsAsync()
+        => GetShell().GoToAsync("settings");
 
     private static Shell GetShell()
     {

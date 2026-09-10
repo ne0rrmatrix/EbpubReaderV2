@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DisplayBook.App.Models;
 using DisplayBook.App.Services;
+using DisplayBook.App.Services.Sync;
 using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.ViewModels;
@@ -11,6 +12,7 @@ public partial class LibraryViewModel(
     IBookCatalogService catalogService,
     IBookImportService importService,
     INavigationService navigationService,
+    IFirebaseAuthService authService,
     ILogger<LibraryViewModel> logger) : ObservableObject
 {
     [ObservableProperty]
@@ -203,6 +205,9 @@ public partial class LibraryViewModel(
     [RelayCommand]
     private Task BrowseOpdsAsync() => navigationService.ShowOpdsServersAsync();
 
+    [RelayCommand]
+    private Task OpenSettingsAsync() => navigationService.ShowSettingsAsync();
+
     [RelayCommand(CanExecute = nameof(CanEnterSelectionMode))]
     private void EnterSelectionMode()
     {
@@ -387,6 +392,10 @@ public partial class LibraryViewModel(
 
     public async Task ReloadCatalogAsync(CancellationToken cancellationToken)
     {
+        // Restores IsSignedIn/CurrentEmail from SecureStorage on first launch after the app
+        // starts; a no-op on every later call (the service only does this restore once).
+        await authService.InitializeAsync(cancellationToken);
+
         var books = await catalogService.GetBooksAsync(cancellationToken);
         Books = new ObservableCollection<BookSummary>(books);
 

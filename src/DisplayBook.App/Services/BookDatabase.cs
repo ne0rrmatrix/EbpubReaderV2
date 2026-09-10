@@ -11,10 +11,11 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
         Id, Title, Author, Description, Language, Publisher, CoverRelativePath,
                  PublicationRoot, PublicationOpfPath, OriginalFileName, ImportedAt,
                  LastOpenedAt, LocatorResourceHref, LocatorPage, LocatorPageCount, ContentHash,
-                 Isbn, Asin
+                 Isbn, Asin, LocatorCharOffset
         """;
 
     private const string TextColumnDdl = "TEXT NOT NULL DEFAULT ''";
+    private const string CharOffsetColumnDdl = "INTEGER NOT NULL DEFAULT -1";
 
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private bool _initialized;
@@ -70,16 +71,16 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
                 Id, Title, Author, Description, Language, Publisher, CoverRelativePath,
                 PublicationRoot, PublicationOpfPath, OriginalFileName, ImportedAt,
                 LastOpenedAt, LocatorResourceHref, LocatorPage, LocatorPageCount, ContentHash,
-                Isbn, Asin)
+                Isbn, Asin, LocatorCharOffset)
             VALUES ($id, $title, $author, $description, $language, $publisher, $cover,
                     $root, $opf, $filename, $imported, $opened, $href, $page, $pageCount, $hash,
-                    $isbn, $asin);
+                    $isbn, $asin, $charOffset);
             """;
         AddBookParameters(command, book, coverRelativePath);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, CancellationToken cancellationToken = default)
+    public async Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, int charOffset = -1, CancellationToken cancellationToken = default)
     {
         await InitializeAsync(cancellationToken);
         await using var connection = await OpenConnectionAsync(cancellationToken);
@@ -89,13 +90,15 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
             SET LastOpenedAt = $opened,
                 LocatorResourceHref = $href,
                 LocatorPage = $page,
-                LocatorPageCount = $pageCount
+                LocatorPageCount = $pageCount,
+                LocatorCharOffset = $charOffset
             WHERE Id = $id;
             """;
         command.Parameters.AddWithValue("$opened", DateTimeOffset.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("$href", resourceHref);
         command.Parameters.AddWithValue("$page", page);
         command.Parameters.AddWithValue("$pageCount", pageCount);
+        command.Parameters.AddWithValue("$charOffset", charOffset);
         command.Parameters.AddWithValue("$id", bookId);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -279,6 +282,7 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
             await EnsureColumnAsync(connection, "Isbn", TextColumnDdl, cancellationToken);
             await EnsureColumnAsync(connection, "Asin", TextColumnDdl, cancellationToken);
             await EnsureColumnAsync(connection, "PreviousMetadataJson", TextColumnDdl, cancellationToken);
+            await EnsureColumnAsync(connection, "LocatorCharOffset", CharOffsetColumnDdl, cancellationToken);
             await using var indexCommand = connection.CreateCommand();
             indexCommand.CommandText = "CREATE UNIQUE INDEX IF NOT EXISTS IX_Books_ContentHash ON Books(ContentHash) WHERE ContentHash <> '';";
             await indexCommand.ExecuteNonQueryAsync(cancellationToken);
@@ -361,7 +365,8 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
             reader.GetInt32(14),
             reader.GetString(15),
             reader.GetString(16),
-            reader.GetString(17));
+            reader.GetString(17),
+            reader.GetInt32(18));
     }
 
     private static async Task EnsureColumnAsync(SqliteConnection connection, string column, string ddlType, CancellationToken cancellationToken)
@@ -411,6 +416,7 @@ public sealed class BookDatabase(BookStorageService storage) : IBookDatabase
         command.Parameters.AddWithValue("$hash", book.ContentHash);
         command.Parameters.AddWithValue("$isbn", book.Isbn);
         command.Parameters.AddWithValue("$asin", book.Asin);
+        command.Parameters.AddWithValue("$charOffset", book.LocatorCharOffset);
     }
 
     private sealed record RawBookRow(
