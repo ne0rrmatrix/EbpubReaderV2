@@ -6,7 +6,6 @@ public partial class OpdsCatalogPage : ContentPage, IQueryAttributable
 {
 	readonly OpdsCatalogViewModel viewModel;
 	bool initialized;
-	Task? initialization;
 
 	public OpdsCatalogPage(OpdsCatalogViewModel viewModel)
 	{
@@ -50,7 +49,7 @@ public partial class OpdsCatalogPage : ContentPage, IQueryAttributable
 		}
 	}
 
-	public void ApplyQueryAttributes(IDictionary<string, object> query)
+	public async void ApplyQueryAttributes(IDictionary<string, object> query)
 	{
 		if (initialized || query is null || !query.TryGetValue("feedUrl", out object? feedUrl))
 		{
@@ -65,6 +64,6 @@ public partial class OpdsCatalogPage : ContentPage, IQueryAttributable
 		initialized = true;
 		query.TryGetValue("title", out object? title);
 		// InitializeAsync never throws; load failures surface via StatusMessage.
-		initialization = viewModel.InitializeAsync(url, title as string);
+		await viewModel.InitializeAsync(url, title as string);
 	}
 }
