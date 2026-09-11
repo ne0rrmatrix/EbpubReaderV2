@@ -2,14 +2,15 @@
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
+using Android.Views;
 
 namespace DisplayBook.App;
 
 [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
-	private const int FolderPickerRequestCode = 4107;
-	private TaskCompletionSource<string?>? _folderPickerCompletion;
+	const int folderPickerRequestCode = 4107;
+	TaskCompletionSource<string?>? folderPickerCompletion;
 
 	protected override void OnCreate(Bundle? savedInstanceState)
 	{
@@ -23,7 +24,7 @@ public class MainActivity : MauiAppCompatActivity
 		ConfigureSystemBars();
 	}
 
-	private void ConfigureSystemBars()
+	void ConfigureSystemBars()
 	{
 		if (!OperatingSystem.IsAndroidVersionAtLeast(35))
 		{
@@ -35,12 +36,12 @@ public class MainActivity : MauiAppCompatActivity
 			return;
 		}
 
-        if (OperatingSystem.IsAndroidVersionAtLeast(30) || (!OperatingSystem.IsAndroidVersionAtLeast(23)))
-        {
-            return;
-        }
+		if (OperatingSystem.IsAndroidVersionAtLeast(30) || (!OperatingSystem.IsAndroidVersionAtLeast(23)))
+		{
+			return;
+		}
 
-        var systemUiFlags = decorView.SystemUiFlags |
+		SystemUiFlags systemUiFlags = decorView.SystemUiFlags |
 			Android.Views.SystemUiFlags.LayoutStable |
 			Android.Views.SystemUiFlags.LayoutFullscreen;
 
@@ -52,38 +53,38 @@ public class MainActivity : MauiAppCompatActivity
 		{
 			systemUiFlags &= ~Android.Views.SystemUiFlags.LightStatusBar;
 		}
-        decorView.SystemUiFlags = systemUiFlags;
-    }
+		decorView.SystemUiFlags = systemUiFlags;
+	}
 
 	public Task<string?> PickFolderUriAsync()
 	{
-		if (_folderPickerCompletion is not null)
+		if (folderPickerCompletion is not null)
 		{
 			throw new InvalidOperationException("A folder picker is already active.");
 		}
 
-		_folderPickerCompletion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var intent = new Intent(Intent.ActionOpenDocumentTree);
+		folderPickerCompletion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		Intent intent = new(Intent.ActionOpenDocumentTree);
 		intent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantPersistableUriPermission | ActivityFlags.GrantPrefixUriPermission);
-		StartActivityForResult(intent, FolderPickerRequestCode);
-		return _folderPickerCompletion.Task;
+		StartActivityForResult(intent, folderPickerRequestCode);
+		return folderPickerCompletion.Task;
 	}
 
 	protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
 	{
 		base.OnActivityResult(requestCode, resultCode, data);
-		if (requestCode != FolderPickerRequestCode || _folderPickerCompletion is null)
+		if (requestCode != folderPickerRequestCode || folderPickerCompletion is null)
 		{
 			return;
 		}
 
-		var completion = _folderPickerCompletion;
-		_folderPickerCompletion = null;
+		TaskCompletionSource<string?> completion = folderPickerCompletion;
+		folderPickerCompletion = null;
 		if (resultCode == Result.Ok && data?.Data is not null)
 		{
 			try
 			{
-				var takeFlags = data.Flags & (ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
+				ActivityFlags takeFlags = data.Flags & (ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
 				ContentResolver?.TakePersistableUriPermission(data.Data, takeFlags);
 			}
 			catch (Java.Lang.SecurityException)

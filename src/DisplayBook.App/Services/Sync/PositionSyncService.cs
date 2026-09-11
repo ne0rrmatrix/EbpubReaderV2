@@ -4,197 +4,216 @@ using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.Services.Sync;
 
-public sealed class PositionSyncService(HttpClient httpClient, IFirebaseAuthService authService, ILogger<PositionSyncService> logger) : IPositionSyncService
+public sealed partial class PositionSyncService(HttpClient httpClient, IFirebaseAuthService authService, ILogger<PositionSyncService> logger) : IPositionSyncService, IDisposable
 {
-    private static readonly TimeSpan DebounceDelay = TimeSpan.FromSeconds(4);
+	static readonly TimeSpan debounceDelay = TimeSpan.FromSeconds(4);
 
-    private readonly Lock _pendingLock = new();
-    private PendingPush? _pending;
-    private CancellationTokenSource? _debounceCts;
+	readonly Lock pendingLock = new();
+	PendingPush? pending;
+	CancellationTokenSource? debounceCts;
+	bool disposedValue;
 
-    public void SchedulePush(string contentHash, string resourceHref, int charOffset, int page, int pageCount, DateTimeOffset updatedAtUtc)
-    {
-        if (!authService.IsSignedIn || string.IsNullOrWhiteSpace(contentHash))
-        {
-            return;
-        }
+	public void SchedulePush(string contentHash, string resourceHref, int charOffset, int page, int pageCount, DateTimeOffset updatedAtUtc)
+	{
+		if (!authService.IsSignedIn || string.IsNullOrWhiteSpace(contentHash))
+		{
+			return;
+		}
 
-        CancellationTokenSource cts;
-        CancellationTokenSource? previousCts;
-        lock (_pendingLock)
-        {
-            _pending = new PendingPush(contentHash, resourceHref, charOffset, page, pageCount, updatedAtUtc);
-            previousCts = _debounceCts;
-            _debounceCts = new CancellationTokenSource();
-            cts = _debounceCts;
-        }
+		CancellationTokenSource cts;
+		CancellationTokenSource? previousCts;
+		lock (pendingLock)
+		{
+			pending = new PendingPush(contentHash, resourceHref, charOffset, page, pageCount, updatedAtUtc);
+			previousCts = debounceCts;
+			debounceCts = new CancellationTokenSource();
+			cts = debounceCts;
+		}
 
-        previousCts?.Cancel();
-        _ = RunDebouncedPushAsync(cts.Token);
-    }
+		previousCts?.Cancel();
+		_ = RunDebouncedPushAsync(cts.Token);
+	}
 
-    private async Task RunDebouncedPushAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(DebounceDelay, cancellationToken);
-        }
-        catch (TaskCanceledException)
-        {
-            return;
-        }
+	async Task RunDebouncedPushAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			await Task.Delay(debounceDelay, cancellationToken);
+		}
+		catch (TaskCanceledException)
+		{
+			return;
+		}
 
-        await PushPendingAsync(cancellationToken);
-    }
+		await PushPendingAsync(cancellationToken);
+	}
 
-    public async Task FlushPendingPushAsync()
-    {
-        CancellationTokenSource? pendingCts;
-        lock (_pendingLock)
-        {
-            pendingCts = _debounceCts;
-            _debounceCts = null;
-        }
+	public async Task FlushPendingPushAsync()
+	{
+		CancellationTokenSource? pendingCts;
+		lock (pendingLock)
+		{
+			pendingCts = debounceCts;
+			debounceCts = null;
+		}
 
-        if (pendingCts is not null)
-        {
-            await pendingCts.CancelAsync();
-        }
+		if (pendingCts is not null)
+		{
+			await pendingCts.CancelAsync();
+		}
 
-        await PushPendingAsync(CancellationToken.None);
-    }
+		await PushPendingAsync(CancellationToken.None);
+	}
 
-    private async Task PushPendingAsync(CancellationToken cancellationToken)
-    {
-        PendingPush? pending;
-        lock (_pendingLock)
-        {
-            pending = _pending;
-            _pending = null;
-        }
+	async Task PushPendingAsync(CancellationToken cancellationToken)
+	{
+		PendingPush? pending1;
+		lock (pendingLock)
+		{
+			pending1 = this.pending;
+			this.pending = null;
+		}
 
-        if (pending is null)
-        {
-            return;
-        }
+		if (pending1 is null)
+		{
+			return;
+		}
 
-        try
-        {
-            var idToken = await authService.TryGetValidIdTokenAsync(cancellationToken);
-            if (idToken is null || authService.CurrentUserId is not { } uid)
-            {
-                return;
-            }
+		try
+		{
+			string? idToken = await authService.TryGetValidIdTokenAsync(cancellationToken);
+			if (idToken is null || authService.CurrentUserId is not { } uid)
+			{
+				return;
+			}
 
-            var url = BuildDocumentUrl(uid, pending.ContentHash);
-            using var request = new HttpRequestMessage(HttpMethod.Patch, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", idToken);
-            request.Content = JsonContent.Create(BuildFieldsPayload(pending));
+			string url = BuildDocumentUrl(uid, pending1.ContentHash);
+			using HttpRequestMessage request = new(HttpMethod.Patch, url);
+			request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", idToken);
+			request.Content = JsonContent.Create(BuildFieldsPayload(pending1));
 
-            using var response = await httpClient.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("Could not push reading position ({Status}) for content hash {ContentHash}.", response.StatusCode, pending.ContentHash);
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Could not push reading position for content hash {ContentHash}.", pending.ContentHash);
-        }
-    }
+			using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+			if (!response.IsSuccessStatusCode)
+			{
+				logger.LogWarning("Could not push reading position ({Status}) for content hash {ContentHash}.", response.StatusCode, pending1.ContentHash);
+			}
+		}
+		catch (Exception exception) when (exception is not OperationCanceledException)
+		{
+			logger.LogWarning(exception, "Could not push reading position for content hash {ContentHash}.", pending1.ContentHash);
+		}
+	}
 
-    public async Task<RemoteReadingPosition?> TryPullPositionAsync(string contentHash, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(contentHash))
-        {
-            return null;
-        }
+	public async Task<RemoteReadingPosition?> TryPullPositionAsync(string contentHash, CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(contentHash))
+		{
+			return null;
+		}
 
-        var idToken = await authService.TryGetValidIdTokenAsync(cancellationToken);
-        if (idToken is null)
-        {
-            return null;
-        }
+		string? idToken = await authService.TryGetValidIdTokenAsync(cancellationToken);
+		if (idToken is null)
+		{
+			return null;
+		}
 
-        if (authService.CurrentUserId is not { } uid)
-        {
-            return null;
-        }
+		if (authService.CurrentUserId is not { } uid)
+		{
+			return null;
+		}
 
-        try
-        {
-            var url = BuildDocumentUrl(uid, contentHash);
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", idToken);
-            using var response = await httpClient.SendAsync(request, cancellationToken);
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return null;
-            }
+		try
+		{
+			string url = BuildDocumentUrl(uid, contentHash);
+			using HttpRequestMessage request = new(HttpMethod.Get, url);
+			request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", idToken);
+			using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+			if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+			{
+				return null;
+			}
 
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("Could not pull reading position ({Status}) for content hash {ContentHash}.", response.StatusCode, contentHash);
-                return null;
-            }
+			if (!response.IsSuccessStatusCode)
+			{
+				logger.LogWarning("Could not pull reading position ({Status}) for content hash {ContentHash}.", response.StatusCode, contentHash);
+				return null;
+			}
 
-            using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            if (!json.RootElement.TryGetProperty("fields", out var fields))
-            {
-                return null;
-            }
+			using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+			if (!json.RootElement.TryGetProperty("fields", out JsonElement fields))
+			{
+				return null;
+			}
 
-            var resourceHref = GetString(fields, "resourceHref") ?? string.Empty;
-            var charOffset = GetInt(fields, "charOffset") ?? -1;
-            var page = GetInt(fields, "page") ?? 0;
-            var pageCount = GetInt(fields, "pageCount") ?? 1;
-            var updatedAt = GetTimestamp(fields, "updatedAt") ?? DateTimeOffset.MinValue;
+			string resourceHref = GetString(fields, "resourceHref") ?? string.Empty;
+			int charOffset = GetInt(fields, "charOffset") ?? -1;
+			int page = GetInt(fields, "page") ?? 0;
+			int pageCount = GetInt(fields, "pageCount") ?? 1;
+			DateTimeOffset updatedAt = GetTimestamp(fields, "updatedAt") ?? DateTimeOffset.MinValue;
 
-            if (string.IsNullOrWhiteSpace(resourceHref))
-            {
-                return null;
-            }
+			return string.IsNullOrWhiteSpace(resourceHref)
+				? null
+				: new RemoteReadingPosition(resourceHref, charOffset, page, pageCount, updatedAt);
+		}
+		catch (Exception exception)
+		{
+			logger.LogWarning(exception, "Could not pull reading position for content hash {ContentHash}.", contentHash);
+			return null;
+		}
+	}
 
-            return new RemoteReadingPosition(resourceHref, charOffset, page, pageCount, updatedAt);
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Could not pull reading position for content hash {ContentHash}.", contentHash);
-            return null;
-        }
-    }
+	static string BuildDocumentUrl(string uid, string contentHash) =>
+		$"https://firestore.googleapis.com/v1/projects/{FirebaseOptions.ProjectId}/databases/(default)/documents/users/{Uri.EscapeDataString(uid)}/positions/{Uri.EscapeDataString(contentHash)}";
 
-    private static string BuildDocumentUrl(string uid, string contentHash) =>
-        $"https://firestore.googleapis.com/v1/projects/{FirebaseOptions.ProjectId}/databases/(default)/documents/users/{Uri.EscapeDataString(uid)}/positions/{Uri.EscapeDataString(contentHash)}";
+	static object BuildFieldsPayload(PendingPush pending) => new
+	{
+		fields = new
+		{
+			resourceHref = new { stringValue = pending.ResourceHref },
+			charOffset = new { integerValue = pending.CharOffset.ToString() },
+			page = new { integerValue = pending.Page.ToString() },
+			pageCount = new { integerValue = pending.PageCount.ToString() },
+			updatedAt = new { timestampValue = pending.UpdatedAtUtc.UtcDateTime.ToString("O") }
+		}
+	};
 
-    private static object BuildFieldsPayload(PendingPush pending) => new
-    {
-        fields = new
-        {
-            resourceHref = new { stringValue = pending.ResourceHref },
-            charOffset = new { integerValue = pending.CharOffset.ToString() },
-            page = new { integerValue = pending.Page.ToString() },
-            pageCount = new { integerValue = pending.PageCount.ToString() },
-            updatedAt = new { timestampValue = pending.UpdatedAtUtc.UtcDateTime.ToString("O") }
-        }
-    };
+	static string? GetString(JsonElement fields, string name) =>
+		fields.TryGetProperty(name, out JsonElement field) && field.TryGetProperty("stringValue", out JsonElement value)
+			? value.GetString()
+			: null;
 
-    private static string? GetString(JsonElement fields, string name) =>
-        fields.TryGetProperty(name, out var field) && field.TryGetProperty("stringValue", out var value)
-            ? value.GetString()
-            : null;
+	static int? GetInt(JsonElement fields, string name) =>
+		fields.TryGetProperty(name, out JsonElement field) && field.TryGetProperty("integerValue", out JsonElement value) &&
+			int.TryParse(value.GetString(), out int parsed)
+			? parsed
+			: null;
 
-    private static int? GetInt(JsonElement fields, string name) =>
-        fields.TryGetProperty(name, out var field) && field.TryGetProperty("integerValue", out var value) &&
-            int.TryParse(value.GetString(), out var parsed)
-            ? parsed
-            : null;
+	static DateTimeOffset? GetTimestamp(JsonElement fields, string name) =>
+		fields.TryGetProperty(name, out JsonElement field) && field.TryGetProperty("timestampValue", out JsonElement value) &&
+			DateTimeOffset.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset parsed)
+			? parsed
+			: null;
 
-    private static DateTimeOffset? GetTimestamp(JsonElement fields, string name) =>
-        fields.TryGetProperty(name, out var field) && field.TryGetProperty("timestampValue", out var value) &&
-            DateTimeOffset.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
-            ? parsed
-            : null;
+	sealed record PendingPush(string ContentHash, string ResourceHref, int CharOffset, int Page, int PageCount, DateTimeOffset UpdatedAtUtc);
 
-    private sealed record PendingPush(string ContentHash, string ResourceHref, int CharOffset, int Page, int PageCount, DateTimeOffset UpdatedAtUtc);
+	void Dispose(bool disposing)
+	{
+		if (!disposedValue)
+		{
+			if (disposing)
+			{
+				debounceCts?.Dispose();
+				debounceCts = null;
+			}
+
+			disposedValue = true;
+		}
+	}
+
+	public void Dispose()
+	{
+		// Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+		Dispose(disposing: true);
+		GC.SuppressFinalize(this);
+	}
 }

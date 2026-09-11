@@ -10,6 +10,6 @@ namespace DisplayBook.Viewer.Serialization;
 [JsonSerializable(typeof(ReaderBridgeMessage))]
 [JsonSerializable(typeof(EpubLocator))]
 [JsonSerializable(typeof(Dictionary<string, string?>))]
-internal partial class ReaderJsonContext : JsonSerializerContext
+partial class ReaderJsonContext : JsonSerializerContext
 {
 }

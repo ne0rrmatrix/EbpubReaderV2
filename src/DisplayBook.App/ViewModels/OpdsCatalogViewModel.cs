@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DisplayBook.App.Models;
 using DisplayBook.App.Services;
-using DisplayBook.App.Services.Opds;
 using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.ViewModels;
@@ -12,275 +11,254 @@ namespace DisplayBook.App.ViewModels;
 /// Drives the OPDS catalog page: renders one feed at a time with breadcrumbs,
 /// pagination, optional search, and drills down into sub-catalogs or book details.
 /// </summary>
-public sealed partial class OpdsCatalogViewModel : ObservableObject, IDisposable
+public sealed partial class OpdsCatalogViewModel(
+	IOpdsParserService parser,
+	IOpdsCatalogCache cache,
+	INavigationService navigation,
+	ILogger<OpdsCatalogViewModel> logger) : ObservableObject, IDisposable
 {
-    private readonly IOpdsParserService _parser;
-    private readonly IOpdsCatalogCache _cache;
-    private readonly INavigationService _navigation;
-    private readonly ILogger<OpdsCatalogViewModel> _logger;
-    private readonly List<Crumb> _crumbs = [];
-    private string? _serverId;
-    private string? _currentUrl;
-    private CancellationTokenSource? _loadCts;
-    private bool _disposed;
+	readonly IOpdsParserService parser = parser;
+	readonly IOpdsCatalogCache cache = cache;
+	readonly INavigationService navigation = navigation;
+	readonly ILogger<OpdsCatalogViewModel> logger = logger;
+	readonly List<Crumb> crumbs = [];
+	string? serverId;
+	string? currentUrl;
+	CancellationTokenSource? loadCts;
+	bool disposed;
 
-    public OpdsCatalogViewModel(
-        IOpdsParserService parser,
-        IOpdsCatalogCache cache,
-        INavigationService navigation,
-        ILogger<OpdsCatalogViewModel> logger)
-    {
-        _parser = parser;
-        _cache = cache;
-        _navigation = navigation;
-        _logger = logger;
-    }
+	public ObservableCollection<CatalogEntryModel> Entries { get; } = [];
 
-    public ObservableCollection<CatalogEntryModel> Entries { get; } = [];
+	public IReadOnlyList<Crumb> Crumbs => crumbs;
 
-    public IReadOnlyList<Crumb> Crumbs => _crumbs;
+	/// <summary>
+	/// Breadcrumb trail rendered as a single line, e.g. "Root › Fiction › Sci-Fi".
+	/// </summary>
+	public string CrumbsText => string.Join("  ›  ", crumbs.Select(c => c.Title));
 
-    /// <summary>
-    /// Breadcrumb trail rendered as a single line, e.g. "Root › Fiction › Sci-Fi".
-    /// </summary>
-    public string CrumbsText => string.Join("  ›  ", _crumbs.Select(c => c.Title));
+	[ObservableProperty]
+	public partial string Title { get; set; } = "Catalog";
 
-    [ObservableProperty]
-    public partial string Title { get; set; } = "Catalog";
+	[ObservableProperty]
+	public partial string? Subtitle { get; set; }
 
-    [ObservableProperty]
-    public partial string? Subtitle { get; set; }
+	[ObservableProperty]
+	public partial bool IsLoading { get; set; }
 
-    [ObservableProperty]
-    public partial bool IsLoading { get; set; }
+	[ObservableProperty]
+	public partial string? StatusMessage { get; set; }
 
-    [ObservableProperty]
-    public partial string? StatusMessage { get; set; }
+	[ObservableProperty]
+	public partial bool CanGoBack { get; set; }
 
-    [ObservableProperty]
-    public partial bool CanGoBack { get; set; }
+	[ObservableProperty]
+	public partial bool CanGoForward { get; set; }
 
-    [ObservableProperty]
-    public partial bool CanGoForward { get; set; }
+	[ObservableProperty]
+	public partial bool CanSearch { get; set; }
 
-    [ObservableProperty]
-    public partial bool CanSearch { get; set; }
+	[ObservableProperty]
+	public partial string SearchText { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    public partial string SearchText { get; set; } = string.Empty;
+	public sealed record Crumb(string Title, string Url);
 
-    public sealed record Crumb(string Title, string Url);
+	public Task InitializeAsync(string feedUrl, string? title = null)
+	{
+		disposed = false;
+		Title = string.IsNullOrWhiteSpace(title) ? "Catalog" : title;
+		crumbs.Clear();
+		crumbs.Add(new Crumb(Title, feedUrl));
+		return LoadFeedAsync(feedUrl, pushCrum: false);
+	}
 
-    public Task InitializeAsync(string feedUrl, string? title = null)
-    {
-        _disposed = false;
-        Title = string.IsNullOrWhiteSpace(title) ? "Catalog" : title;
-        _crumbs.Clear();
-        _crumbs.Add(new Crumb(Title, feedUrl));
-        return LoadFeedAsync(feedUrl, pushCrum: false);
-    }
+	public void OnPageDisappearing() => loadCts?.Cancel();
 
-    public void OnPageDisappearing() => _loadCts?.Cancel();
+	internal Task OpenEntryAsync(CatalogEntryModel model)
+	{
+		string? href = GetEntryHref(model.Entry);
+		return string.IsNullOrWhiteSpace(href)
+			? Task.CompletedTask
+			: model.IsBook ? navigation.ShowOpdsBookAsync(href, serverId, model.Entry) : LoadFeedAsync(href, pushCrum: true);
+	}
 
-    internal Task OpenEntryAsync(CatalogEntryModel model)
-    {
-        var href = GetEntryHref(model.Entry);
-        if (string.IsNullOrWhiteSpace(href))
-        {
-            return Task.CompletedTask;
-        }
+	[RelayCommand]
+	async Task GoBackAsync()
+	{
+		await LoadPreviousCrumbAsync();
+	}
 
-        if (model.IsBook)
-        {
-            return _navigation.ShowOpdsBookAsync(href, _serverId, model.Entry);
-        }
+	[RelayCommand]
+	async Task NavigateBackAsync()
+	{
+		if (crumbs.Count > 1)
+		{
+			await LoadPreviousCrumbAsync();
+			return;
+		}
 
-        return LoadFeedAsync(href, pushCrum: true);
-    }
+		await navigation.GoBackAsync();
+	}
 
-    [RelayCommand]
-    private async Task GoBackAsync()
-    {
-        await LoadPreviousCrumbAsync();
-    }
+	async Task LoadPreviousCrumbAsync()
+	{
+		if (crumbs.Count <= 1)
+		{
+			return;
+		}
 
-    [RelayCommand]
-    private async Task NavigateBackAsync()
-    {
-        if (_crumbs.Count > 1)
-        {
-            await LoadPreviousCrumbAsync();
-            return;
-        }
+		await LoadFeedAsync(crumbs[^2].Url, pushCrum: false, replaceCurrentCrumb: true);
+	}
 
-        await _navigation.GoBackAsync();
-    }
+	[RelayCommand]
+	async Task GoForwardAsync()
+	{
+		string? next = CurrentFeed?.Pagination?.NextUrl;
+		if (next is null)
+		{
+			return;
+		}
 
-    private async Task LoadPreviousCrumbAsync()
-    {
-        if (_crumbs.Count <= 1)
-        {
-            return;
-        }
+		await LoadFeedAsync(next, pushCrum: true);
+	}
 
-        await LoadFeedAsync(_crumbs[^2].Url, pushCrum: false, replaceCurrentCrumb: true);
-    }
+	[RelayCommand]
+	async Task SearchAsync()
+	{
+		OpdsFeed? feed = CurrentFeed;
+		if (feed is null)
+		{
+			return;
+		}
 
-    [RelayCommand]
-    private async Task GoForwardAsync()
-    {
-        var next = CurrentFeed?.Pagination?.NextUrl;
-        if (next is null)
-        {
-            return;
-        }
+		Link? search = feed.GetSearchLink();
+		if (search is null)
+		{
+			StatusMessage = "This catalog does not offer a search interface.";
+			return;
+		}
 
-        await LoadFeedAsync(next, pushCrum: true);
-    }
+		string query = SearchText.Trim();
+		if (query.Length == 0)
+		{
+			return;
+		}
 
-    [RelayCommand]
-    private async Task SearchAsync()
-    {
-        var feed = CurrentFeed;
-        if (feed is null)
-        {
-            return;
-        }
+		char separator = search.Href.Contains('?') ? '&' : '?';
+		await LoadFeedAsync($"{search.Href}{separator}q={Uri.EscapeDataString(query)}", pushCrum: true);
+	}
 
-        var search = feed.GetSearchLink();
-        if (search is null)
-        {
-            StatusMessage = "This catalog does not offer a search interface.";
-            return;
-        }
+	OpdsFeed? CurrentFeed { get; set; }
 
-        var query = SearchText.Trim();
-        if (query.Length == 0)
-        {
-            return;
-        }
+	async Task LoadFeedAsync(string url, bool pushCrum, bool replaceCurrentCrumb = false)
+	{
+		if (loadCts is not null)
+		{
+			await loadCts.CancelAsync();
+		}
 
-        var separator = search.Href.Contains('?') ? '&' : '?';
-        await LoadFeedAsync($"{search.Href}{separator}q={Uri.EscapeDataString(query)}", pushCrum: true);
-    }
+		CancellationTokenSource cts = new();
+		loadCts = cts;
+		try
+		{
+			IsLoading = true;
+			StatusMessage = null;
 
-    private OpdsFeed? CurrentFeed { get; set; }
+			OpdsFeed? feed = await LoadFeedCoreAsync(url, cts.Token);
+			if (cts.Token.IsCancellationRequested || feed is null)
+			{
+				return;
+			}
 
-    private async Task LoadFeedAsync(string url, bool pushCrum, bool replaceCurrentCrumb = false)
-    {
-        if (_loadCts is not null)
-        {
-            await _loadCts.CancelAsync();
-        }
+			if (pushCrum)
+			{
+				crumbs.Add(new Crumb(feed.Title, url));
+			}
+			else if (replaceCurrentCrumb && crumbs.Count > 1)
+			{
+				crumbs.RemoveAt(crumbs.Count - 1);
+			}
 
-        var cts = new CancellationTokenSource();
-        _loadCts = cts;
-        try
-        {
-            IsLoading = true;
-            StatusMessage = null;
+			currentUrl = url;
+			CurrentFeed = feed;
+			PopulateEntries(feed);
 
-            var feed = await LoadFeedCoreAsync(url, cts.Token);
-            if (cts.Token.IsCancellationRequested || feed is null)
-            {
-                return;
-            }
+			Title = string.IsNullOrWhiteSpace(feed.Title) ? Title : feed.Title;
+			Subtitle = feed.Subtitle;
+			CanGoBack = crumbs.Count > 1;
+			CanGoForward = feed.Pagination?.HasNext == true;
+			CanSearch = feed.GetSearchLink() is not null;
+			OnPropertyChanged(nameof(Crumbs));
+			OnPropertyChanged(nameof(CrumbsText));
+		}
+		catch (OperationCanceledException)
+		{
+			// Page went away; ignore.
+		}
+		catch (Exception ex)
+		{
+			logger.LogWarning(ex, "Could not load OPDS feed {Url}", url);
+			StatusMessage = "Could not load this catalog: " + ex.Message;
+		}
+		finally
+		{
+			if (!cts.Token.IsCancellationRequested)
+			{
+				IsLoading = false;
+			}
+		}
+	}
 
-            if (pushCrum)
-            {
-                _crumbs.Add(new Crumb(feed.Title, url));
-            }
-            else if (replaceCurrentCrumb && _crumbs.Count > 1)
-            {
-                _crumbs.RemoveAt(_crumbs.Count - 1);
-            }
+	async Task<OpdsFeed?> LoadFeedCoreAsync(string url, CancellationToken ct)
+	{
+		OpdsFeed? cached = await cache.GetAsync(url, TimeSpan.FromMinutes(5), ct);
+		if (cached is not null)
+		{
+			return cached;
+		}
 
-            _currentUrl = url;
-            CurrentFeed = feed;
-            PopulateEntries(feed);
+		OpdsFeed feed = await parser.ParseFeedAsync(url, ct);
+		feed.SourceUrl ??= url;
+		await cache.SetAsync(feed, url, parentPath: Title, serverId: serverId, ct);
+		return feed;
+	}
 
-            Title = string.IsNullOrWhiteSpace(feed.Title) ? Title : feed.Title;
-            Subtitle = feed.Subtitle;
-            CanGoBack = _crumbs.Count > 1;
-            CanGoForward = feed.Pagination?.HasNext == true;
-            CanSearch = feed.GetSearchLink() is not null;
-            OnPropertyChanged(nameof(Crumbs));
-            OnPropertyChanged(nameof(CrumbsText));
-        }
-        catch (OperationCanceledException)
-        {
-            // Page went away; ignore.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not load OPDS feed {Url}", url);
-            StatusMessage = "Could not load this catalog: " + ex.Message;
-        }
-        finally
-        {
-            if (!cts.Token.IsCancellationRequested)
-            {
-                IsLoading = false;
-            }
-        }
-    }
+	void PopulateEntries(OpdsFeed feed)
+	{
+		Entries.Clear();
+		bool isBookFeed = feed.FeedType == FeedType.Acquisition;
+		foreach (OpdsEntry entry in feed.Entries)
+		{
+			bool isBook = isBookFeed || EntryHasBookContent(entry);
+			Entries.Add(new CatalogEntryModel(entry, isBook, this));
+		}
+	}
 
-    private async Task<OpdsFeed?> LoadFeedCoreAsync(string url, CancellationToken ct)
-    {
-        var cached = await _cache.GetAsync(url, TimeSpan.FromMinutes(5), ct);
-        if (cached is not null)
-        {
-            return cached;
-        }
+	static bool EntryHasBookContent(OpdsEntry entry)
+	{
+		return entry.Links.Any(link => link.IsAcquisition() &&
+			(link.Type?.Contains("epub", StringComparison.OrdinalIgnoreCase) == true ||
+			 link.Type?.Contains("mobi", StringComparison.OrdinalIgnoreCase) == true ||
+			 link.Type?.Contains("ebook", StringComparison.OrdinalIgnoreCase) == true));
+	}
 
-        var feed = await _parser.ParseFeedAsync(url, ct);
-        feed.SourceUrl = feed.SourceUrl ?? url;
-        await _cache.SetAsync(feed, url, parentPath: Title, serverId: _serverId, ct);
-        return feed;
-    }
+	static string? GetEntryHref(OpdsEntry entry)
+	{
+		Link? acquisition = entry.Links.FirstOrDefault(link => link.IsAcquisition());
+		return acquisition is not null ? acquisition.Href : (entry.Links.FirstOrDefault()?.Href);
+	}
 
-    private void PopulateEntries(OpdsFeed feed)
-    {
-        Entries.Clear();
-        var isBookFeed = feed.FeedType == FeedType.Acquisition;
-        foreach (var entry in feed.Entries)
-        {
-            var isBook = isBookFeed || EntryHasBookContent(entry);
-            Entries.Add(new CatalogEntryModel(entry, isBook, this));
-        }
-    }
+	public string? CurrentUrl => currentUrl;
 
-    private static bool EntryHasBookContent(OpdsEntry entry)
-    {
-        return entry.Links.Any(link => link.IsAcquisition() &&
-            (link.Type?.Contains("epub", StringComparison.OrdinalIgnoreCase) == true ||
-             link.Type?.Contains("mobi", StringComparison.OrdinalIgnoreCase) == true ||
-             link.Type?.Contains("ebook", StringComparison.OrdinalIgnoreCase) == true));
-    }
+	public void SetServerId(string? serverId) => this.serverId = serverId;
 
-    private static string? GetEntryHref(OpdsEntry entry)
-    {
-        var acquisition = entry.Links.FirstOrDefault(link => link.IsAcquisition());
-        if (acquisition is not null)
-        {
-            return acquisition.Href;
-        }
+	public void Dispose()
+	{
+		if (disposed)
+		{
+			return;
+		}
 
-        return entry.Links.FirstOrDefault()?.Href;
-    }
-
-    public string? CurrentUrl => _currentUrl;
-
-    public void SetServerId(string? serverId) => _serverId = serverId;
-
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        _loadCts?.Cancel();
-    }
+		disposed = true;
+		loadCts?.Cancel();
+	}
 }

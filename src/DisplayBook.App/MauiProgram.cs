@@ -6,8 +6,6 @@ using DisplayBook.App.Services.Sync;
 using DisplayBook.App.ViewModels;
 using DisplayBook.App.Views;
 using DisplayBook.Viewer;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
 #if MAUI_DEVFLOW
@@ -20,7 +18,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
-		var builder = MauiApp.CreateBuilder();
+		MauiAppBuilder builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
 			.UseMauiCommunityToolkit()

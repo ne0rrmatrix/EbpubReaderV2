@@ -21,13 +21,13 @@ namespace DisplayBook.App.Services.Sync;
 /// </summary>
 public static class FirebaseOptions
 {
-    public const string ProjectId = "displaybook-sync";
+	public const string ProjectId = "displaybook-sync";
 
-    // Rotated 2026-09-10 after the previous key was publicly leaked (GitHub
-    // secret-scanning alert #1); the old key was deleted in the Google Cloud Console
-    // and is confirmed dead (API_KEY_INVALID). This is a new key from a second Web
-    // app registration on the same Firebase project.
-    private const string EncodedWebApiKey = "QUl6YVN5QmZHejIxMUMzS0lyR3pIU0Y4ZnJtWGNkTHphZGZlY3NB";
+	// Rotated 2026-09-10 after the previous key was publicly leaked (GitHub
+	// secret-scanning alert #1); the old key was deleted in the Google Cloud Console
+	// and is confirmed dead (API_KEY_INVALID). This is a new key from a second Web
+	// app registration on the same Firebase project.
+	const string encodedWebApiKey = "QUl6YVN5QmZHejIxMUMzS0lyR3pIU0Y4ZnJtWGNkTHphZGZlY3NB";
 
-    public static string WebApiKey { get; } = Encoding.UTF8.GetString(Convert.FromBase64String(EncodedWebApiKey));
+	public static string WebApiKey { get; } = Encoding.UTF8.GetString(Convert.FromBase64String(encodedWebApiKey));
 }
