@@ -130,8 +130,8 @@ public class BookDetailsViewModelMetadataTests
 
         Assert.Equal(MetadataUpdatePanelState.Applied, viewModel.PanelState);
         Assert.Equal("The Hobbit, or There and Back Again", viewModel.Book!.Title);
-        Assert.Equal("Houghton Mifflin", viewModel.Book!.Publisher);
-        Assert.Equal("9780618968633", viewModel.Book!.Isbn);
+        Assert.Equal("Houghton Mifflin", viewModel.Book.Publisher);
+        Assert.Equal("9780618968633", viewModel.Book.Isbn);
         Assert.True(viewModel.CanUndo);
         Assert.True(metadataService.DownloadCoverCalled);
     }
@@ -187,7 +187,7 @@ public class BookDetailsViewModelMetadataTests
 
         await viewModel.UndoMetadataCommand.ExecuteAsync(null);
 
-        Assert.Equal("The Hobbit", viewModel.Book!.Title);
+        Assert.Equal("The Hobbit", viewModel.Book.Title);
         Assert.False(viewModel.CanUndo);
         Assert.Equal(MetadataUpdatePanelState.Idle, viewModel.PanelState);
     }
