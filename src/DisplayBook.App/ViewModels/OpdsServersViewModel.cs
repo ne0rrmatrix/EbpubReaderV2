@@ -88,7 +88,7 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 	async Task LoadSavedAsync()
 	{
 		saved.Clear();
-		IReadOnlyList<OpdsServer>servers1 = await servers.GetAllAsync();
+		IReadOnlyList<OpdsServer> servers1 = await servers.GetAllAsync();
 		foreach (OpdsServer server in servers1)
 		{
 			saved.Add(new OpdsServerDisplayModel(server, this));

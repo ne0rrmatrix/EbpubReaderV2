@@ -319,7 +319,7 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 		}
 
 		int index = serviceName.LastIndexOf(':');
-		if(index < 0 || index == serviceName.Length - 1)
+		if (index < 0 || index == serviceName.Length - 1)
 		{
 			return 0;
 		}

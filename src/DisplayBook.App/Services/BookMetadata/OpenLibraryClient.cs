@@ -194,7 +194,7 @@ public sealed class OpenLibraryClient(HttpClient httpClient, int maxRetries = 3,
 	{
 		string? GetString(string name) =>
 			doc.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-		
+
 		var authors = GetAuthors1(doc);
 
 		(string? isbn10, string? isbn13) = ExtractIsbns1(doc);

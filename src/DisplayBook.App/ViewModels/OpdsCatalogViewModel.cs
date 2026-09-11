@@ -77,7 +77,7 @@ public sealed partial class OpdsCatalogViewModel(
 	internal Task OpenEntryAsync(CatalogEntryModel model)
 	{
 		string? href = GetEntryHref(model.Entry);
-		if(string.IsNullOrEmpty(href))
+		if (string.IsNullOrEmpty(href))
 		{
 			return Task.CompletedTask;
 		}

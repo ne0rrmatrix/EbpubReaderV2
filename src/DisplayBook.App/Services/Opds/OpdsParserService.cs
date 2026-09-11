@@ -717,11 +717,11 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 
 	static DateTime? ParseDate(string? value)
 	{
-		if(string.IsNullOrWhiteSpace(value))
+		if (string.IsNullOrWhiteSpace(value))
 		{
 			return null;
 		}
-		if(DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTime date))
+		if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTime date))
 		{
 			return date;
 		}

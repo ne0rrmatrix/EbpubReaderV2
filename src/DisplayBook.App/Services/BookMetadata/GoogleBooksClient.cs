@@ -166,7 +166,7 @@ public sealed class GoogleBooksClient(HttpClient httpClient, int maxRetries = 3,
 			GetString("infoLink"));
 	}
 
-	
+
 }
 
 public static class BookIsbnExtractor
