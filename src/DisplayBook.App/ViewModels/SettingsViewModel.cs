@@ -132,7 +132,7 @@ public sealed partial class SettingsViewModel(
                 return;
             }
 
-            HandleAuthResult(result);
+            await HandleAuthResult(result);
         }
         catch (Exception exception)
         {
@@ -153,7 +153,7 @@ public sealed partial class SettingsViewModel(
         try
         {
             var result = await authService.SignUpAsync(Email.Trim(), Password);
-            HandleAuthResult(result);
+            await HandleAuthResult(result);
         }
         catch (Exception exception)
         {
@@ -186,7 +186,7 @@ public sealed partial class SettingsViewModel(
                 MfaCode = string.Empty;
             }
 
-            HandleAuthResult(result);
+            await HandleAuthResult(result);
         }
         catch (Exception exception)
         {
@@ -208,13 +208,13 @@ public sealed partial class SettingsViewModel(
         StatusMessage = null;
     }
 
-    private void HandleAuthResult(FirebaseAuthResult result)
+    private async Task HandleAuthResult(FirebaseAuthResult result)
     {
         if (result.Succeeded)
         {
             Password = string.Empty;
             RefreshAuthState();
-            _ = RefreshSecurityStateAsync();
+            await RefreshSecurityStateAsync();
         }
         else
         {

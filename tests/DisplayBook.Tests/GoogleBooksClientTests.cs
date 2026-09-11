@@ -37,7 +37,7 @@ public class GoogleBooksClientTests
         var result = await client.SearchByIsbnAsync("9780132350884", null, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("Clean Code: A Handbook of Agile Software Craftsmanship", result!.Title);
+        Assert.Equal("Clean Code: A Handbook of Agile Software Craftsmanship", result.Title);
         Assert.Equal(["Robert C. Martin"], result.Authors);
         Assert.Equal("Prentice Hall", result.Publisher);
         Assert.Equal("2008-08-01", result.PublicationDate);
@@ -102,7 +102,7 @@ public class GoogleBooksClientTests
         var result = await client.SearchByIsbnAsync("0000000000000", null, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("A Sparse Record", result!.Title);
+        Assert.Equal("A Sparse Record", result.Title);
         Assert.Null(result.Publisher);
         Assert.Null(result.Description);
         Assert.Null(result.CoverUrl);
@@ -118,9 +118,6 @@ public class GoogleBooksClientTests
 
         await client.SearchByTitleAuthorAsync("Clean Code", "Robert C. Martin", null, CancellationToken.None);
 
-        // ':' is a reserved character so Uri.EscapeDataString percent-encodes it (%3A);
-        // Google's search decodes the query value before parsing "intitle:"/"inauthor:",
-        // so this is still a valid, working query — just not literally readable in the URL.
         Assert.Contains("intitle%3AClean+Code", handler.LastRequestUrl);
         Assert.Contains("inauthor%3ARobert+C.+Martin", handler.LastRequestUrl);
     }
