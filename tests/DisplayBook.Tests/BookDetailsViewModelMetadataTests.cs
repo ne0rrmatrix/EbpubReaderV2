@@ -269,6 +269,8 @@ public class BookDetailsViewModelMetadataTests
 
         public Task DeleteBooksAsync(IReadOnlyCollection<string> bookIds, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, int charOffset = -1, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeNavigationService : INavigationService
@@ -292,5 +294,8 @@ public class BookDetailsViewModelMetadataTests
         public OpdsEntry? TakePendingEntry(string entryUrl) => null;
 
         public Task ShowDownloadsAsync() => Task.CompletedTask;
+
+        public Task ShowSettingsAsync() => Task.CompletedTask;
+
     }
 }
