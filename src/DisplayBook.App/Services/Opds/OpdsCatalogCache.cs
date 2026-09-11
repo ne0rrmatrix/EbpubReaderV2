@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 
 namespace DisplayBook.App.Services;

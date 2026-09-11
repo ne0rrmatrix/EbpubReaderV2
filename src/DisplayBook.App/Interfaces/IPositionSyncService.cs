@@ -1,4 +1,4 @@
-namespace DisplayBook.App.Services.Sync;
+namespace DisplayBook.App.Interfaces;
 
 public sealed record RemoteReadingPosition(string ResourceHref, int CharOffset, int Page, int PageCount, DateTimeOffset UpdatedAt);
 

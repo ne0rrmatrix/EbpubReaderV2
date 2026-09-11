@@ -1,6 +1,6 @@
 using DisplayBook.App.Models;
 
-namespace DisplayBook.App.Services;
+namespace DisplayBook.App.Interfaces;
 
 /// <summary>
 /// Persists previously fetched OPDS feeds so the catalog can open instantly and offline.

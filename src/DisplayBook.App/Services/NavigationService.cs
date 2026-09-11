@@ -1,3 +1,4 @@
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using DisplayBook.App.ViewModels;
 using DisplayBook.App.Views;

@@ -1,6 +1,6 @@
 using DisplayBook.App.Models;
 
-namespace DisplayBook.App.Services;
+namespace DisplayBook.App.Interfaces;
 
 public interface IBookImportService
 {

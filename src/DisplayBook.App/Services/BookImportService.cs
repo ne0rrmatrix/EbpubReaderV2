@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using Microsoft.Extensions.Logging;
 

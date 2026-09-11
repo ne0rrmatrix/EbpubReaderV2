@@ -1,6 +1,6 @@
 using DisplayBook.App.Models;
 
-namespace DisplayBook.App.Services;
+namespace DisplayBook.App.Interfaces;
 
 /// <summary>
 /// Raises when a server is first seen on the network. Events are raised on a background thread;

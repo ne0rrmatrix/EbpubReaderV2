@@ -1,7 +1,7 @@
 using DisplayBook.App.Models;
 using DisplayBook.App.Services.BookMetadata;
 
-namespace DisplayBook.App.Services;
+namespace DisplayBook.App.Interfaces;
 
 public enum BookMetadataFetchStatus
 {

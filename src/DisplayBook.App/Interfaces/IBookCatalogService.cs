@@ -1,8 +1,8 @@
 using DisplayBook.App.Models;
 
-namespace DisplayBook.App.Services;
+namespace DisplayBook.App.Interfaces;
 
-public interface IBookDatabase
+public interface IBookCatalogService
 {
 	Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken = default);
 	Task<BookSummary?> GetBookAsync(string bookId, CancellationToken cancellationToken = default);

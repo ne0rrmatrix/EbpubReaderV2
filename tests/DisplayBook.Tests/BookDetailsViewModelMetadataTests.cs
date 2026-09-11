@@ -1,6 +1,6 @@
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using DisplayBook.App.Models.BookMetadata;
-using DisplayBook.App.Services;
 using DisplayBook.App.Services.BookMetadata;
 using DisplayBook.App.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;

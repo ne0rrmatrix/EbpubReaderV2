@@ -1,4 +1,4 @@
-namespace DisplayBook.App.Services.Sync;
+namespace DisplayBook.App.Picker;
 
 /// <summary>A pending second-factor challenge returned by a sign-in attempt that needs a TOTP code.</summary>
 public sealed record MfaChallenge(string PendingCredential, string EnrollmentId);

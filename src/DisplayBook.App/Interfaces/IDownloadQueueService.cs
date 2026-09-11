@@ -1,6 +1,6 @@
 using DisplayBook.App.Models;
 
-namespace DisplayBook.App.Services.Opds;
+namespace DisplayBook.App.Interfaces;
 
 /// <summary>
 /// Raised on every meaningful state transition (queued, downloading, paused,

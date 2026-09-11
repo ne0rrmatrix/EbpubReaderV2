@@ -1,6 +1,6 @@
 using DisplayBook.App.Models;
 
-namespace DisplayBook.App.Services;
+namespace DisplayBook.App.Interfaces;
 
 /// <summary>
 /// Persists OPDS server profiles, including servers saved automatically after discovery. Backed by

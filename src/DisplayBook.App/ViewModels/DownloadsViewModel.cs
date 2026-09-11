@@ -1,9 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
-using DisplayBook.App.Services;
-using DisplayBook.App.Services.Opds;
 using DisplayBook.App.Views;
 using Microsoft.Extensions.Logging;
 

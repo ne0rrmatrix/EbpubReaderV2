@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using Microsoft.Extensions.Logging;
 using Zeroconf;

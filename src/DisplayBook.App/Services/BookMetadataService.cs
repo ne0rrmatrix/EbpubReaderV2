@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using DisplayBook.App.Services.BookMetadata;
 using Microsoft.Extensions.Logging;
