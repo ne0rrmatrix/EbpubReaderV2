@@ -356,10 +356,10 @@ public partial class EpubReaderView : ContentView
         DefinitionOverlay.IsVisible = true;
     }
 
-    private void OnDefinitionScrimTapped(object? sender, TappedEventArgs e)
+    private async void OnDefinitionScrimTapped(object? sender, TappedEventArgs e)
     {
         DefinitionOverlay.IsVisible = false;
-        _ = ClearSelectionAsync();
+        await ClearSelectionAsync();
     }
 
     private void OnDefinitionCardTapped(object? sender, TappedEventArgs e)
@@ -368,10 +368,10 @@ public partial class EpubReaderView : ContentView
         // dismiss handler when the user taps inside the definition card.
     }
 
-    private void OnDefinitionCloseClicked(object? sender, EventArgs e)
+    private async void OnDefinitionCloseClicked(object? sender, EventArgs e)
     {
         DefinitionOverlay.IsVisible = false;
-        _ = ClearSelectionAsync();
+        await ClearSelectionAsync();
     }
 
     private async Task ClearSelectionAsync()

@@ -36,7 +36,7 @@ public class OpenLibraryClientTests
         var result = await client.SearchByIsbnAsync("9780132350884", CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("Clean Code: A Handbook of Agile Software Craftsmanship", result!.Title);
+        Assert.Equal("Clean Code: A Handbook of Agile Software Craftsmanship", result.Title);
         Assert.Equal(["Robert C. Martin"], result.Authors);
         Assert.Equal("Prentice Hall", result.Publisher);
         Assert.Equal("2008", result.PublicationDate);
@@ -57,7 +57,7 @@ public class OpenLibraryClientTests
         var result = await client.SearchByIsbnAsync("9780132350884", CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("A plain string description, the other shape Open Library returns.", result!.Description);
+        Assert.Equal("A plain string description, the other shape Open Library returns.", result.Description);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class OpenLibraryClientTests
         var result = await client.SearchByIsbnAsync("9780132350884", CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("https://covers.openlibrary.org/b/isbn/9780132350884-L.jpg?default=false", result!.CoverUrl);
+        Assert.Equal("https://covers.openlibrary.org/b/isbn/9780132350884-L.jpg?default=false", result.CoverUrl);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class OpenLibraryClientTests
         var result = await client.SearchByTitleAuthorAsync("Clean Code", "Robert C. Martin", CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("Clean Code", result!.Title);
+        Assert.Equal("Clean Code", result.Title);
         Assert.Equal(["Robert C. Martin"], result.Authors);
         Assert.Equal("Prentice Hall", result.Publisher);
         Assert.Equal("2008", result.PublicationDate);
