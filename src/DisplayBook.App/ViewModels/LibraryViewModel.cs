@@ -322,9 +322,8 @@ public partial class LibraryViewModel(
 			return;
 		}
 
-		using CancellationTokenSource importCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		this.importCancellationSource = importCancellationSource;
-		int importGeneration = Interlocked.Increment(ref this.importGeneration);
+		importCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		importGeneration = Interlocked.Increment(ref this.importGeneration);
 		Volatile.Write(ref activeImportGeneration, importGeneration);
 		Progress<BookImportProgress> progress = new(value => UpdateImportProgress(value, importGeneration));
 		try
@@ -360,6 +359,11 @@ public partial class LibraryViewModel(
 			IsCancelRequested = false;
 			IsBusy = false;
 		}
+	}
+
+	~LibraryViewModel()
+	{
+		importCancellationSource?.Dispose();
 	}
 
 	void UpdateImportProgress(BookImportProgress progress, int importGeneration)

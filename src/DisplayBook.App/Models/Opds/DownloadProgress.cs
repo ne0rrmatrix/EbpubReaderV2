@@ -100,9 +100,18 @@ public sealed class DownloadBatchProgress
 	{
 		get
 		{
-			return TotalBytes > 0
+			if (TotalItems > 0)
+			{
+				return TotalBytes > 0
 				? Math.Clamp((double)DownloadedBytes / TotalBytes, 0, 1)
-				: TotalItems > 0 ? (double)CompletedItems / TotalItems : 0;
+				: ((double)CompletedItems / TotalItems);
+			}
+			else
+			{
+				return TotalBytes > 0
+				? Math.Clamp((double)DownloadedBytes / TotalBytes, 0, 1)
+				: 0;
+			}
 		}
 	}
 }

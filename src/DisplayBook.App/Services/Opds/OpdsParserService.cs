@@ -438,9 +438,7 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 	{
 		// RDF book/collection containers may be written with different casing (e.g. <Description>),
 		// so match the description container case-insensitively.
-		List<XElement> descriptions = root.Elements()
-			.Where(e => string.Equals(e.Name.LocalName, Tags.Description, StringComparison.OrdinalIgnoreCase))
-			.ToList();
+		List<XElement> descriptions = [.. root.Elements().Where(e => string.Equals(e.Name.LocalName, Tags.Description, StringComparison.OrdinalIgnoreCase))];
 		descriptions.AddRange(Locals(root, Tags.Book));
 		descriptions.AddRange(Locals(root, Tags.Collection));
 		return descriptions;
@@ -496,15 +494,30 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 	static BookDetails? ParseBookDetailsFromBytes(byte[] content, string? sourceUrl)
 	{
 		XElement? root = LoadRoot(content);
-		return root is null
-			? null
-			: root.Name.LocalName switch
-			{
-				Tags.Entry => ToBookDetails(ParseAtomEntry(root, sourceUrl), sourceUrl),
-				Tags.Rdf => FirstRdfEntry(root, sourceUrl) is { } rdf ? ToBookDetails(rdf, sourceUrl) : null,
-				Tags.Feed => FirstFeedEntry(root, sourceUrl) is { } feed ? ToBookDetails(feed, sourceUrl) : null,
-				_ => null
-			};
+		if (root is null)
+		{
+			return null;
+		}
+
+		return root.Name.LocalName switch
+		{
+			Tags.Entry => ToBookDetails(ParseAtomEntry(root, sourceUrl), sourceUrl),
+			Tags.Rdf => ParseRdfBookDetails(root, sourceUrl),
+			Tags.Feed => ParseFeedBookDetails(root, sourceUrl),
+			_ => null
+		};
+	}
+
+	static BookDetails? ParseRdfBookDetails(XElement root, string? sourceUrl)
+	{
+		OpdsEntry? rdf = FirstRdfEntry(root, sourceUrl);
+		return rdf is null ? null : ToBookDetails(rdf, sourceUrl);
+	}
+
+	static BookDetails? ParseFeedBookDetails(XElement root, string? sourceUrl)
+	{
+		OpdsEntry? feed = FirstFeedEntry(root, sourceUrl);
+		return feed is null ? null : ToBookDetails(feed, sourceUrl);
 	}
 
 	static OpdsEntry? FirstRdfEntry(XElement root, string? sourceUrl)
@@ -618,11 +631,17 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 			}
 		}
 
+		FeedType navigationFeedType = AnyTypeMatches(types, opdsNavigationFeedType, opdsNavigationFeedEntryType)
+			? FeedType.Navigation
+			: FeedType.Unknown;
+
+		FeedType feedType = AnyTypeMatches(types, opdsSearchFeedType)
+			? FeedType.Search
+			: navigationFeedType;
+
 		return AnyTypeMatches(types, opdsAcquisitionFeedType, opdsAcquisitionFeedEntryType)
 			? FeedType.Acquisition
-			: AnyTypeMatches(types, opdsSearchFeedType)
-			? FeedType.Search
-			: AnyTypeMatches(types, opdsNavigationFeedType, opdsNavigationFeedEntryType) ? FeedType.Navigation : FeedType.Unknown;
+			: feedType;
 	}
 
 	static bool AnyTypeMatches(List<string> types, params string[] candidates)
@@ -682,21 +701,34 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 
 	static string ResolveUriRaw(string href, string? baseUri)
 	{
-		return string.IsNullOrWhiteSpace(href)
-			? blankUri
-			: Uri.TryCreate(baseUri, UriKind.Absolute, out Uri? baseUriObj)
-			? new Uri(baseUriObj, href).ToString()
-			: new Uri(href, UriKind.RelativeOrAbsolute).ToString();
+		if (string.IsNullOrWhiteSpace(href))
+		{
+			return blankUri;
+		}
+		if (Uri.TryCreate(baseUri, UriKind.Absolute, out Uri? baseUriObj))
+		{
+			return new Uri(baseUriObj, href).ToString();
+		}
+		else
+		{
+			return new Uri(href, UriKind.RelativeOrAbsolute).ToString();
+		}
 	}
 
 	static DateTime? ParseDate(string? value)
 	{
-		return string.IsNullOrWhiteSpace(value)
-			? null
-			: DateTime.TryParse(value, CultureInfo.InvariantCulture,
-			DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out global::System.DateTime date)
-			? date
-			: null;
+		if(string.IsNullOrWhiteSpace(value))
+		{
+			return null;
+		}
+		if(DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTime date))
+		{
+			return date;
+		}
+		else
+		{
+			return null;
+		}
 	}
 
 	static long ParseLength(string? value)

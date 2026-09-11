@@ -101,6 +101,23 @@ public sealed class GoogleBooksClient(HttpClient httpClient, int maxRetries = 3,
 		throw new BookMetadataFetchException("Google Books request failed after retries.", lastException);
 	}
 
+	static List<String> GetAuthors(JsonElement info)
+	{
+		var authors = new List<string>();
+		if (info.ValueKind == JsonValueKind.Object &&
+			info.TryGetProperty("authors", out JsonElement authorsProp) &&
+			authorsProp.ValueKind == JsonValueKind.Array)
+		{
+			foreach (JsonElement author in authorsProp.EnumerateArray())
+			{
+				if (author.ValueKind == JsonValueKind.String && author.GetString() is { Length: > 0 } name)
+				{
+					authors.Add(name);
+				}
+			}
+		}
+		return authors;
+	}
 	Task BackoffAsync(int attempt, CancellationToken cancellationToken) =>
 		Task.Delay(TimeSpan.FromSeconds(Math.Min(backoffBaseSeconds * attempt, 10)), cancellationToken);
 
@@ -119,19 +136,7 @@ public sealed class GoogleBooksClient(HttpClient httpClient, int maxRetries = 3,
 		string? subtitle = GetString("subtitle");
 		string? fullTitle = string.IsNullOrWhiteSpace(subtitle) ? title : $"{title}: {subtitle}";
 
-		List<string> authors = new();
-		if (info.ValueKind == JsonValueKind.Object &&
-			info.TryGetProperty("authors", out JsonElement authorsProp) &&
-			authorsProp.ValueKind == JsonValueKind.Array)
-		{
-			foreach (JsonElement author in authorsProp.EnumerateArray())
-			{
-				if (author.ValueKind == JsonValueKind.String && author.GetString() is { Length: > 0 } name)
-				{
-					authors.Add(name);
-				}
-			}
-		}
+		var authors = GetAuthors(info);
 
 		string? isbn10 = null;
 		string? isbn13 = null;
@@ -141,24 +146,56 @@ public sealed class GoogleBooksClient(HttpClient httpClient, int maxRetries = 3,
 		{
 			foreach (JsonElement idElement in idsProp.EnumerateArray())
 			{
-				string? type = idElement.TryGetProperty("type", out JsonElement typeProp) ? typeProp.GetString() : null;
-				string? value = idElement.TryGetProperty("identifier", out JsonElement valueProp) ? valueProp.GetString() : null;
-				if (value is null)
-				{
-					continue;
-				}
-
-				if (string.Equals(type, "ISBN_13", StringComparison.OrdinalIgnoreCase))
-				{
-					isbn13 = value;
-				}
-				else if (string.Equals(type, "ISBN_10", StringComparison.OrdinalIgnoreCase))
-				{
-					isbn10 = value;
-				}
+				isbn10 = BookIsbnExtractor.ExtractIsbn(idElement, "ISBN_10") ?? isbn10;
+				isbn13 = BookIsbnExtractor.ExtractIsbn(idElement, "ISBN_13") ?? isbn13;
 			}
 		}
 
+		string? coverUrl = BookIsbnExtractor.ExtractCoverUrl(info);
+
+		return new FetchedBookMetadata(
+			fullTitle,
+			authors,
+			GetString("publisher"),
+			GetString("publishedDate"),
+			GetString("description"),
+			isbn10,
+			isbn13,
+			coverUrl,
+			BookMetadataProvider.GoogleBooks,
+			GetString("infoLink"));
+	}
+
+	
+}
+
+public static class BookIsbnExtractor
+{
+	public static string? ExtractIsbn(JsonElement idElement, string test)
+	{
+		string? type = ExtractElement(idElement, "type");
+		string? value = ExtractElement(idElement, "identifier");
+
+		if (ExtractString(type, test))
+		{
+			return value;
+		}
+		return null;
+	}
+	static bool ExtractString(string? type, string element)
+	{
+		if (string.Equals(type, element, StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+		return false;
+	}
+	static string? ExtractElement(JsonElement idElement, string type)
+	{
+		return idElement.TryGetProperty(type, out JsonElement typeProp) ? typeProp.GetString() : null;
+	}
+	public static string? ExtractCoverUrl(JsonElement info)
+	{
 		string? coverUrl = null;
 		if (info.ValueKind == JsonValueKind.Object &&
 			info.TryGetProperty("imageLinks", out JsonElement imageLinks) &&
@@ -172,17 +209,6 @@ public sealed class GoogleBooksClient(HttpClient httpClient, int maxRetries = 3,
 				coverUrl = "https://" + coverUrl[7..];
 			}
 		}
-
-		return new FetchedBookMetadata(
-			fullTitle,
-			authors,
-			GetString("publisher"),
-			GetString("publishedDate"),
-			GetString("description"),
-			isbn10,
-			isbn13,
-			coverUrl,
-			BookMetadataProvider.GoogleBooks,
-			GetString("infoLink"));
+		return coverUrl;
 	}
 }

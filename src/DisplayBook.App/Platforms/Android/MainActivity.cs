@@ -42,16 +42,16 @@ public class MainActivity : MauiAppCompatActivity
 		}
 
 		SystemUiFlags systemUiFlags = decorView.SystemUiFlags |
-			Android.Views.SystemUiFlags.LayoutStable |
-			Android.Views.SystemUiFlags.LayoutFullscreen;
+			SystemUiFlags.LayoutStable |
+			SystemUiFlags.LayoutFullscreen;
 
 		if (Microsoft.Maui.Controls.Application.Current?.RequestedTheme == AppTheme.Light)
 		{
-			systemUiFlags |= Android.Views.SystemUiFlags.LightStatusBar;
+			systemUiFlags |= SystemUiFlags.LightStatusBar;
 		}
 		else
 		{
-			systemUiFlags &= ~Android.Views.SystemUiFlags.LightStatusBar;
+			systemUiFlags &= ~SystemUiFlags.LightStatusBar;
 		}
 		decorView.SystemUiFlags = systemUiFlags;
 	}

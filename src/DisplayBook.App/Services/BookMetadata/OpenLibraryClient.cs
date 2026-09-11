@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CommunityToolkit.Mvvm.DependencyInjection;
+using DisplayBook.App.Models;
 
 namespace DisplayBook.App.Services.BookMetadata;
 
@@ -105,17 +107,7 @@ public sealed class OpenLibraryClient(HttpClient httpClient, int maxRetries = 3,
 		string? subtitle = GetString("subtitle");
 		string? fullTitle = string.IsNullOrWhiteSpace(subtitle) ? title : $"{title}: {subtitle}";
 
-		List<string> authors = new();
-		if (record.TryGetProperty("authors", out JsonElement authorsProp) && authorsProp.ValueKind == JsonValueKind.Array)
-		{
-			foreach (JsonElement author in authorsProp.EnumerateArray())
-			{
-				if (author.TryGetProperty("name", out JsonElement nameProp) && nameProp.GetString() is { Length: > 0 } name)
-				{
-					authors.Add(name);
-				}
-			}
-		}
+		var authors = GetAuthors(record);
 
 		string? publisher = null;
 		if (record.TryGetProperty("publishers", out JsonElement publishersProp) && publishersProp.ValueKind == JsonValueKind.Array && publishersProp.GetArrayLength() > 0)
@@ -140,11 +132,24 @@ public sealed class OpenLibraryClient(HttpClient httpClient, int maxRetries = 3,
 			sourceLink);
 	}
 
-	static FetchedBookMetadata ParseSearchDoc(JsonElement doc)
+	static List<string> GetAuthors(JsonElement record)
 	{
-		string? GetString(string name) =>
-			doc.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+		var authors = new List<string>();
+		if (record.TryGetProperty("authors", out JsonElement authorsProp) && authorsProp.ValueKind == JsonValueKind.Array)
+		{
+			foreach (JsonElement author in authorsProp.EnumerateArray())
+			{
+				if (author.TryGetProperty("name", out JsonElement nameProp) && nameProp.GetString() is { Length: > 0 } name)
+				{
+					authors.Add(name);
+				}
+			}
+		}
+		return authors;
+	}
 
+	static List<string> GetAuthors1(JsonElement doc)
+	{
 		List<string> authors = new();
 		if (doc.TryGetProperty("author_name", out JsonElement authorNames) && authorNames.ValueKind == JsonValueKind.Array)
 		{
@@ -156,7 +161,11 @@ public sealed class OpenLibraryClient(HttpClient httpClient, int maxRetries = 3,
 				}
 			}
 		}
+		return authors;
+	}
 
+	static (string? Isbn10, string? Isbn13) ExtractIsbns1(JsonElement doc)
+	{
 		string? isbn10 = null;
 		string? isbn13 = null;
 		if (doc.TryGetProperty("isbn", out JsonElement isbnArray) && isbnArray.ValueKind == JsonValueKind.Array)
@@ -179,6 +188,16 @@ public sealed class OpenLibraryClient(HttpClient httpClient, int maxRetries = 3,
 				}
 			}
 		}
+		return (isbn10, isbn13);
+	}
+	static FetchedBookMetadata ParseSearchDoc(JsonElement doc)
+	{
+		string? GetString(string name) =>
+			doc.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+		
+		var authors = GetAuthors1(doc);
+
+		(string? isbn10, string? isbn13) = ExtractIsbns1(doc);
 
 		string? publisher = null;
 		if (doc.TryGetProperty("publisher", out JsonElement publisherArray) && publisherArray.ValueKind == JsonValueKind.Array && publisherArray.GetArrayLength() > 0)

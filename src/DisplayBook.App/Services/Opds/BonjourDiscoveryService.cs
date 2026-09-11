@@ -176,20 +176,14 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 				}
 
 				string? address = GetPreferredAddress(host);
-				if (address == null)
+				if (address is null)
 				{
 					continue;
 				}
-
-				foreach (KeyValuePair<string, IService> service in host.Services)
+				foreach (var item in host.Services.Select(service => service.Value).Where(serviceInfo => ResolvePort(serviceInfo) > 0))
 				{
-					IService serviceInfo = service.Value;
+					IService serviceInfo = item;
 					int port = ResolvePort(serviceInfo);
-					if (port <= 0)
-					{
-						continue;
-					}
-
 					string key = $"{host.Id}:{port}";
 					seenKeys.Add(key);
 					RegisterHostServer(key, host, address, port, serviceInfo);
@@ -324,9 +318,11 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 		}
 
 		int index = serviceName.LastIndexOf(':');
-		return index < 0 || index == serviceName.Length - 1
-			? 0
-			: int.TryParse(serviceName[(index + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int port)
+		if(index < 0 || index == serviceName.Length - 1)
+		{
+			return 0;
+		}
+		return int.TryParse(serviceName[(index + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int port)
 			? port
 			: 0;
 	}

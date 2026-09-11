@@ -67,9 +67,18 @@ public static class BookIdentifiers
 	/// <summary>Classifies a cleaned candidate, validating its checksum. Never throws.</summary>
 	public static BookIdentifierKind Classify(string candidate)
 	{
-		return IsIsbn13(candidate) && Isbn13ChecksumValid(candidate)
-			? BookIdentifierKind.Isbn13
-			: IsIsbn10(candidate) && Isbn10ChecksumValid(candidate) ? BookIdentifierKind.Isbn10 : BookIdentifierKind.Unknown;
+		if (IsIsbn10(candidate) && Isbn10ChecksumValid(candidate))
+		{
+			return BookIdentifierKind.Isbn10;
+		}
+		else if (IsIsbn13(candidate) && Isbn13ChecksumValid(candidate))
+		{
+			return BookIdentifierKind.Isbn13;
+		}
+		else
+		{
+			return BookIdentifierKind.Unknown;
+		}
 	}
 
 	public static string? Isbn13ToIsbn10(string candidate)

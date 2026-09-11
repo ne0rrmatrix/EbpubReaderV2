@@ -76,9 +76,18 @@ public sealed partial class OpdsCatalogViewModel(
 	internal Task OpenEntryAsync(CatalogEntryModel model)
 	{
 		string? href = GetEntryHref(model.Entry);
-		return string.IsNullOrWhiteSpace(href)
-			? Task.CompletedTask
-			: model.IsBook ? navigation.ShowOpdsBookAsync(href, serverId, model.Entry) : LoadFeedAsync(href, pushCrum: true);
+		if(string.IsNullOrEmpty(href))
+		{
+			return Task.CompletedTask;
+		}
+		else if (model.IsBook)
+		{
+			return navigation.ShowOpdsBookAsync(href, serverId, model.Entry);
+		}
+		else
+		{
+			return LoadFeedAsync(href, pushCrum: true);
+		}
 	}
 
 	[RelayCommand]

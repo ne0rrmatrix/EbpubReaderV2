@@ -6,7 +6,6 @@ public partial class OpdsBookPage : ContentPage, IQueryAttributable
 {
 	readonly OpdsBookViewModel viewModel;
 	bool initialized;
-	Task? initialization;
 
 	public OpdsBookPage(OpdsBookViewModel viewModel)
 	{
@@ -23,7 +22,7 @@ public partial class OpdsBookPage : ContentPage, IQueryAttributable
 		viewModel.OnPageDisappearing();
 	}
 
-	public void ApplyQueryAttributes(IDictionary<string, object> query)
+	public async void ApplyQueryAttributes(IDictionary<string, object> query)
 	{
 		if (initialized || query is null || !query.TryGetValue("entryUrl", out object? entryUrl))
 		{
@@ -36,7 +35,6 @@ public partial class OpdsBookPage : ContentPage, IQueryAttributable
 		}
 
 		initialized = true;
-		// InitializeAsync never throws; load failures surface via StatusMessage.
-		initialization = viewModel.InitializeAsync(url);
+		await viewModel.InitializeAsync(url);
 	}
 }

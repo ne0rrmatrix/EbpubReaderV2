@@ -6,6 +6,8 @@ namespace DisplayBook.App.Services.Sync;
 
 public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<FirebaseAuthService> logger) : IFirebaseAuthService, IDisposable
 {
+	const string idTokenKey = "idToken";
+	const string refreshTokenInResponseKey = "refreshToken";
 	const string signUpUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signUp";
 	const string signInUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
 	const string refreshUrl = "https://securetoken.googleapis.com/v1/token";
@@ -15,7 +17,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 	const string mfaEnrollmentFinalizeUrl = "https://identitytoolkit.googleapis.com/v2/accounts/mfaEnrollment:finalize";
 	const string mfaEnrollmentWithdrawUrl = "https://identitytoolkit.googleapis.com/v2/accounts/mfaEnrollment:withdraw";
 	const string mfaSignInFinalizeUrl = "https://identitytoolkit.googleapis.com/v2/accounts/mfaSignIn:finalize";
-	const string totpDisplayName = "Authenticator app";
+	string? totpDisplayName = "Authenticator app";
 
 	const string refreshTokenKey = "displaybook.sync.refreshToken";
 	const string userIdKey = "displaybook.sync.uid";
@@ -76,8 +78,8 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		JsonElement root = json.RootElement;
-		string idToken = root.GetProperty("idToken").GetString()!;
-		string refreshToken = root.GetProperty("refreshToken").GetString()!;
+		string idToken = root.GetProperty(idTokenKey).GetString()!;
+		string refreshToken = root.GetProperty(refreshTokenInResponseKey).GetString() ?? string.Empty;
 
 		// mfaSignIn:finalize doesn't return localId/email/expiresIn (unlike signIn/signUp) — look the
 		// account up with the fresh token to learn who just signed in.
@@ -188,7 +190,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 			bool emailVerified = user.TryGetProperty("emailVerified", out JsonElement verifiedElement) && verifiedElement.GetBoolean();
 
 			string? totpEnrollmentId = null;
-			string? totpDisplayName = null;
+			totpDisplayName = null;
 			if (user.TryGetProperty("mfaInfo", out JsonElement mfaInfo) && mfaInfo.ValueKind == JsonValueKind.Array)
 			{
 				foreach (JsonElement factor in mfaInfo.EnumerateArray())
@@ -277,8 +279,8 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		JsonElement root = json.RootElement;
-		string newIdToken = root.GetProperty("idToken").GetString()!;
-		string newRefreshToken = root.GetProperty("refreshToken").GetString()!;
+		string newIdToken = root.GetProperty(idTokenKey).GetString()!;
+		string newRefreshToken = root.GetProperty(refreshTokenInResponseKey).GetString()!;
 		if (CurrentUserId is { } uid && CurrentEmail is { } email)
 		{
 			await ApplySessionAsync(newIdToken, newRefreshToken, uid, email, expiresInSeconds: 3600);
@@ -304,8 +306,8 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		JsonElement root = json.RootElement;
-		string newIdToken = root.GetProperty("idToken").GetString()!;
-		string newRefreshToken = root.GetProperty("refreshToken").GetString()!;
+		string newIdToken = root.GetProperty(idTokenKey).GetString()!;
+		string newRefreshToken = root.GetProperty(refreshTokenInResponseKey).GetString()!;
 		if (CurrentUserId is { } uid && CurrentEmail is { } email)
 		{
 			await ApplySessionAsync(newIdToken, newRefreshToken, uid, email, expiresInSeconds: 3600);
@@ -338,8 +340,8 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 			return FirebaseAuthResult.Failure(DescribeError(GetErrorMessage(json)));
 		}
 
-		string idToken = root.GetProperty("idToken").GetString()!;
-		string refreshToken = root.GetProperty("refreshToken").GetString()!;
+		string idToken = root.GetProperty(idTokenKey).GetString()!;
+		string refreshToken = root.GetProperty(refreshTokenInResponseKey).GetString()!;
 		string localId = root.GetProperty("localId").GetString()!;
 		int expiresInSeconds = int.Parse(root.GetProperty("expiresIn").GetString()!);
 
