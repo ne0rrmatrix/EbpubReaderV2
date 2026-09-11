@@ -17,6 +17,7 @@ public partial class OpdsCatalogPage : ContentPage, IQueryAttributable
 
 	internal OpdsCatalogViewModel ViewModel => viewModel;
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S2325:Make method static", Justification = "It is an event handler")]
 	void OnPageSizeChanged(object? sender, EventArgs e)
 	{
 		double width = Width;
@@ -49,6 +50,7 @@ public partial class OpdsCatalogPage : ContentPage, IQueryAttributable
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S3168:async methods should not return void", Justification = "It is an event handler")]
 	public async void ApplyQueryAttributes(IDictionary<string, object> query)
 	{
 		if (initialized || query is null || !query.TryGetValue("feedUrl", out object? feedUrl))
