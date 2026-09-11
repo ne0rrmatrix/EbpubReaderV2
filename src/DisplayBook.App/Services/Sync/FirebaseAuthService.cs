@@ -8,6 +8,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 {
 	const string idTokenKey = "idToken";
 	const string refreshTokenInResponseKey = "refreshToken";
+#pragma warning disable S1075
 	const string signUpUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signUp";
 	const string signInUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
 	const string refreshUrl = "https://securetoken.googleapis.com/v1/token";
@@ -17,6 +18,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 	const string mfaEnrollmentFinalizeUrl = "https://identitytoolkit.googleapis.com/v2/accounts/mfaEnrollment:finalize";
 	const string mfaEnrollmentWithdrawUrl = "https://identitytoolkit.googleapis.com/v2/accounts/mfaEnrollment:withdraw";
 	const string mfaSignInFinalizeUrl = "https://identitytoolkit.googleapis.com/v2/accounts/mfaSignIn:finalize";
+#pragma warning restore S1075
 	string? totpDisplayName = "Authenticator app";
 
 	const string refreshTokenKey = "displaybook.sync.refreshToken";

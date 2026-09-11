@@ -22,6 +22,7 @@ public partial class OpdsBookPage : ContentPage, IQueryAttributable
 		viewModel.OnPageDisappearing();
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3168:Async methods should not return void", Justification = "This method is part of interface contract.")]
 	public async void ApplyQueryAttributes(IDictionary<string, object> query)
 	{
 		if (initialized || query is null || !query.TryGetValue("entryUrl", out object? entryUrl))

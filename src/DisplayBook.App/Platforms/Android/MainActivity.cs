@@ -23,7 +23,7 @@ public class MainActivity : MauiAppCompatActivity
 		base.OnResume();
 		ConfigureSystemBars();
 	}
-
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S2325:Methods should not be static", Justification = "This method is called from the instance context.")]
 	void ConfigureSystemBars()
 	{
 		if (!OperatingSystem.IsAndroidVersionAtLeast(35))
