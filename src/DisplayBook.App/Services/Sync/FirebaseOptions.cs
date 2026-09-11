@@ -22,13 +22,6 @@ namespace DisplayBook.App.Services.Sync;
 public static class FirebaseOptions
 {
 	public const string ProjectId = "displaybook-sync";
-
-	// Rotated 2026-09-10 after the previous key was publicly leaked (GitHub
-	// secret-scanning alert #1); the old key was deleted in the Google Cloud Console
-	// and is confirmed dead (API_KEY_INVALID). This is a new key from a second Web
-	// app registration on the same Firebase project.
-#pragma warning disable S6418 // Firebase API keys are public by design
-	const string encodedWebApiKey = "QUl6YVN5QmZHejIxMUMzS0lyR3pIU0Y4ZnJtWGNkTHphZGZlY3NB";
-#pragma warning restore S6418
+	static readonly string encodedWebApiKey = Environment.GetEnvironmentVariable("MY_APP_SECRET") ?? string.Empty;
 	public static string WebApiKey { get; } = Encoding.UTF8.GetString(Convert.FromBase64String(encodedWebApiKey));
 }
