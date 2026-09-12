@@ -41,8 +41,8 @@ public static class EpubPackageReader
 		XDocument package = XDocument.Load(opfPath, LoadOptions.PreserveWhitespace);
 		XElement? metadataElement = package.Descendants().FirstOrDefault(element =>
 			string.Equals(element.Name.LocalName, "metadata", StringComparison.OrdinalIgnoreCase));
-		List<XElement> manifest = package.Descendants().Where(element =>
-			string.Equals(element.Name.LocalName, "item", StringComparison.OrdinalIgnoreCase)).ToList();
+		List<XElement> manifest = [.. package.Descendants().Where(element =>
+			string.Equals(element.Name.LocalName, "item", StringComparison.OrdinalIgnoreCase))];
 
 		string? coverId = metadataElement?.Elements().FirstOrDefault(element =>
 			string.Equals(element.Name.LocalName, "meta", StringComparison.OrdinalIgnoreCase) &&
@@ -93,9 +93,7 @@ public static class EpubPackageReader
 			return string.Empty;
 		}
 
-		List<XElement> identifierElements = metadata.Elements()
-			.Where(element => string.Equals(element.Name.LocalName, "identifier", StringComparison.OrdinalIgnoreCase))
-			.ToList();
+		List<XElement> identifierElements = [.. metadata.Elements().Where(element => string.Equals(element.Name.LocalName, "identifier", StringComparison.OrdinalIgnoreCase))];
 
 		IEnumerable<XElement> schemeIsbnElements = identifierElements.Where(element => string.Equals(
 			element.Attributes().FirstOrDefault(attr => string.Equals(attr.Name.LocalName, "scheme", StringComparison.OrdinalIgnoreCase))?.Value,

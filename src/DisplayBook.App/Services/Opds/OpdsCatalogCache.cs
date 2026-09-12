@@ -26,7 +26,7 @@ public sealed partial class OpdsCatalogCache(BookStorageService storage) : IOpds
 		},
 	};
 
-	readonly string folderPath = Path.Combine(storage.ContentRoot, folderName);
+	readonly string folderPath = Path.Combine(BookStorageService.ContentRoot, folderName);
 	readonly SemaphoreSlim gate = new(1, 1);
 
 	public async Task<OpdsFeed?> GetAsync(string url, TimeSpan? maxAge = null, CancellationToken cancellationToken = default)
@@ -201,7 +201,7 @@ sealed class StringDictionaryConverter : JsonConverter<Dictionary<string, object
 			throw new JsonException($"Cannot deserialize dictionary from token {reader.TokenType}.");
 		}
 
-		Dictionary<string, object> result = new(StringComparer.OrdinalIgnoreCase);
+		Dictionary<string, object> result = [with(StringComparer.OrdinalIgnoreCase)];
 		while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
 		{
 			if (reader.TokenType != JsonTokenType.PropertyName)

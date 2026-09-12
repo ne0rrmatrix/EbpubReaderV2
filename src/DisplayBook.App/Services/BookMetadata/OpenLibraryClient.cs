@@ -150,7 +150,7 @@ public sealed class OpenLibraryClient(HttpClient httpClient, int maxRetries = 3,
 
 	static List<string> GetAuthors1(JsonElement doc)
 	{
-		List<string> authors = new();
+		List<string> authors = [];
 		if (doc.TryGetProperty("author_name", out JsonElement authorNames) && authorNames.ValueKind == JsonValueKind.Array)
 		{
 			foreach (JsonElement author in authorNames.EnumerateArray())

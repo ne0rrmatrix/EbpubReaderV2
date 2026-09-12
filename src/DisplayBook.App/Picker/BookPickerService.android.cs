@@ -50,7 +50,7 @@ public sealed partial class BookPickerService
 	{
 		Android.Net.Uri childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, documentId)
 			?? throw new IOException("Android could not enumerate the selected folder.");
-		string[] projection = new[] { "document_id", "_display_name", "mime_type" };
+		string[] projection = ["document_id", "_display_name", "mime_type"];
 		using ICursor cursor = resolver.Query(childrenUri, projection, null, null, null) ?? throw new IOException("Android could not read the selected folder.");
 		while (cursor.MoveToNext())
 		{

@@ -90,7 +90,7 @@ public sealed class BookMetadataService(
 	{
 		string extension = ExtensionFor(coverUrl);
 		string relativePath = $"Books/{bookId}/cover.metadata{extension}";
-		string destinationPath = storage.GetAbsolutePath(relativePath);
+		string destinationPath = BookStorageService.GetAbsolutePath(relativePath);
 		Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
 		HttpClient client = httpClientFactory.CreateClient();

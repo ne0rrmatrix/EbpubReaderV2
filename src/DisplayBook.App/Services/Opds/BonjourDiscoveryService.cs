@@ -352,7 +352,6 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 		{
 			path = $"/{path}";
 		}
-
 		return $"http://{address}:{port}{path}";
 	}
 

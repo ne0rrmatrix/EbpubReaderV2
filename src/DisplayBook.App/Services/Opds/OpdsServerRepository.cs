@@ -21,7 +21,7 @@ public sealed partial class OpdsServerRepository(BookStorageService storage) : I
 		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
 	};
 
-	readonly string filePath = Path.Combine(storage.ContentRoot, folderName, fileName);
+	readonly string filePath = Path.Combine(BookStorageService.ContentRoot, folderName, fileName);
 	readonly SemaphoreSlim gate = new(1, 1);
 	List<OpdsServer>? servers;
 	bool disposedValue;
@@ -162,13 +162,13 @@ public sealed partial class OpdsServerRepository(BookStorageService storage) : I
 
 	static List<OpdsServer> NormalizeLoaded(List<OpdsServer>? loaded)
 	{
-		List<OpdsServer> result = new();
+		List<OpdsServer> result = [];
 		if (loaded == null)
 		{
 			return result;
 		}
 
-		HashSet<string> seen = new(StringComparer.Ordinal);
+		HashSet<string> seen = [with(StringComparer.Ordinal)];
 		foreach (OpdsServer server in loaded)
 		{
 			if (string.IsNullOrWhiteSpace(server.Name) || string.IsNullOrWhiteSpace(server.Url))
@@ -203,7 +203,7 @@ public sealed partial class OpdsServerRepository(BookStorageService storage) : I
 			Username = source.Username,
 			Password = source.Password,
 			ApiKey = source.ApiKey,
-			Metadata = new Dictionary<string, string>(source.Metadata ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
+			Metadata = new Dictionary<string, string>(source.Metadata ?? [], StringComparer.OrdinalIgnoreCase),
 		};
 	}
 

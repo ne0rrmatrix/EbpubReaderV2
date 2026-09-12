@@ -11,7 +11,7 @@ public sealed partial class BookPickerService
 {
 	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{
-		Microsoft.Maui.Controls.Window? mauiWindow = MauiApplication.Current?.Windows.FirstOrDefault();
+		Microsoft.Maui.Controls.Window? mauiWindow = MauiApplication.Current?.Windows[0];
 		if (mauiWindow?.Handler?.PlatformView is not NativeWindow nativeWindow)
 		{
 			return null;

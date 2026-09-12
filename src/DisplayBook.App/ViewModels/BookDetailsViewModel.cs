@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.Input;
 using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using DisplayBook.App.Models.BookMetadata;
-using DisplayBook.App.Services;
 using DisplayBook.App.Services.BookMetadata;
 using Microsoft.Extensions.Logging;
 
@@ -243,7 +242,7 @@ public partial class BookDetailsViewModel(
 	{
 		pendingFetchedBook = fetched;
 		BookSummary book = Book!;
-		List<MetadataFieldChange> changes = new();
+		List<MetadataFieldChange> changes = [];
 
 		void AddIfChanged(string field, string label, string? oldValue, string? newValue, bool preselect = true)
 		{

@@ -252,7 +252,7 @@ public partial class LibraryViewModel(
 	[RelayCommand(CanExecute = nameof(CanDeleteSelected))]
 	async Task DeleteSelectedAsync(CancellationToken cancellationToken)
 	{
-		string[] selectedIds = selectedBookIds.ToArray();
+		string[] selectedIds = [.. selectedBookIds];
 		if (selectedIds.Length == 0)
 		{
 			return;

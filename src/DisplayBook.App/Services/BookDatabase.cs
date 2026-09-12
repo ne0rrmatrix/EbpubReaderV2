@@ -25,7 +25,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 	public async Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		await using SqliteCommand command = connection.CreateCommand();
 		command.CommandText = $"SELECT {bookColumns} FROM Books ORDER BY ImportedAt;";
 
@@ -33,7 +33,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
 		while (await reader.ReadAsync(cancellationToken))
 		{
-			BookSummary book = ReadBook(reader);
+			BookSummary book = BookDatabase.ReadBook(reader);
 			books.Add(book);
 		}
 
@@ -43,8 +43,8 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 	public async Task<BookSummary?> GetBookAsync(string bookId, CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
-		return await SelectBookAsync(connection, bookId, cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
+		return await BookDatabase.SelectBookAsync(connection, bookId, cancellationToken);
 	}
 
 	public async Task<bool> ContainsContentHashAsync(string contentHash, CancellationToken cancellationToken = default)
@@ -55,7 +55,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		}
 
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		await using SqliteCommand command = connection.CreateCommand();
 		command.CommandText = "SELECT EXISTS(SELECT 1 FROM Books WHERE ContentHash = $hash);";
 		command.Parameters.AddWithValue("$hash", contentHash);
@@ -66,7 +66,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 	public async Task AddBookAsync(BookSummary book, string coverRelativePath, CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		await using SqliteCommand command = connection.CreateCommand();
 		command.CommandText = """
             INSERT INTO Books (
@@ -85,7 +85,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 	public async Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, int charOffset = -1, CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		await using SqliteCommand command = connection.CreateCommand();
 		command.CommandText = """
             UPDATE Books
@@ -117,7 +117,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		RawBookRow current = await SelectRawRowAsync(connection, bookId, cancellationToken)
 			?? throw new InvalidOperationException($"No book found with id '{bookId}'.");
 
@@ -144,7 +144,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		command.Parameters.AddWithValue("$id", bookId);
 		await command.ExecuteNonQueryAsync(cancellationToken);
 
-		return await SelectBookAsync(connection, bookId, cancellationToken)
+		return await BookDatabase.SelectBookAsync(connection, bookId, cancellationToken)
 			?? throw new InvalidOperationException($"Book '{bookId}' disappeared while updating its metadata.");
 	}
 
@@ -155,7 +155,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 	public async Task<BookSummary?> UndoMetadataAsync(string bookId, CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		string? previousMetadataJson = await SelectPreviousMetadataJsonAsync(connection, bookId, cancellationToken);
 		if (string.IsNullOrWhiteSpace(previousMetadataJson))
 		{
@@ -182,13 +182,13 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		command.Parameters.AddWithValue("$id", bookId);
 		await command.ExecuteNonQueryAsync(cancellationToken);
 
-		return await SelectBookAsync(connection, bookId, cancellationToken);
+		return await BookDatabase.SelectBookAsync(connection, bookId, cancellationToken);
 	}
 
 	public async Task<bool> HasPreviousMetadataAsync(string bookId, CancellationToken cancellationToken = default)
 	{
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		string? json = await SelectPreviousMetadataJsonAsync(connection, bookId, cancellationToken);
 		return !string.IsNullOrWhiteSpace(json);
 	}
@@ -204,7 +204,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		}
 
 		await InitializeAsync(cancellationToken);
-		await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+		await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 		await using SqliteTransaction transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
 		await using SqliteCommand command = connection.CreateCommand();
 		command.Transaction = transaction;
@@ -226,7 +226,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 			cancellationToken.ThrowIfCancellationRequested();
 			try
 			{
-				storage.DeleteBook(bookId);
+				BookStorageService.DeleteBook(bookId);
 			}
 			catch (Exception exception)
 			{
@@ -255,8 +255,8 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 				return;
 			}
 
-			await storage.InitializeAsync(cancellationToken);
-			await using SqliteConnection connection = await OpenConnectionAsync(cancellationToken);
+			await BookStorageService.InitializeAsync(cancellationToken);
+			await using SqliteConnection connection = await BookDatabase.OpenConnectionAsync(cancellationToken);
 			await using SqliteCommand command = connection.CreateCommand();
 			command.CommandText = """
                 CREATE TABLE IF NOT EXISTS Books (
@@ -295,24 +295,24 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		}
 	}
 
-	async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+	static async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
 	{
 		SqliteConnection connection = new(new SqliteConnectionStringBuilder
 		{
-			DataSource = storage.DatabasePath,
+			DataSource = BookStorageService.DatabasePath,
 			Mode = SqliteOpenMode.ReadWriteCreate
 		}.ToString());
 		await connection.OpenAsync(cancellationToken);
 		return connection;
 	}
 
-	async Task<BookSummary?> SelectBookAsync(SqliteConnection connection, string bookId, CancellationToken cancellationToken)
+	static async Task<BookSummary?> SelectBookAsync(SqliteConnection connection, string bookId, CancellationToken cancellationToken)
 	{
 		await using SqliteCommand command = connection.CreateCommand();
 		command.CommandText = $"SELECT {bookColumns} FROM Books WHERE Id = $id;";
 		command.Parameters.AddWithValue("$id", bookId);
 		await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
-		return await reader.ReadAsync(cancellationToken) ? ReadBook(reader) : null;
+		return await reader.ReadAsync(cancellationToken) ? BookDatabase.ReadBook(reader) : null;
 	}
 
 	static async Task<RawBookRow?> SelectRawRowAsync(SqliteConnection connection, string bookId, CancellationToken cancellationToken)
@@ -342,7 +342,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 		return result as string;
 	}
 
-	BookSummary ReadBook(SqliteDataReader reader)
+	static BookSummary ReadBook(SqliteDataReader reader)
 	{
 		string coverRelativePath = reader.GetString(6);
 		return new BookSummary(
@@ -352,7 +352,7 @@ public sealed partial class BookDatabase(BookStorageService storage) : IBookData
 			reader.GetString(3),
 			reader.GetString(4),
 			reader.GetString(5),
-			storage.GetAbsolutePath(coverRelativePath),
+			BookStorageService.GetAbsolutePath(coverRelativePath),
 			reader.GetString(7),
 			reader.GetString(8),
 			reader.GetString(9),

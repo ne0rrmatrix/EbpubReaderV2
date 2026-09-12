@@ -56,7 +56,7 @@ public sealed partial class DownloadQueueService(
 		cancellationToken.ThrowIfCancellationRequested();
 
 		string batchId = Guid.NewGuid().ToString("N");
-		HashSet<string> membership = new(StringComparer.Ordinal);
+		HashSet<string> membership = [with(StringComparer.Ordinal)];
 		foreach ((string? bookTitle, DownloadLink? link) in books)
 		{
 			DownloadProgress item = CreateItem(link, bookTitle, server);
@@ -147,12 +147,11 @@ public sealed partial class DownloadQueueService(
 	public Task ClearFinishedAsync(CancellationToken cancellationToken = default)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
-		List<DownloadProgress> removable = items.Values
+		List<DownloadProgress> removable = [.. items.Values
 			.Where(item => item.Status is DownloadStatus.Paused
 				or DownloadStatus.Completed
 				or DownloadStatus.Failed
-				or DownloadStatus.Canceled)
-			.ToList();
+				or DownloadStatus.Canceled)];
 		foreach (DownloadProgress? item in removable)
 		{
 			items.TryRemove(item.Id, out _);
@@ -174,9 +173,7 @@ public sealed partial class DownloadQueueService(
 
 	public void Dispose()
 	{
-		List<DownloadProgress> active = items.Values
-			.Where(item => item.Status is DownloadStatus.Queued or DownloadStatus.Downloading or DownloadStatus.Paused)
-			.ToList();
+		List<DownloadProgress> active = [.. items.Values.Where(item => item.Status is DownloadStatus.Queued or DownloadStatus.Downloading or DownloadStatus.Paused)];
 		foreach (DownloadProgress? item in active)
 		{
 			item.Status = DownloadStatus.Canceled;
@@ -214,7 +211,7 @@ public sealed partial class DownloadQueueService(
 
 	async Task RunWorkerAsync(DownloadProgress item, CancellationToken token)
 	{
-		string downloadsDir = Path.Combine(storage.ContentRoot, "Opds", "Downloads");
+		string downloadsDir = Path.Combine(BookStorageService.ContentRoot, "Opds", "Downloads");
 		string tempPath = Path.Combine(downloadsDir, item.FileName);
 		Directory.CreateDirectory(downloadsDir);
 		item.TempFilePath = tempPath;

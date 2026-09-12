@@ -42,13 +42,21 @@ public interface IOpdsParserService
 public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserService
 {
 	// OPDS 1.0/1.1 media types and relations (opds-spec.org namespace identifiers, not network requests).
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsImageRel = "http://opds-spec.org/image";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsImageThumbRel = "http://opds-spec.org/image-thumbnail";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsThumbnailRel = "http://opds-spec.org/thumbnail";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsAcquisitionFeedType = "http://opds-spec.org/acquisition";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsAcquisitionFeedEntryType = "http://opds-spec.org/acquisition-feed";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsNavigationFeedType = "http://opds-spec.org/navigation";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsNavigationFeedEntryType = "http://opds-spec.org/navigation-feed";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S5332:Using http protocol is insecure", Justification = "These are OPDS spec identifiers, not https url's.")]
 	const string opdsSearchFeedType = "http://opds-spec.org/search-feed";
 
 	const string feedTypeValueNavigation = "navigation";
@@ -176,7 +184,7 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 			return [];
 		}
 
-		List<DownloadLink> links = new();
+		List<DownloadLink> links = [];
 		foreach (OpdsEntry entry in feed.Entries)
 		{
 			foreach (Link? link in entry.Links.Where(LinkIsAcquisition))
@@ -560,7 +568,7 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 			details.Publisher = publisher?.ToString();
 		}
 
-		details.DownloadLinks = entry.Links.Where(LinkIsAcquisition).Select(ToDownloadLink).ToList();
+		details.DownloadLinks = [.. entry.Links.Where(LinkIsAcquisition).Select(ToDownloadLink)];
 		return details;
 	}
 
@@ -622,7 +630,7 @@ public sealed class OpdsParserService(HttpClient httpClient) : IOpdsParserServic
 
 	static FeedType DetectFeedTypeFromLinks(XElement root)
 	{
-		List<string> types = new();
+		List<string> types = [];
 		foreach (XElement linkEl in Locals(root, Tags.Link))
 		{
 			if (linkEl.Attribute(Attr.Type)?.Value is { } type)

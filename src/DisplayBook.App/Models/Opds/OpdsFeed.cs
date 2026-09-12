@@ -169,10 +169,11 @@ public sealed class Link
 	/// <summary>
 	/// OPDS 1.0/1.1 acquisition relation (opds-spec.org namespace identifier, not a URL target).
 	/// </summary>
+#pragma warning disable S5332
 	public const string RelAcquisition = "http://opds-spec.org/acquisition";
 	public const string RelSale = "http://opds-spec.org/sale";
 	public const string RelSample = "http://opds-spec.org/sample";
-
+#pragma warning restore S5332
 	public string Href { get; set; } = string.Empty;
 
 	public string? Rel { get; set; }

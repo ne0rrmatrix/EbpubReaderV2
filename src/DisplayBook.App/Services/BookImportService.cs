@@ -160,15 +160,15 @@ public sealed class BookImportService(
 		}
 
 		EpubPackageMetadata metadata = EpubPackageReader.Read(stagingRoot);
-		await storage.InitializeAsync(cancellationToken);
+		await BookStorageService.InitializeAsync(cancellationToken);
 		string bookId = importId;
-		string finalRoot = storage.GetBookRoot(bookId);
+		string finalRoot = BookStorageService.GetBookRoot(bookId);
 		if (Directory.Exists(finalRoot))
 		{
 			throw new IOException("A storage directory already exists for this book.");
 		}
 
-		Directory.CreateDirectory(storage.BooksRoot);
+		Directory.CreateDirectory(BookStorageService.BooksRoot);
 		Directory.Move(stagingRoot, finalRoot);
 		BookSummary summary = new(
 			bookId,
@@ -179,7 +179,7 @@ public sealed class BookImportService(
 			metadata.Publisher,
 			string.IsNullOrWhiteSpace(metadata.CoverRelativePath)
 				? string.Empty
-				: storage.GetAbsolutePath($"Books/{bookId}/{metadata.CoverRelativePath}"),
+				: BookStorageService.GetAbsolutePath($"Books/{bookId}/{metadata.CoverRelativePath}"),
 			$"Books/{bookId}",
 			metadata.OpfRelativePath,
 			originalFileName,
@@ -274,7 +274,7 @@ public sealed class BookImportService(
 				continue;
 			}
 
-			string existingRoot = storage.GetAbsolutePath(book.PublicationRoot);
+			string existingRoot = BookStorageService.GetAbsolutePath(book.PublicationRoot);
 			if (!Directory.Exists(existingRoot))
 			{
 				continue;

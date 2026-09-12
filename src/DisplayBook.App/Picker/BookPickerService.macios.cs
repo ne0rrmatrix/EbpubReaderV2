@@ -45,7 +45,7 @@ public sealed partial class BookPickerService
 
 		try
 		{
-			string[] files = Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories).ToArray();
+			string[] files = [.. Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)];
 			for (int index = 0; index < files.Length; index++)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
