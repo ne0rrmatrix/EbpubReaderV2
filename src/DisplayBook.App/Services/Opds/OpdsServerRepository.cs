@@ -9,7 +9,7 @@ namespace DisplayBook.App.Services;
 /// (<c>Opds/servers.json</c>) and is loaded into memory on first access; every mutation writes
 /// through. All public methods are safe to call from any thread.
 /// </summary>
-public sealed partial class OpdsServerRepository(BookStorageService storage) : IOpdsServerRepository, IDisposable
+public sealed partial class OpdsServerRepository : IOpdsServerRepository, IDisposable
 {
 	const string fileName = "servers.json";
 	const string folderName = "Opds";

@@ -1,6 +1,6 @@
 namespace DisplayBook.App.Services;
 
-public sealed class BookStorageService
+public static class BookStorageService
 {
 	public static string ContentRoot => Path.Combine(FileSystem.AppDataDirectory, "ReaderContent");
 

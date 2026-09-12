@@ -10,7 +10,6 @@ namespace DisplayBook.App.Services;
 public sealed class BookImportService(
 	IBookPickerService picker,
 	IBookCatalogService catalog,
-	BookStorageService storage,
 	ILogger<BookImportService> logger) : IBookImportService
 {
 	const string checkingExistingLibraryStage = "Checking existing library";

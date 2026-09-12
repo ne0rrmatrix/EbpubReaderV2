@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 
 namespace DisplayBook.App.Services;
 
-public sealed partial class BookDatabase(BookStorageService storage) : IBookDatabase, IDisposable
+public sealed partial class BookDatabase : IBookDatabase, IDisposable
 {
 	const string bookColumns = """
         Id, Title, Author, Description, Language, Publisher, CoverRelativePath,

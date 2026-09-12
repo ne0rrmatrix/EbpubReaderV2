@@ -10,7 +10,6 @@ public sealed class BookMetadataService(
 	GoogleBooksClient googleBooks,
 	OpenLibraryClient openLibrary,
 	IHttpClientFactory httpClientFactory,
-	BookStorageService storage,
 	ILogger<BookMetadataService> logger) : IBookMetadataService
 {
 

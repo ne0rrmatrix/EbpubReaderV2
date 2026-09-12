@@ -36,7 +36,6 @@ public static class MauiProgram
 #endif
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddSingleton<IBookCatalogService, BookCatalogService>();
-		builder.Services.AddSingleton<BookStorageService>();
 		builder.Services.AddHttpClient(OpdsConstants.HttpClientName)
 			.ConfigureHttpClient(client => client.Timeout = OpdsConstants.HttpClientTimeout);
 		builder.Services.AddHttpClient<IOpdsParserService, OpdsParserService>(OpdsConstants.HttpClientName);

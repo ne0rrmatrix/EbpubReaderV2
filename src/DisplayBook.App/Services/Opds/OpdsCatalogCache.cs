@@ -10,7 +10,7 @@ namespace DisplayBook.App.Services;
 /// <c>Opds/Cache/</c> in the app data directory). Entries are keyed by the normalized feed
 /// URL. The parser is stateless; this is the single place feeds are persisted.
 /// </summary>
-public sealed partial class OpdsCatalogCache(BookStorageService storage) : IOpdsCatalogCache, IDisposable
+public sealed partial class OpdsCatalogCache : IOpdsCatalogCache, IDisposable
 {
 	const string folderName = "Cache";
 	const string fileNamePrefix = "feed-";

@@ -9,7 +9,6 @@ namespace DisplayBook.App.Services.Opds;
 
 public sealed partial class DownloadQueueService(
 	IHttpClientFactory httpClientFactory,
-	BookStorageService storage,
 	IBookImportService importService,
 	ILogger<DownloadQueueService> logger) : IDownloadQueueService
 {
