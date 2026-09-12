@@ -1,44 +1,41 @@
 namespace DisplayBook.App.Services;
 
-public sealed class BookStorageService
+public static class BookStorageService
 {
-    public string ContentRoot => Path.Combine(FileSystem.AppDataDirectory, "ReaderContent");
+	public static string ContentRoot => Path.Combine(FileSystem.AppDataDirectory, "ReaderContent");
 
-    public string BooksRoot => Path.Combine(ContentRoot, "Books");
+	public static string BooksRoot => Path.Combine(BookStorageService.ContentRoot, "Books");
 
-    public string DatabasePath => Path.Combine(FileSystem.AppDataDirectory, "displaybook.db");
+	public static string DatabasePath => Path.Combine(FileSystem.AppDataDirectory, "displaybook.db");
 
-    public string GetBookRoot(string bookId) => Path.Combine(BooksRoot, bookId);
+	public static string GetBookRoot(string bookId) => Path.Combine(BookStorageService.BooksRoot, bookId);
 
-    public string GetAbsolutePath(string relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(relativePath))
-        {
-            return string.Empty;
-        }
+	public static string GetAbsolutePath(string relativePath)
+	{
+		return string.IsNullOrWhiteSpace(relativePath)
+			? string.Empty
+			: Path.GetFullPath(Path.Combine(BookStorageService.ContentRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+	}
 
-        return Path.GetFullPath(Path.Combine(ContentRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-    }
+	public static void DeleteBook(string bookId)
+	{
+		if (string.IsNullOrWhiteSpace(bookId))
+		{
+			return;
+		}
 
-    public void DeleteBook(string bookId)
-    {
-        if (string.IsNullOrWhiteSpace(bookId))
-        {
-            return;
-        }
+		string bookRoot = BookStorageService.GetBookRoot(bookId);
+		if (Directory.Exists(bookRoot))
+		{
+			Directory.Delete(bookRoot, recursive: true);
+		}
+	}
 
-        var bookRoot = GetBookRoot(bookId);
-        if (Directory.Exists(bookRoot))
-        {
-            Directory.Delete(bookRoot, recursive: true);
-        }
-    }
-
-    public Task InitializeAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(ContentRoot);
-        Directory.CreateDirectory(BooksRoot);
-        return Task.CompletedTask;
-    }
+	public static Task InitializeAsync(CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		Directory.CreateDirectory(BookStorageService.ContentRoot);
+		Directory.CreateDirectory(BookStorageService.BooksRoot);
+		return Task.CompletedTask;
+	}
 }

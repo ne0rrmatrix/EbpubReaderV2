@@ -8,402 +8,402 @@ namespace DisplayBook.Viewer.Controls;
 
 public partial class EpubReaderView : ContentView
 {
-    private readonly ReaderAssetHost _assetHost = new();
-    private readonly IDictionaryLookupService _dictionaryLookupService = new DictionaryLookupService();
-    private bool _hasLoadedPublication;
-    private bool _isLoading;
-    private bool _isReadyForLocationChanges;
-    private bool _readerReadyReceived;
-    private EpubLocator? _pendingStartLocator;
+	readonly ReaderAssetHost assetHost = new();
+	readonly IDictionaryLookupService dictionaryLookupService = new DictionaryLookupService();
+	bool hasLoadedPublication;
+	bool isLoading;
+	bool isReadyForLocationChanges;
+	bool readerReadyReceived;
+	EpubLocator? pendingStartLocator;
 
-    public static readonly BindableProperty PublicationRootProperty = BindableProperty.Create(
-        nameof(PublicationRoot),
-        typeof(string),
-        typeof(EpubReaderView),
-        string.Empty,
-        propertyChanged: OnPublicationChanged);
+	public static readonly BindableProperty PublicationRootProperty = BindableProperty.Create(
+		nameof(PublicationRoot),
+		typeof(string),
+		typeof(EpubReaderView),
+		string.Empty,
+		propertyChanged: OnPublicationChanged);
 
-    public static readonly BindableProperty PublicationOpfPathProperty = BindableProperty.Create(
-        nameof(PublicationOpfPath),
-        typeof(string),
-        typeof(EpubReaderView),
-        string.Empty,
-        propertyChanged: OnPublicationChanged);
+	public static readonly BindableProperty PublicationOpfPathProperty = BindableProperty.Create(
+		nameof(PublicationOpfPath),
+		typeof(string),
+		typeof(EpubReaderView),
+		string.Empty,
+		propertyChanged: OnPublicationChanged);
 
-    public static readonly BindableProperty StartLocatorProperty = BindableProperty.Create(
-        nameof(StartLocator),
-        typeof(EpubLocator),
-        typeof(EpubReaderView),
-        EpubLocator.Empty);
+	public static readonly BindableProperty StartLocatorProperty = BindableProperty.Create(
+		nameof(StartLocator),
+		typeof(EpubLocator),
+		typeof(EpubReaderView),
+		EpubLocator.Empty);
 
-    public static readonly BindableProperty CoverImageSourceProperty = BindableProperty.Create(
-        nameof(CoverImageSource),
-        typeof(ImageSource),
-        typeof(EpubReaderView),
-        default(ImageSource),
-        propertyChanged: OnCoverImageSourceChanged);
+	public static readonly BindableProperty CoverImageSourceProperty = BindableProperty.Create(
+		nameof(CoverImageSource),
+		typeof(ImageSource),
+		typeof(EpubReaderView),
+		default(ImageSource),
+		propertyChanged: OnCoverImageSourceChanged);
 
-    public EpubReaderView()
-    {
-        InitializeComponent();
-        Loaded += OnLoaded;
-        ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
-    }
+	public EpubReaderView()
+	{
+		InitializeComponent();
+		Loaded += OnLoaded;
+		ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
+	}
 
-    public string PublicationRoot
-    {
-        get => (string)GetValue(PublicationRootProperty);
-        set => SetValue(PublicationRootProperty, value);
-    }
+	public string PublicationRoot
+	{
+		get => (string)GetValue(PublicationRootProperty);
+		set => SetValue(PublicationRootProperty, value);
+	}
 
-    public string PublicationOpfPath
-    {
-        get => (string)GetValue(PublicationOpfPathProperty);
-        set => SetValue(PublicationOpfPathProperty, value);
-    }
+	public string PublicationOpfPath
+	{
+		get => (string)GetValue(PublicationOpfPathProperty);
+		set => SetValue(PublicationOpfPathProperty, value);
+	}
 
-    public EpubLocator StartLocator
-    {
-        get => (EpubLocator)GetValue(StartLocatorProperty);
-        set => SetValue(StartLocatorProperty, value);
-    }
+	public EpubLocator StartLocator
+	{
+		get => (EpubLocator)GetValue(StartLocatorProperty);
+		set => SetValue(StartLocatorProperty, value);
+	}
 
-    public ImageSource CoverImageSource
-    {
-        get => (ImageSource)GetValue(CoverImageSourceProperty);
-        set => SetValue(CoverImageSourceProperty, value);
-    }
+	public ImageSource CoverImageSource
+	{
+		get => (ImageSource)GetValue(CoverImageSourceProperty);
+		set => SetValue(CoverImageSourceProperty, value);
+	}
 
-    public event EventHandler<ReaderMessageEventArgs>? MessageReceived;
-    public event EventHandler? ReaderReady;
-    public event EventHandler<EpubLocator>? LocationChanged;
-    public event EventHandler? ExitRequested;
-    public event EventHandler? SettingsRequested;
-    public event EventHandler<string>? ThemeChanged;
-    public event EventHandler<string>? ReaderError;
+	public event EventHandler<ReaderMessageEventArgs>? MessageReceived;
+	public event EventHandler? ReaderReady;
+	public event EventHandler<EpubLocator>? LocationChanged;
+	public event EventHandler? ExitRequested;
+	public event EventHandler? SettingsRequested;
+	public event EventHandler<string>? ThemeChanged;
+	public event EventHandler<string>? ReaderError;
 
-    public async Task LoadPublicationAsync(CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(PublicationRoot) || string.IsNullOrWhiteSpace(PublicationOpfPath))
-        {
-            return;
-        }
+	public async Task LoadPublicationAsync(CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(PublicationRoot) || string.IsNullOrWhiteSpace(PublicationOpfPath))
+		{
+			return;
+		}
 
-        if (_hasLoadedPublication || _isLoading)
-        {
-            return;
-        }
+		if (hasLoadedPublication || isLoading)
+		{
+			return;
+		}
 
-        cancellationToken.ThrowIfCancellationRequested();
-        _isLoading = true;
-        LoadingOverlay.IsVisible = true;
-        try
-        {
-            await _assetHost.InitializeAsync(ReaderWebView, HandleNativeNavigationAsync, HandleDictionaryLookupRequested, cancellationToken);
-            _hasLoadedPublication = true;
-            _isReadyForLocationChanges = false;
-            _readerReadyReceived = false;
-            _pendingStartLocator = null;
-            ReaderWebView.Source = new UrlWebViewSource
-            {
-                Url = _assetHost.GetViewerUri(PublicationRoot, PublicationOpfPath).ToString()
-            };
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
+		cancellationToken.ThrowIfCancellationRequested();
+		isLoading = true;
+		LoadingOverlay.IsVisible = true;
+		try
+		{
+			await assetHost.InitializeAsync(ReaderWebView, HandleNativeNavigationAsync, HandleDictionaryLookupRequested, cancellationToken);
+			hasLoadedPublication = true;
+			isReadyForLocationChanges = false;
+			readerReadyReceived = false;
+			pendingStartLocator = null;
+			ReaderWebView.Source = new UrlWebViewSource
+			{
+				Url = assetHost.GetViewerUri(PublicationRoot, PublicationOpfPath).ToString()
+			};
+		}
+		finally
+		{
+			isLoading = false;
+		}
+	}
 
-    public async Task SetLocatorAsync(EpubLocator locator, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var resource = JsonSerializer.Serialize(locator.ResourceHref, ReaderJsonContext.Default.String);
-        var script = $"window.DisplayBookReader?.setLocator({resource}, {locator.Page}, {locator.CharOffset});";
-        await ReaderWebView.EvaluateJavaScriptAsync(script);
-    }
+	public async Task SetLocatorAsync(EpubLocator locator, CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		string resource = JsonSerializer.Serialize(locator.ResourceHref, ReaderJsonContext.Default.String);
+		string script = $"window.DisplayBookReader?.setLocator({resource}, {locator.Page}, {locator.CharOffset});";
+		await ReaderWebView.EvaluateJavaScriptAsync(script);
+	}
 
-    private static void OnCoverImageSourceChanged(BindableObject bindable, object oldValue, object newValue)
-    {
-        var reader = (EpubReaderView)bindable;
-        reader.LoadingCoverImage.Source = (ImageSource?)newValue;
-    }
+	static void OnCoverImageSourceChanged(BindableObject bindable, object oldValue, object newValue)
+	{
+		EpubReaderView reader = (EpubReaderView)bindable;
+		reader.LoadingCoverImage.Source = (ImageSource?)newValue;
+	}
 
-    private static async void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
-    {
-        var reader = (EpubReaderView)bindable;
-        try
-        {
-            if (reader.IsLoaded)
-            {
-                reader._hasLoadedPublication = false;
-                await reader.ReloadPublicationAsync();
-            }
-        }
-        catch (Exception exception)
-        {
-            reader.RaiseReaderError(exception.Message);
-        }
-    }
+	static async void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
+	{
+		EpubReaderView reader = (EpubReaderView)bindable;
+		try
+		{
+			if (reader.IsLoaded)
+			{
+				reader.hasLoadedPublication = false;
+				await reader.ReloadPublicationAsync();
+			}
+		}
+		catch (Exception exception)
+		{
+			reader.RaiseReaderError(exception.Message);
+		}
+	}
 
-    private async void OnLoaded(object? sender, EventArgs e)
-    {
-        await TryLoadPublicationAsync();
-    }
+	async void OnLoaded(object? sender, EventArgs e)
+	{
+		await TryLoadPublicationAsync();
+	}
 
-    private async void OnReaderWebViewHandlerChanged(object? sender, EventArgs e)
-    {
-        if (IsLoaded)
-        {
-            await TryLoadPublicationAsync();
-        }
-    }
+	async void OnReaderWebViewHandlerChanged(object? sender, EventArgs e)
+	{
+		if (IsLoaded)
+		{
+			await TryLoadPublicationAsync();
+		}
+	}
 
-    private async Task TryLoadPublicationAsync()
-    {
-        if (_hasLoadedPublication)
-        {
-            return;
-        }
+	async Task TryLoadPublicationAsync()
+	{
+		if (hasLoadedPublication)
+		{
+			return;
+		}
 
-        try
-        {
-            await LoadPublicationAsync();
-        }
-        catch (Exception exception)
-        {
-            RaiseReaderError(exception.Message);
-        }
-    }
+		try
+		{
+			await LoadPublicationAsync();
+		}
+		catch (Exception exception)
+		{
+			RaiseReaderError(exception.Message);
+		}
+	}
 
-    private async Task ReloadPublicationAsync()
-    {
-        try
-        {
-            await LoadPublicationAsync();
-        }
-        catch (Exception exception)
-        {
-            RaiseReaderError(exception.Message);
-        }
-    }
+	async Task ReloadPublicationAsync()
+	{
+		try
+		{
+			await LoadPublicationAsync();
+		}
+		catch (Exception exception)
+		{
+			RaiseReaderError(exception.Message);
+		}
+	}
 
-    private async void OnWebViewNavigating(object? sender, WebNavigatingEventArgs e)
-    {
-        try
-        {
-            await HandleNavigationAsync(e.Url, cancelNavigation: () => e.Cancel = true);
-        }
-        catch (Exception exception)
-        {
-            RaiseReaderError(exception.Message);
-        }
-    }
+	async void OnWebViewNavigating(object? sender, WebNavigatingEventArgs e)
+	{
+		try
+		{
+			await HandleNavigationAsync(e.Url, cancelNavigation: () => e.Cancel = true);
+		}
+		catch (Exception exception)
+		{
+			RaiseReaderError(exception.Message);
+		}
+	}
 
-    private Task HandleNativeNavigationAsync(string url)
-    {
-        return HandleNavigationAsync(url, cancelNavigation: null);
-    }
+	Task HandleNativeNavigationAsync(string url)
+	{
+		return HandleNavigationAsync(url, cancelNavigation: null);
+	}
 
-    private void HandleDictionaryLookupRequested(string selection)
-    {
-        _ = HandleDictionaryLookupRequestedAsync(selection);
-    }
+	void HandleDictionaryLookupRequested(string selection)
+	{
+		_ = HandleDictionaryLookupRequestedAsync(selection);
+	}
 
-    private async Task HandleDictionaryLookupRequestedAsync(string selection)
-    {
-        try
-        {
-            var result = await _dictionaryLookupService.LookupAsync(selection);
-            ShowDefinition(selection, result);
-        }
-        catch (Exception exception)
-        {
-            RaiseReaderError(exception.Message);
-        }
-    }
+	async Task HandleDictionaryLookupRequestedAsync(string selection)
+	{
+		try
+		{
+			DictionaryDefinition? result = await dictionaryLookupService.LookupAsync(selection);
+			ShowDefinition(selection, result);
+		}
+		catch (Exception exception)
+		{
+			RaiseReaderError(exception.Message);
+		}
+	}
 
-    private async Task HandleNavigationAsync(string? url, Action? cancelNavigation)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-            !string.Equals(uri.Scheme, "displaybook", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(uri.Host, "bridge", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
+	async Task HandleNavigationAsync(string? url, Action? cancelNavigation)
+	{
+		if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) ||
+			!string.Equals(uri.Scheme, "displaybook", StringComparison.OrdinalIgnoreCase) ||
+			!string.Equals(uri.Host, "bridge", StringComparison.OrdinalIgnoreCase))
+		{
+			return;
+		}
 
-        cancelNavigation?.Invoke();
-        var rawMessage = GetQueryParameter(uri, "message");
-        if (string.IsNullOrWhiteSpace(rawMessage))
-        {
-            RaiseReaderError("The reader bridge sent an empty message.");
-            return;
-        }
+		cancelNavigation?.Invoke();
+		string? rawMessage = GetQueryParameter(uri, "message");
+		if (string.IsNullOrWhiteSpace(rawMessage))
+		{
+			RaiseReaderError("The reader bridge sent an empty message.");
+			return;
+		}
 
-        try
-        {
-            var message = JsonSerializer.Deserialize(rawMessage, ReaderJsonContext.Default.ReaderBridgeMessage);
-            if (message is not null)
-            {
-                await HandleMessageAsync(message);
-            }
-        }
-        catch (JsonException exception)
-        {
-            RaiseReaderError($"The reader bridge sent invalid JSON: {exception.Message}");
-        }
-    }
+		try
+		{
+			ReaderBridgeMessage? message = JsonSerializer.Deserialize(rawMessage, ReaderJsonContext.Default.ReaderBridgeMessage);
+			if (message is not null)
+			{
+				await HandleMessageAsync(message);
+			}
+		}
+		catch (JsonException exception)
+		{
+			RaiseReaderError($"The reader bridge sent invalid JSON: {exception.Message}");
+		}
+	}
 
-    private void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
-    {
-        if (e.Result != WebNavigationResult.Success)
-        {
-            RaiseReaderError($"The reader WebView could not load the publication ({e.Result}).");
-        }
-    }
+	void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
+	{
+		if (e.Result != WebNavigationResult.Success)
+		{
+			RaiseReaderError($"The reader WebView could not load the publication ({e.Result}).");
+		}
+	}
 
-    private async Task HandleMessageAsync(ReaderBridgeMessage message)
-    {
-        MessageReceived?.Invoke(this, new ReaderMessageEventArgs(message));
-        switch (message.Type)
-        {
-            case ReaderBridgeMessageTypes.ReaderReady:
-                if (_readerReadyReceived)
-                {
-                    break;
-                }
+	async Task HandleMessageAsync(ReaderBridgeMessage message)
+	{
+		MessageReceived?.Invoke(this, new ReaderMessageEventArgs(message));
+		switch (message.Type)
+		{
+			case ReaderBridgeMessageTypes.ReaderReady:
+				if (readerReadyReceived)
+				{
+					break;
+				}
 
-                _readerReadyReceived = true;
-                if (string.IsNullOrWhiteSpace(StartLocator.ResourceHref))
-                {
-                    CompleteInitialReaderReady();
-                }
-                else
-                {
-                    _pendingStartLocator = StartLocator;
-                    await SetLocatorAsync(StartLocator);
-                }
-                break;
-            case ReaderBridgeMessageTypes.LocationChanged:
-                var locator = message.Payload.Deserialize(ReaderJsonContext.Default.EpubLocator);
-                if (locator is not null)
-                {
-                    if (!_isReadyForLocationChanges)
-                    {
-                        // Not matched by ResourceHref: the JS setLocator() call this responds
-                        // to always resolves to *some* chapter and always reports exactly one
-                        // locationChanged when it's done (falling back to the current chapter
-                        // if the requested one can't be found, e.g. an old locator format or a
-                        // locator synced from a device whose copy of the book doesn't line up)
-                        // — and it's also free to land on a different page than requested, e.g.
-                        // when resolving a CharOffset to wherever that text falls on this
-                        // device's pagination. Since this is the only source of a
-                        // locationChanged before the reader is marked ready, the first one to
-                        // arrive here is unambiguously the response to that call.
-                        if (_pendingStartLocator is null)
-                        {
-                            break;
-                        }
+				readerReadyReceived = true;
+				if (string.IsNullOrWhiteSpace(StartLocator.ResourceHref))
+				{
+					CompleteInitialReaderReady();
+				}
+				else
+				{
+					pendingStartLocator = StartLocator;
+					await SetLocatorAsync(StartLocator);
+				}
+				break;
+			case ReaderBridgeMessageTypes.LocationChanged:
+				EpubLocator? locator = message.Payload.Deserialize(ReaderJsonContext.Default.EpubLocator);
+				if (locator is not null)
+				{
+					if (!isReadyForLocationChanges)
+					{
+						// Not matched by ResourceHref: the JS setLocator() call this responds
+						// to always resolves to *some* chapter and always reports exactly one
+						// locationChanged when it's done (falling back to the current chapter
+						// if the requested one can't be found, e.g. an old locator format or a
+						// locator synced from a device whose copy of the book doesn't line up)
+						// — and it's also free to land on a different page than requested, e.g.
+						// when resolving a CharOffset to wherever that text falls on this
+						// device's pagination. Since this is the only source of a
+						// locationChanged before the reader is marked ready, the first one to
+						// arrive here is unambiguously the response to that call.
+						if (pendingStartLocator is null)
+						{
+							break;
+						}
 
-                        _pendingStartLocator = null;
-                        CompleteInitialReaderReady();
-                    }
+						pendingStartLocator = null;
+						CompleteInitialReaderReady();
+					}
 
-                    LocationChanged?.Invoke(this, locator);
-                }
-                break;
-            case ReaderBridgeMessageTypes.RequestExit:
-                ExitRequested?.Invoke(this, EventArgs.Empty);
-                break;
-            case ReaderBridgeMessageTypes.RequestSettings:
-                SettingsRequested?.Invoke(this, EventArgs.Empty);
-                break;
-            case ReaderBridgeMessageTypes.ThemeChanged:
-                if (message.Payload.TryGetProperty("theme", out var themeElement) &&
-                    themeElement.ValueKind == JsonValueKind.String &&
-                    !string.IsNullOrWhiteSpace(themeElement.GetString()))
-                {
-                    ThemeChanged?.Invoke(this, themeElement.GetString()!);
-                }
-                break;
-            case ReaderBridgeMessageTypes.ReaderError:
-                var error = message.Payload.TryGetProperty("message", out var messageElement)
-                    ? messageElement.GetString()
-                    : message.Payload.ToString();
-                RaiseReaderError(string.IsNullOrWhiteSpace(error) ? "The reader could not open the publication." : error);
-                break;
-            case ReaderBridgeMessageTypes.DictionaryLookupRequested:
-                if (message.Payload.TryGetProperty("text", out var selectionElement) &&
-                    selectionElement.ValueKind == JsonValueKind.String &&
-                    !string.IsNullOrWhiteSpace(selectionElement.GetString()))
-                {
-                    HandleDictionaryLookupRequested(selectionElement.GetString()!);
-                }
-                break;
-        }
-    }
+					LocationChanged?.Invoke(this, locator);
+				}
+				break;
+			case ReaderBridgeMessageTypes.RequestExit:
+				ExitRequested?.Invoke(this, EventArgs.Empty);
+				break;
+			case ReaderBridgeMessageTypes.RequestSettings:
+				SettingsRequested?.Invoke(this, EventArgs.Empty);
+				break;
+			case ReaderBridgeMessageTypes.ThemeChanged:
+				if (message.Payload.TryGetProperty("theme", out JsonElement themeElement) &&
+					themeElement.ValueKind == JsonValueKind.String &&
+					!string.IsNullOrWhiteSpace(themeElement.GetString()))
+				{
+					ThemeChanged?.Invoke(this, themeElement.GetString()!);
+				}
+				break;
+			case ReaderBridgeMessageTypes.ReaderError:
+				string? error = message.Payload.TryGetProperty("message", out JsonElement messageElement)
+					? messageElement.GetString()
+					: message.Payload.ToString();
+				RaiseReaderError(string.IsNullOrWhiteSpace(error) ? "The reader could not open the publication." : error);
+				break;
+			case ReaderBridgeMessageTypes.DictionaryLookupRequested:
+				if (message.Payload.TryGetProperty("text", out JsonElement selectionElement) &&
+					selectionElement.ValueKind == JsonValueKind.String &&
+					!string.IsNullOrWhiteSpace(selectionElement.GetString()))
+				{
+					HandleDictionaryLookupRequested(selectionElement.GetString()!);
+				}
+				break;
+		}
+	}
 
-    private void RaiseReaderError(string message)
-    {
-        LoadingOverlay.IsVisible = false;
-        ReaderError?.Invoke(this, message);
-    }
+	void RaiseReaderError(string message)
+	{
+		LoadingOverlay.IsVisible = false;
+		ReaderError?.Invoke(this, message);
+	}
 
-    private void ShowDefinition(string selection, DictionaryDefinition? result)
-    {
-        DefinitionWordLabel.Text = result?.Word ?? selection.Trim();
-        DefinitionTextLabel.Text = result?.Definition ?? $"No definition found for “{selection.Trim()}”.";
-        DefinitionOverlay.IsVisible = true;
-    }
+	void ShowDefinition(string selection, DictionaryDefinition? result)
+	{
+		DefinitionWordLabel.Text = result?.Word ?? selection.Trim();
+		DefinitionTextLabel.Text = result?.Definition ?? $"No definition found for “{selection.Trim()}”.";
+		DefinitionOverlay.IsVisible = true;
+	}
 
-    private async void OnDefinitionScrimTapped(object? sender, TappedEventArgs e)
-    {
-        DefinitionOverlay.IsVisible = false;
-        await ClearSelectionAsync();
-    }
+	async void OnDefinitionScrimTapped(object? sender, TappedEventArgs e)
+	{
+		DefinitionOverlay.IsVisible = false;
+		await ClearSelectionAsync();
+	}
 
-    private void OnDefinitionCardTapped(object? sender, TappedEventArgs e)
-    {
-        // Intentionally empty: swallows the tap so it doesn't bubble to the scrim's
-        // dismiss handler when the user taps inside the definition card.
-    }
+	void OnDefinitionCardTapped(object? sender, TappedEventArgs e)
+	{
+		// Intentionally empty: swallows the tap so it doesn't bubble to the scrim's
+		// dismiss handler when the user taps inside the definition card.
+	}
 
-    private async void OnDefinitionCloseClicked(object? sender, EventArgs e)
-    {
-        DefinitionOverlay.IsVisible = false;
-        await ClearSelectionAsync();
-    }
+	async void OnDefinitionCloseClicked(object? sender, EventArgs e)
+	{
+		DefinitionOverlay.IsVisible = false;
+		await ClearSelectionAsync();
+	}
 
-    private async Task ClearSelectionAsync()
-    {
-        try
-        {
-            await ReaderWebView.EvaluateJavaScriptAsync("window.DisplayBookReader?.clearSelection();");
-        }
-        catch (Exception exception)
-        {
-            RaiseReaderError(exception.Message);
-        }
-    }
+	async Task ClearSelectionAsync()
+	{
+		try
+		{
+			await ReaderWebView.EvaluateJavaScriptAsync("window.DisplayBookReader?.clearSelection();");
+		}
+		catch (Exception exception)
+		{
+			RaiseReaderError(exception.Message);
+		}
+	}
 
-    private void CompleteInitialReaderReady()
-    {
-        _isReadyForLocationChanges = true;
-        LoadingOverlay.IsVisible = false;
-        ReaderReady?.Invoke(this, EventArgs.Empty);
-    }
+	void CompleteInitialReaderReady()
+	{
+		isReadyForLocationChanges = true;
+		LoadingOverlay.IsVisible = false;
+		ReaderReady?.Invoke(this, EventArgs.Empty);
+	}
 
-    private static string? GetQueryParameter(Uri uri, string name)
-    {
-        foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var parts = pair.Split('=', 2);
-            if (parts.Length == 2 && string.Equals(Uri.UnescapeDataString(parts[0]), name, StringComparison.Ordinal))
-            {
-                return Uri.UnescapeDataString(parts[1].Replace('+', ' '));
-            }
-        }
+	static string? GetQueryParameter(Uri uri, string name)
+	{
+		foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+		{
+			string[] parts = pair.Split('=', 2);
+			if (parts.Length == 2 && string.Equals(Uri.UnescapeDataString(parts[0]), name, StringComparison.Ordinal))
+			{
+				return Uri.UnescapeDataString(parts[1].Replace('+', ' '));
+			}
+		}
 
-        return null;
-    }
+		return null;
+	}
 }

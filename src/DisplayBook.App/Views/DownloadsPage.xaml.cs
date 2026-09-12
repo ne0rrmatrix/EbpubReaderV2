@@ -9,20 +9,20 @@ namespace DisplayBook.App.Views;
 /// </summary>
 public partial class DownloadsPage : ContentPage
 {
-    private readonly DownloadsViewModel _viewModel;
+	readonly DownloadsViewModel viewModel;
 
-    public DownloadsPage(DownloadsViewModel viewModel)
-    {
-        _viewModel = viewModel;
-        BindingContext = viewModel;
-        InitializeComponent();
-    }
+	public DownloadsPage(DownloadsViewModel viewModel)
+	{
+		this.viewModel = viewModel;
+		BindingContext = viewModel;
+		InitializeComponent();
+	}
 
-    internal DownloadsViewModel ViewModel => _viewModel;
+	internal DownloadsViewModel ViewModel => viewModel;
 
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        await _viewModel.InitializeAsync();
-    }
+	protected override async void OnAppearing()
+	{
+		base.OnAppearing();
+		await viewModel.InitializeAsync();
+	}
 }

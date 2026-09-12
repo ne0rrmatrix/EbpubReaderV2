@@ -12,11 +12,6 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		if (appShell is null)
-		{
-			return new Window(new AppShell());
-		}
-
-		return new Window(appShell);
+		return appShell is null ? new Window(new AppShell()) : new Window(appShell);
 	}
 }

@@ -33,9 +33,9 @@
 		<Compile Include="..\..\src\DisplayBook.App\Services\BookMetadata\*.cs" Link="App\Services\BookMetadata\%(Filename)%(Extension)" />
 		<Compile Include="..\..\src\DisplayBook.App\Services\EpubPackageReader.cs" Link="App\Services\EpubPackageReader.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Models\BookMetadata\*.cs" Link="App\Models\BookMetadata\%(Filename)%(Extension)" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\INavigationService.cs" Link="App\Services\INavigationService.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\IBookMetadataService.cs" Link="App\Services\IBookMetadataService.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\IBookCatalogService.cs" Link="App\Services\IBookCatalogService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\INavigationService.cs" Link="App\Interfaces\INavigationService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IBookMetadataService.cs" Link="App\Interfaces\IBookMetadataService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IBookCatalogService.cs" Link="App\Interfaces\IBookCatalogService.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\ViewModels\BookDetailsViewModel.cs" Link="App\ViewModels\BookDetailsViewModel.cs" />
 	</ItemGroup>
 
