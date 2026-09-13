@@ -14,21 +14,6 @@ public sealed partial class ReaderAssetHost
 			throw new InvalidOperationException("The Apple reader WebView is not ready for local content hosting.");
 		}
 
-		if (navigationHandler is not null)
-		{
-			webView.Navigating += (_, args) =>
-			{
-				if (!Uri.TryCreate(args.Url, UriKind.Absolute, out Uri? uri) ||
-					!string.Equals(uri.Scheme, "displaybook", StringComparison.OrdinalIgnoreCase) ||
-					!string.Equals(uri.Host, "bridge", StringComparison.OrdinalIgnoreCase))
-				{
-					return;
-				}
-
-				args.Cancel = true;
-			};
-		}
-
 		cancellationToken.ThrowIfCancellationRequested();
 		return Task.CompletedTask;
 	}

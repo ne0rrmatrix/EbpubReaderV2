@@ -26,6 +26,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 	const string userIdKey = "displaybook.sync.uid";
 	const string emailKey = "displaybook.sync.email";
 
+	readonly SemaphoreSlim initializationLock = new(1, 1);
 	readonly SemaphoreSlim refreshLock = new(1, 1);
 	string? cachedIdToken;
 	DateTimeOffset idTokenExpiresAt = DateTimeOffset.MinValue;
@@ -45,16 +46,30 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 			return;
 		}
 
-		initialized = true;
-		string? refreshToken = await SecureStorage.Default.GetAsync(refreshTokenKey);
-		if (string.IsNullOrWhiteSpace(refreshToken))
+		await initializationLock.WaitAsync(cancellationToken);
+		try
 		{
-			return;
-		}
+			if (initialized)
+			{
+				return;
+			}
 
-		CurrentUserId = await SecureStorage.Default.GetAsync(userIdKey);
-		CurrentEmail = await SecureStorage.Default.GetAsync(emailKey);
-		IsSignedIn = true;
+			string? refreshToken = await SecureStorage.Default.GetAsync(refreshTokenKey);
+			if (!string.IsNullOrWhiteSpace(refreshToken))
+			{
+				CurrentUserId = await SecureStorage.Default.GetAsync(userIdKey);
+				CurrentEmail = await SecureStorage.Default.GetAsync(emailKey);
+				IsSignedIn = true;
+			}
+
+			// Set this only after all SecureStorage reads complete. Startup and the
+			// Settings page can call InitializeAsync concurrently.
+			initialized = true;
+		}
+		finally
+		{
+			initializationLock.Release();
+		}
 	}
 
 	public Task<FirebaseAuthResult> SignUpAsync(string email, string password, CancellationToken cancellationToken = default) =>
@@ -437,6 +452,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		{
 			if (disposing)
 			{
+				initializationLock.Dispose();
 				refreshLock.Dispose();
 			}
 

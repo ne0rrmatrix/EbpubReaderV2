@@ -15,7 +15,7 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 	CancellationTokenSource? debounceCts;
 	bool disposedValue;
 
-	public void SchedulePush(string contentHash, string resourceHref, int charOffset, int page, int pageCount, DateTimeOffset updatedAtUtc)
+	public async Task SchedulePush(string contentHash, string resourceHref, int charOffset, int page, int pageCount, DateTimeOffset updatedAtUtc)
 	{
 		if (!authService.IsSignedIn || string.IsNullOrWhiteSpace(contentHash))
 		{
@@ -33,7 +33,7 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 		}
 
 		previousCts?.Cancel();
-		_ = RunDebouncedPushAsync(cts.Token);
+		await RunDebouncedPushAsync(cts.Token);
 	}
 
 	async Task RunDebouncedPushAsync(CancellationToken cancellationToken)

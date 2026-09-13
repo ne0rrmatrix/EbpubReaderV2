@@ -85,6 +85,7 @@
         documentUrl: "",
         isReady: false,
         loadToken: 0,
+        readerReadyNotified: false,
         manifest: new Map(),
         metadata: { author: "", title: "" },
         opfUrl: "",
@@ -1553,11 +1554,22 @@
             updateTocHighlight();
             setLoading(false);
             elements.error.hidden = true;
-            notifyNative("readerReady", {
-                resourceHref: state.spine[state.currentSpineIndex].relativeHref,
-                page: state.currentPage,
-                pageCount: state.pageCount
-            });
+            // readerReady is a one-time handshake, but this handler runs on every chapter
+            // load (page turns, setLocator jumping to a different starting chapter, ...),
+            // not just the first. Firing it again here would immediately follow updateUi()'s
+            // own notifyNative() call above with a second, synchronous window.location.href
+            // navigation -- WKWebView (iOS/macOS) silently drops the earlier of two such
+            // navigations fired without yielding to the run loop in between, which was
+            // swallowing the locationChanged the native side needed to clear the loading
+            // overlay on resume.
+            if (!state.readerReadyNotified) {
+                state.readerReadyNotified = true;
+                notifyNative("readerReady", {
+                    resourceHref: state.spine[state.currentSpineIndex].relativeHref,
+                    page: state.currentPage,
+                    pageCount: state.pageCount
+                });
+            }
             pendingLoad.resolve();
         } catch (error) {
             pendingLoad.reject(error);

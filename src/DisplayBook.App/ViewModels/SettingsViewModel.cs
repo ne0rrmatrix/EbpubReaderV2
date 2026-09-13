@@ -103,6 +103,7 @@ public sealed partial class SettingsViewModel(
 
 	public async Task OnPageAppearingAsync()
 	{
+		await authService.InitializeAsync();
 		RefreshAuthState();
 		if (IsSignedIn)
 		{

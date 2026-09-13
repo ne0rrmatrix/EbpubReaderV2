@@ -74,7 +74,7 @@ public static class MauiProgram
 		builder.Services.AddSingletonWithShellRoute<LibraryPage, LibraryViewModel>("library");
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddTransientWithShellRoute<BookDetailsPage, BookDetailsViewModel>("Details");
-		builder.Services.AddTransientWithShellRoute<ReaderPage, ReaderViewModel>("reader");
+		builder.Services.AddSingletonWithShellRoute<ReaderPage, ReaderViewModel>("reader");
 		builder.Services.AddTransientWithShellRoute<OpdsServersPage, OpdsServersViewModel>("opds/servers");
 		builder.Services.AddTransientWithShellRoute<OpdsCatalogPage, OpdsCatalogViewModel>("opds/catalog");
 		builder.Services.AddTransientWithShellRoute<OpdsBookPage, OpdsBookViewModel>("opds/book");

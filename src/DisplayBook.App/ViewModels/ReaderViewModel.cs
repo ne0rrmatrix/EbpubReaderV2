@@ -85,7 +85,7 @@ public partial class ReaderViewModel(
 		await catalogService.SaveLocatorAsync(Book.Id, locator.ResourceHref, locator.Page, locator.PageCount, locator.CharOffset);
 		if (!string.IsNullOrWhiteSpace(Book.ContentHash))
 		{
-			syncService.SchedulePush(Book.ContentHash, locator.ResourceHref, locator.CharOffset, locator.Page, locator.PageCount, updatedAt);
+			_ = syncService.SchedulePush(Book.ContentHash, locator.ResourceHref, locator.CharOffset, locator.Page, locator.PageCount, updatedAt);
 		}
 	}
 

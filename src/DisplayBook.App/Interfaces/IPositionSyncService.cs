@@ -14,7 +14,7 @@ public interface IPositionSyncService
 	/// (the reader reports a position on nearly every one) don't each trigger a
 	/// network write. Call <see cref="FlushPendingPushAsync"/> to send immediately.
 	/// </summary>
-	void SchedulePush(string contentHash, string resourceHref, int charOffset, int page, int pageCount, DateTimeOffset updatedAtUtc);
+	Task SchedulePush(string contentHash, string resourceHref, int charOffset, int page, int pageCount, DateTimeOffset updatedAtUtc);
 
 	/// <summary>Sends any pending debounced push immediately (e.g. when leaving the reader).</summary>
 	Task FlushPendingPushAsync();
