@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Xml.Linq;
 using DisplayBook.App.Services.BookMetadata;
 
@@ -15,16 +16,12 @@ public sealed record EpubPackageMetadata(
 
 public static class EpubPackageReader
 {
-	public static EpubPackageMetadata Read(string bookRoot)
+	public static EpubPackageMetadata Read(ZipArchive archive)
 	{
-		string fullRoot = Path.GetFullPath(bookRoot);
-		string containerPath = ResolveWithinRoot(fullRoot, "META-INF/container.xml");
-		if (!File.Exists(containerPath))
-		{
-			throw new InvalidDataException("The selected folder is not an EPUB because META-INF/container.xml is missing.");
-		}
+		ZipArchiveEntry containerEntry = FindEntry(archive, "META-INF/container.xml")
+			?? throw new InvalidDataException("The selected file is not an EPUB because META-INF/container.xml is missing.");
 
-		XDocument container = XDocument.Load(containerPath, LoadOptions.PreserveWhitespace);
+		XDocument container = LoadXml(containerEntry);
 		string? rootfilePath = container.Descendants().FirstOrDefault(element =>
 			string.Equals(element.Name.LocalName, "rootfile", StringComparison.OrdinalIgnoreCase))?.Attribute("full-path")?.Value;
 		if (string.IsNullOrWhiteSpace(rootfilePath))
@@ -32,13 +29,11 @@ public static class EpubPackageReader
 			throw new InvalidDataException("The EPUB container does not declare a package document.");
 		}
 
-		string opfPath = ResolveWithinRoot(fullRoot, rootfilePath);
-		if (!File.Exists(opfPath))
-		{
-			throw new InvalidDataException("The EPUB package document could not be found.");
-		}
+		ZipArchiveEntry opfEntry = FindEntry(archive, rootfilePath)
+			?? throw new InvalidDataException("The EPUB package document could not be found.");
+		string opfPath = NormalizeEntryPath(opfEntry.FullName);
 
-		XDocument package = XDocument.Load(opfPath, LoadOptions.PreserveWhitespace);
+		XDocument package = LoadXml(opfEntry);
 		XElement? metadataElement = package.Descendants().FirstOrDefault(element =>
 			string.Equals(element.Name.LocalName, "metadata", StringComparison.OrdinalIgnoreCase));
 		List<XElement> manifest = [.. package.Descendants().Where(element =>
@@ -55,10 +50,11 @@ public static class EpubPackageReader
 		string? coverHref = coverItem?.Attribute("href")?.Value;
 		if (!string.IsNullOrWhiteSpace(coverHref))
 		{
-			string coverPath = ResolveWithinRoot(Path.GetDirectoryName(opfPath)!, coverHref);
-			if (File.Exists(coverPath))
+			string opfDirectory = GetEntryDirectory(opfPath);
+			ZipArchiveEntry? coverEntry = FindEntry(archive, CombineEntryPath(opfDirectory, coverHref));
+			if (coverEntry is not null)
 			{
-				coverRelativePath = Path.GetRelativePath(fullRoot, coverPath).Replace('\\', '/');
+				coverRelativePath = NormalizeEntryPath(coverEntry.FullName);
 			}
 		}
 
@@ -68,9 +64,62 @@ public static class EpubPackageReader
 			GetMetadataValue(metadataElement, "description", string.Empty),
 			GetMetadataValue(metadataElement, "language", string.Empty),
 			GetMetadataValue(metadataElement, "publisher", string.Empty),
-			Path.GetRelativePath(fullRoot, opfPath).Replace('\\', '/'),
+			opfPath,
 			coverRelativePath,
 			ExtractIsbn(metadataElement));
+	}
+
+	static XDocument LoadXml(ZipArchiveEntry entry)
+	{
+		using Stream stream = entry.Open();
+		return XDocument.Load(stream, LoadOptions.PreserveWhitespace);
+	}
+
+	/// <summary>
+	/// Zip entry names are technically case-sensitive, but real-world EPUBs occasionally
+	/// disagree in case between container.xml/OPF references and the actual entry -- this was
+	/// silently tolerated before by NTFS/case-insensitive disk lookups, so an exact match is
+	/// tried first and a case-insensitive scan is the fallback rather than a hard failure.
+	/// </summary>
+	static ZipArchiveEntry? FindEntry(ZipArchive archive, string entryPath)
+	{
+		string normalized = NormalizeEntryPath(entryPath);
+		return archive.GetEntry(normalized)
+			?? archive.Entries.FirstOrDefault(entry => string.Equals(NormalizeEntryPath(entry.FullName), normalized, StringComparison.OrdinalIgnoreCase));
+	}
+
+	static string NormalizeEntryPath(string path) => path.Replace('\\', '/').TrimStart('/');
+
+	static string GetEntryDirectory(string entryPath)
+	{
+		int lastSlash = entryPath.LastIndexOf('/');
+		return lastSlash < 0 ? string.Empty : entryPath[..lastSlash];
+	}
+
+	static string CombineEntryPath(string baseDirectory, string relativePath)
+	{
+		string combined = string.IsNullOrEmpty(baseDirectory) ? relativePath : $"{baseDirectory}/{relativePath}";
+		List<string> resolved = [];
+		foreach (string segment in combined.Replace('\\', '/').Split('/'))
+		{
+			switch (segment)
+			{
+				case "" or ".":
+					continue;
+				case "..":
+					if (resolved.Count > 0)
+					{
+						resolved.RemoveAt(resolved.Count - 1);
+					}
+
+					continue;
+				default:
+					resolved.Add(segment);
+					break;
+			}
+		}
+
+		return string.Join('/', resolved);
 	}
 
 	static string GetMetadataValue(XElement? metadata, string localName, string fallback)
@@ -118,6 +167,12 @@ public static class EpubPackageReader
 		return null;
 	}
 
+	/// <summary>
+	/// Disk-path-traversal guard, kept for callers combining an untrusted relative path (e.g. a
+	/// display name from an Android SAF content provider -- see BookPickerService.android.cs)
+	/// against a trusted local folder. Not used by EPUB archive-entry resolution above, since a
+	/// zip entry name can't "escape" the archive it's looked up in.
+	/// </summary>
 	internal static string ResolveWithinRoot(string root, string relativePath)
 	{
 		string normalizedRoot = Path.GetFullPath(root);
@@ -128,7 +183,7 @@ public static class EpubPackageReader
 			: normalizedRoot + Path.DirectorySeparatorChar;
 		return !fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase) &&
 			!string.Equals(fullPath, normalizedRoot, StringComparison.OrdinalIgnoreCase)
-			? throw new InvalidDataException("The EPUB contains a path outside its publication directory.")
+			? throw new InvalidDataException("The path escapes its expected directory.")
 			: fullPath;
 	}
 }

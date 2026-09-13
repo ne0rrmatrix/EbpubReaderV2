@@ -15,6 +15,14 @@ public partial class App : MauiWinUIApplication
 	public App()
 	{
 		this.InitializeComponent();
+
+		// Spinning up the WebView2 runtime's browser process is the slowest part of getting the
+		// reader ready, and it's a per-process resource shared by every CoreWebView2 the app ever
+		// creates. Starting it here -- the earliest point in the app's lifetime -- lets it
+		// overlap with the rest of startup (library load, etc.) instead of blocking the first
+		// time the reader page actually needs a WebView2. Any failure surfaces later, when
+		// ReaderAssetHost awaits this same cached task for real.
+		_ = DisplayBook.Viewer.Services.ReaderAssetHost.WarmUpEnvironmentAsync();
 	}
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();

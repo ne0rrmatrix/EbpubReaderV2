@@ -260,7 +260,7 @@ The viewer project contains the reusable EPUB reader control:
 
 ### Persistence
 
-The app stores imported-book metadata and reading positions in a local SQLite database. Imported EPUB content is copied into the app's local storage so the reader can access it after the original file is moved or unavailable.
+The app stores imported-book metadata and reading positions in a local SQLite database. Each imported book's original `.epub` file is copied into the app's local storage as a single file (so the reader can access it after the original file is moved or unavailable), along with one small extracted cover image; chapters, CSS, images, and fonts are never extracted to disk — they're parsed into memory fresh each time a book is opened for reading and served to the WebView directly from there.
 
 ### OPDS / Calibre browsing
 

@@ -2,6 +2,7 @@ namespace DisplayBook.Viewer.Bridge;
 
 public static class ReaderBridgeMessageTypes
 {
+	public const string ShellReady = "shellReady";
 	public const string ReaderReady = "readerReady";
 	public const string LocationChanged = "locationChanged";
 	public const string ReaderError = "readerError";

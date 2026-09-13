@@ -21,17 +21,20 @@ namespace DisplayBook.App.Services.Sync;
 /// Firestore API, so even a copy of this key is far less useful outside this app.
 ///
 /// The encoded value itself is never committed:
-/// - Windows/Android read it from the MY_APP_SECRET environment variable at runtime.
-/// - iOS/MacCatalyst don't reliably see host environment variables at runtime (an
-///   Xcode/simulator launch doesn't inherit your shell's env), so instead it's baked
-///   into the compiled assembly at build time from a local, gitignored
-///   Secrets.local.props (see Secrets.local.props.example) via an &lt;AssemblyMetadata&gt;
-///   MSBuild item, and read back here via reflection.
+/// - Windows reads it from the MY_APP_SECRET environment variable at runtime, since a
+///   Windows build here runs directly on the dev machine and inherits its shell env.
+/// - iOS/MacCatalyst/Android don't reliably see host environment variables at runtime
+///   (an Xcode/simulator launch doesn't inherit your shell's env, and an installed
+///   Android APK runs in its own sandboxed process with no relation to the machine
+///   it was built/installed from — even over `adb install` from that same machine),
+///   so instead it's baked into the compiled assembly at build time from a local,
+///   gitignored Secrets.local.props (see Secrets.local.props.example) via an
+///   &lt;AssemblyMetadata&gt; MSBuild item, and read back here via reflection.
 /// </summary>
 public static class FirebaseOptions
 {
 	public const string ProjectId = "displaybook-sync";
-	#if IOS || MACCATALYST
+	#if IOS || MACCATALYST || ANDROID
 	static readonly string encodedWebApiKey = typeof(FirebaseOptions).Assembly
 		.GetCustomAttributes<AssemblyMetadataAttribute>()
 		.FirstOrDefault(a => a.Key == "FirebaseWebApiKeyEncoded")

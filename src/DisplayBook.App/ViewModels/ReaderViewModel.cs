@@ -2,7 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
+using DisplayBook.App.Services;
 using DisplayBook.Viewer.Models;
+using DisplayBook.Viewer.Services;
 
 namespace DisplayBook.App.ViewModels;
 
@@ -18,14 +20,23 @@ public partial class ReaderViewModel(
 	[ObservableProperty]
 	public partial EpubLocator Locator { get; set; } = EpubLocator.Empty;
 
+	[ObservableProperty]
+	public partial EpubArchive? PublicationSource { get; set; }
+
 	/// <summary>
-	/// Loads the book by id and resolves its start locator, checking for a newer position
-	/// synced from another device. <see cref="Locator"/> is always set before <see cref="Book"/>:
-	/// the EpubReaderView control only reads its bound StartLocator once, when it (re)loads a
-	/// publication in response to Book/PublicationRoot changing, so Book must never become
-	/// non-empty until the final locator (local or remote, whichever is newer) is already in place.
-	/// The remote lookup is bounded by a short timeout so a slow/unreachable network never delays
-	/// opening a book for long.
+	/// Loads the book by id, gets its persisted .epub ready to display -- read into memory,
+	/// parsed, and assembled into its combined reading document, usually already done by the
+	/// details page's prefetch -- and resolves its start locator, checking for a newer position
+	/// synced from another device. <see cref="Locator"/>
+	/// and <see cref="PublicationSource"/> are always set before <see cref="Book"/>: the
+	/// EpubReaderView control only reads its bound StartLocator once, when it (re)loads a
+	/// publication in response to Book/PublicationSource changing, so Book must never become
+	/// non-empty until both the final locator (local or remote, whichever is newer) and the
+	/// parsed publication are already in place. The remote lookup is bounded by a short timeout
+	/// so a slow/unreachable network never delays opening a book for long -- and it runs
+	/// concurrently with parsing the .epub rather than before it, since the two are independent
+	/// and the remote lookup (auth token refresh + a Firestore round trip) can otherwise take far
+	/// longer than reading the book off local disk.
 	/// </summary>
 	public async Task InitializeAsync(string bookId)
 	{
@@ -39,7 +50,12 @@ public partial class ReaderViewModel(
 			? EpubLocator.Empty
 			: new EpubLocator(book.LocatorResourceHref, book.LocatorPage, book.LocatorPageCount, book.LocatorCharOffset);
 
-		Locator = await ResolveRemoteLocatorAsync(book, locator);
+		Task<EpubLocator> resolvedLocatorTask = ResolveRemoteLocatorAsync(book, locator);
+		Task<EpubArchive> publicationSourceTask = EpubArchivePrefetchCache.TakeOrOpenAsync(book.Id, BookStorageService.GetAbsolutePath(book.EpubRelativePath));
+		await Task.WhenAll(resolvedLocatorTask, publicationSourceTask);
+
+		Locator = resolvedLocatorTask.Result;
+		PublicationSource = publicationSourceTask.Result;
 		Book = book;
 	}
 

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.Json;
 using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
@@ -8,6 +9,9 @@ namespace DisplayBook.App.Services;
 
 public sealed partial class BookDatabase : IBookDatabase, IDisposable
 {
+	// PublicationRoot now holds a relative path to the book's persisted single .epub file
+	// (e.g. "Books/{bookId}.epub") rather than an extracted folder -- kept as-is rather than
+	// renamed to avoid churning the positional column/ordinal mapping this file depends on.
 	const string bookColumns = """
         Id, Title, Author, Description, Language, Publisher, CoverRelativePath,
                  PublicationRoot, PublicationOpfPath, OriginalFileName, ImportedAt,
@@ -287,11 +291,83 @@ public sealed partial class BookDatabase : IBookDatabase, IDisposable
 			await using SqliteCommand indexCommand = connection.CreateCommand();
 			indexCommand.CommandText = "CREATE UNIQUE INDEX IF NOT EXISTS IX_Books_ContentHash ON Books(ContentHash) WHERE ContentHash <> '';";
 			await indexCommand.ExecuteNonQueryAsync(cancellationToken);
+			await MigrateLegacyExtractedBooksAsync(connection, cancellationToken);
 			initialized = true;
 		}
 		finally
 		{
 			initializationLock.Release();
+		}
+	}
+
+	/// <summary>
+	/// One-time recovery for libraries imported before this app switched from "extract every
+	/// file to disk" to "persist the original .epub and parse it into memory when reading": a
+	/// legacy row's PublicationRoot still points at a folder rather than a file. Since all of the
+	/// book's original files are still sitting in that folder, it's zipped back into a synthetic
+	/// but valid .epub at the new location rather than forcing a re-import. The old folder is
+	/// left in place (not deleted) so a failure here never loses data.
+	/// </summary>
+	static async Task MigrateLegacyExtractedBooksAsync(SqliteConnection connection, CancellationToken cancellationToken)
+	{
+		List<(string Id, string PublicationRoot)> rows = [];
+		await using (SqliteCommand selectCommand = connection.CreateCommand())
+		{
+			selectCommand.CommandText = "SELECT Id, PublicationRoot FROM Books;";
+			await using SqliteDataReader reader = await selectCommand.ExecuteReaderAsync(cancellationToken);
+			while (await reader.ReadAsync(cancellationToken))
+			{
+				rows.Add((reader.GetString(0), reader.GetString(1)));
+			}
+		}
+
+		foreach ((string id, string publicationRoot) in rows)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			string legacyFolder = BookStorageService.GetAbsolutePath(publicationRoot);
+			string newEpubPath = BookStorageService.GetBookFilePath(id);
+			if (!Directory.Exists(legacyFolder) || File.Exists(newEpubPath))
+			{
+				continue;
+			}
+
+			try
+			{
+				Directory.CreateDirectory(BookStorageService.BooksRoot);
+				CreateArchiveFromLegacyFolder(legacyFolder, newEpubPath, cancellationToken);
+
+				await using SqliteCommand updateCommand = connection.CreateCommand();
+				updateCommand.CommandText = "UPDATE Books SET PublicationRoot = $root WHERE Id = $id;";
+				updateCommand.Parameters.AddWithValue("$root", $"Books/{id}.epub");
+				updateCommand.Parameters.AddWithValue("$id", id);
+				await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				// Leave the legacy folder and row untouched -- the book just won't open until a
+				// later launch (or a disk-space/permissions fix) lets this migration succeed.
+				DeleteFileIfExists(newEpubPath);
+			}
+		}
+	}
+
+	static void CreateArchiveFromLegacyFolder(string sourceRoot, string destinationEpubPath, CancellationToken cancellationToken)
+	{
+		using FileStream destination = File.Create(destinationEpubPath);
+		using ZipArchive archive = new(destination, ZipArchiveMode.Create, leaveOpen: false);
+		foreach (string file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			string relative = Path.GetRelativePath(sourceRoot, file).Replace('\\', '/');
+			archive.CreateEntryFromFile(file, relative);
+		}
+	}
+
+	static void DeleteFileIfExists(string path)
+	{
+		if (File.Exists(path))
+		{
+			File.Delete(path);
 		}
 	}
 
@@ -403,7 +479,7 @@ public sealed partial class BookDatabase : IBookDatabase, IDisposable
 		command.Parameters.AddWithValue("$language", book.Language);
 		command.Parameters.AddWithValue("$publisher", book.Publisher);
 		command.Parameters.AddWithValue("$cover", coverRelativePath);
-		command.Parameters.AddWithValue("$root", book.PublicationRoot);
+		command.Parameters.AddWithValue("$root", book.EpubRelativePath);
 		command.Parameters.AddWithValue("$opf", book.PublicationOpfPath);
 		command.Parameters.AddWithValue("$filename", book.OriginalFileName);
 		command.Parameters.AddWithValue("$imported", book.ImportedAt.ToString("O"));

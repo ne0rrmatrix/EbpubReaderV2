@@ -1,4 +1,3 @@
-using Android.Content;
 using Android.Webkit;
 using AndroidX.WebKit;
 
@@ -10,7 +9,7 @@ public sealed partial class ReaderAssetHost
 
 	private static partial Task ConfigurePlatformWebViewAsync(
 		Microsoft.Maui.Controls.WebView webView,
-		string contentRoot,
+		EpubArchive publicationSource,
 		Func<string, Task>? navigationHandler,
 		Action<string>? dictionaryLookupRequested,
 		CancellationToken cancellationToken)
@@ -20,28 +19,10 @@ public sealed partial class ReaderAssetHost
 			throw new InvalidOperationException("The Android reader WebView is not ready for local content hosting.");
 		}
 
-		if (dictionaryLookupRequested is not null)
-		{
-			nativeWebView.SelectionLookupRequested += (_, selection) => dictionaryLookupRequested(selection);
-		}
-
-		Context context = nativeWebView.Context ?? throw new InvalidOperationException("The Android reader WebView has no context.");
-		string? filesDirectory = context.FilesDir?.AbsolutePath;
-		if (string.IsNullOrWhiteSpace(filesDirectory) || !filesDirectory.StartsWith('/'))
-		{
-			throw new InvalidOperationException("Android returned an invalid application files directory.");
-		}
-
-		string androidContentRoot = Path.Combine(filesDirectory, "ReaderContent");
-		if (!string.Equals(Path.GetFullPath(contentRoot), Path.GetFullPath(androidContentRoot), StringComparison.Ordinal))
-		{
-			throw new InvalidOperationException("The reader content root does not match Android application storage.");
-		}
+		nativeWebView.LookupRequestedHandler = dictionaryLookupRequested;
 
 		WebViewAssetLoader.Builder assetLoaderBuilder = new();
-		assetLoaderBuilder.AddPathHandler(
-			"/content/",
-			new AndroidX.WebKit.WebViewAssetLoader.InternalStoragePathHandler(context, new Java.IO.File(androidContentRoot)));
+		assetLoaderBuilder.AddPathHandler("/content/", new InMemoryPathHandler(publicationSource));
 		WebViewAssetLoader assetLoader = assetLoaderBuilder.Build() ?? throw new InvalidOperationException("Android could not create the reader asset loader.");
 		WebSettings settings = nativeWebView.Settings ?? throw new InvalidOperationException("The Android reader WebView has no settings.");
 		settings.JavaScriptEnabled = true;
@@ -50,10 +31,38 @@ public sealed partial class ReaderAssetHost
 		return Task.CompletedTask;
 	}
 
-	private static partial Uri CreateViewerUri(string publicationRoot, string opfRelativePath)
+	private static partial Uri CreateViewerUri(string opfRelativePath)
 	{
-		string opf = CreateOpfQuery(publicationRoot, opfRelativePath);
+		string opf = CreateOpfQuery(opfRelativePath);
 		return new Uri($"{assetHost}DisplayBookViewer/index.html?opf={opf}&bridge=displaybook%3A%2F%2Fbridge", UriKind.Absolute);
+	}
+
+	private static partial Uri CreateShellUri()
+	{
+		return new Uri($"{assetHost}DisplayBookViewer/index.html?bridge=displaybook%3A%2F%2Fbridge", UriKind.Absolute);
+	}
+
+	/// <summary>
+	/// Replaces <c>WebViewAssetLoader.InternalStoragePathHandler</c> (disk-only) with a lookup
+	/// against the in-memory <see cref="EpubArchive"/> -- see <see cref="TryGetResourceBytes"/>.
+	/// </summary>
+	sealed class InMemoryPathHandler(EpubArchive publicationSource) : Java.Lang.Object, WebViewAssetLoader.IPathHandler
+	{
+		// "new" acknowledges this intentionally shares a name with Java.Lang.Object.Handle (the
+		// JNI handle property) -- unrelated members, just a naming collision from the Java
+		// interface being called "handle".
+		public new WebResourceResponse? Handle(string? path)
+		{
+			if (path is null || !TryGetResourceBytes(publicationSource, path, out byte[] data))
+			{
+				return new WebResourceResponse(null, null, 404, "Not Found", null, null);
+			}
+
+			string mimeType = MimeTypesByExtension.TryGetValue(Path.GetExtension(path), out string? type)
+				? type
+				: "application/octet-stream";
+			return new WebResourceResponse(mimeType, null, new MemoryStream(data));
+		}
 	}
 
 	sealed class ReaderAssetWebViewClient(

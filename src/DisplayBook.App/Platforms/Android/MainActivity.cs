@@ -3,6 +3,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
+using AndroidX.Core.View;
 
 namespace DisplayBook.App;
 
@@ -23,37 +24,44 @@ public class MainActivity : MauiAppCompatActivity
 		base.OnResume();
 		ConfigureSystemBars();
 	}
+	// Also called by ReaderPage (RestoreSystemUi) when leaving the reader, to put the
+	// system bars back to the app's normal edge-to-edge appearance/visibility. Using
+	// WindowInsetsControllerCompat (rather than raw SystemUiFlags) lets one code path
+	// cover every supported API level (26+) instead of branching on 23/30/35, and
+	// recomputing from the live app theme here - instead of replaying a snapshot taken
+	// at reader-entry time - is what keeps the restored bar from showing stale
+	// light/dark icon colors after a theme change or a reader session.
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S2325:Methods should not be static", Justification = "This method is called from the instance context.")]
-	void ConfigureSystemBars()
+	internal void ConfigureSystemBars()
 	{
+		if (Window is not { } window || window.DecorView is not { } decorView)
+		{
+			return;
+		}
+
 		if (!OperatingSystem.IsAndroidVersionAtLeast(35))
 		{
-			Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
+			window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+			window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
 		}
 
-		if (Window?.DecorView is not { } decorView)
+		if (OperatingSystem.IsAndroidVersionAtLeast(28) && window.Attributes is { } attributes)
+		{
+			attributes.LayoutInDisplayCutoutMode = OperatingSystem.IsAndroidVersionAtLeast(30)
+				? LayoutInDisplayCutoutMode.Always
+				: LayoutInDisplayCutoutMode.ShortEdges;
+			window.Attributes = attributes;
+		}
+
+		if (WindowCompat.GetInsetsController(window, decorView) is not { } controller)
 		{
 			return;
 		}
 
-		if (OperatingSystem.IsAndroidVersionAtLeast(30) || (!OperatingSystem.IsAndroidVersionAtLeast(23)))
-		{
-			return;
-		}
-
-		SystemUiFlags systemUiFlags = decorView.SystemUiFlags |
-			SystemUiFlags.LayoutStable |
-			SystemUiFlags.LayoutFullscreen;
-
-		if (Microsoft.Maui.Controls.Application.Current?.RequestedTheme == AppTheme.Light)
-		{
-			systemUiFlags |= SystemUiFlags.LightStatusBar;
-		}
-		else
-		{
-			systemUiFlags &= ~SystemUiFlags.LightStatusBar;
-		}
-		decorView.SystemUiFlags = systemUiFlags;
+		bool useDarkIcons = Microsoft.Maui.Controls.Application.Current?.RequestedTheme == AppTheme.Light;
+		controller.AppearanceLightStatusBars = useDarkIcons;
+		controller.AppearanceLightNavigationBars = useDarkIcons;
+		controller.Show(WindowInsetsCompat.Type.SystemBars());
 	}
 
 	public Task<string?> PickFolderUriAsync()

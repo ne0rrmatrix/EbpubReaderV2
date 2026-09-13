@@ -73,7 +73,12 @@ public static class MauiProgram
 		builder.Services.AddSingletonWithShellRoute<LibraryPage, LibraryViewModel>("library");
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddTransientWithShellRoute<BookDetailsPage, BookDetailsViewModel>("Details");
-		builder.Services.AddTransientWithShellRoute<ReaderPage, ReaderViewModel>("reader");
+		// Singleton (like the Library root above), not transient: the reader shell (WebView2/JS)
+		// is meant to stay warm/loaded across books -- see EpubReaderView.EnsureReaderShellLoadedAsync
+		// and EpubText.js's loadPublication -- which only works if the same ReaderPage/EpubReaderView
+		// instance (and so the same native WebView) is reused for every "reader" navigation instead
+		// of a fresh one being created per book.
+		builder.Services.AddSingletonWithShellRoute<ReaderPage, ReaderViewModel>("reader");
 		builder.Services.AddTransientWithShellRoute<OpdsServersPage, OpdsServersViewModel>("opds/servers");
 		builder.Services.AddTransientWithShellRoute<OpdsCatalogPage, OpdsCatalogViewModel>("opds/catalog");
 		builder.Services.AddTransientWithShellRoute<OpdsBookPage, OpdsBookViewModel>("opds/book");

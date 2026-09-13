@@ -3,6 +3,9 @@ using DisplayBook.Viewer.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls.PlatformConfiguration;
 using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
+#if ANDROID
+using AndroidX.Core.View;
+#endif
 
 namespace DisplayBook.App.Views;
 
@@ -11,8 +14,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 	readonly ReaderViewModel viewModel;
 	readonly ILogger<ReaderPage> logger;
 #if ANDROID
-	Android.Graphics.Color? previousStatusBarColor;
-	Android.Views.SystemUiFlags previousSystemUiFlags;
+	WindowInsetsControllerCompat? readerInsetsController;
 	bool readerSystemUiConfigured;
 	string readerTheme = "sepia";
 #endif
@@ -72,6 +74,9 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 	void OnReaderChromeVisibilityChanged(object? sender, bool isChromeVisible)
 	{
 		this.On<iOS>().SetPrefersStatusBarHidden(isChromeVisible ? StatusBarHiddenMode.False : StatusBarHiddenMode.True);
+#if ANDROID
+		SetReaderSystemBarsVisible(isChromeVisible);
+#endif
 	}
 
 	async Task FlushPendingSyncAsync()
@@ -90,19 +95,27 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 	void ConfigureReaderSystemUi()
 	{
 		Android.Views.Window? window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
-		if (window is null || readerSystemUiConfigured)
+		if (window?.DecorView is not { } decorView || readerSystemUiConfigured)
 		{
 			return;
 		}
 
-		previousStatusBarColor = new Android.Graphics.Color(window.StatusBarColor);
-		if (!OperatingSystem.IsAndroidVersionAtLeast(30))
+		if (WindowCompat.GetInsetsController(window, decorView) is not { } controller)
 		{
-			previousSystemUiFlags = window.DecorView.SystemUiFlags;
+			return;
 		}
-		SetStatusBarColor(window);
 
-		UpdateStatusBarAppearance(window);
+		readerInsetsController = controller;
+		controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
+
+		SetStatusBarColor(window);
+		UpdateStatusBarAppearance();
+
+		// The reader's own JS/CSS starts in immersive (chrome-hidden) mode, so the native
+		// system bars should start hidden too, matching the iOS SetPrefersStatusBarHidden
+		// call in OnAppearing rather than waiting for the first chromeVisibilityChanged
+		// bridge message.
+		readerInsetsController.Hide(WindowInsetsCompat.Type.SystemBars());
 		readerSystemUiConfigured = true;
 	}
 
@@ -113,7 +126,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 		if (window is not null && readerSystemUiConfigured)
 		{
 			SetStatusBarColor(window);
-			UpdateStatusBarAppearance(window);
+			UpdateStatusBarAppearance();
 		}
 	}
 
@@ -124,61 +137,60 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 			return;
 		}
 
-		window.SetStatusBarColor(readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase)
+		Android.Graphics.Color color = readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase)
 			? Android.Graphics.Color.Rgb(28, 36, 48)
-			: Android.Graphics.Color.Rgb(246, 241, 232));
+			: Android.Graphics.Color.Rgb(246, 241, 232);
+		window.SetStatusBarColor(color);
+		window.SetNavigationBarColor(color);
 	}
 
-	void UpdateStatusBarAppearance(Android.Views.Window window)
+	void UpdateStatusBarAppearance()
 	{
-		bool useDarkStatusBarIcons = !readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase);
-
-		if (OperatingSystem.IsAndroidVersionAtLeast(30) && window.InsetsController is { } insetsController)
-		{
-			const int lightStatusBarsAppearance = 8;
-			int appearance = useDarkStatusBarIcons ? lightStatusBarsAppearance : 0;
-			insetsController.SetSystemBarsAppearance(
-				appearance,
-				lightStatusBarsAppearance);
-		}
-		if (OperatingSystem.IsAndroidVersionAtLeast(30) || (!OperatingSystem.IsAndroidVersionAtLeast(23)))
+		if (readerInsetsController is not { } controller)
 		{
 			return;
 		}
 
-		var systemUiFlags = window.DecorView.SystemUiFlags;
-		systemUiFlags |= Android.Views.SystemUiFlags.LayoutStable | Android.Views.SystemUiFlags.LayoutFullscreen;
+		bool useDarkIcons = !readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase);
+		controller.AppearanceLightStatusBars = useDarkIcons;
+		controller.AppearanceLightNavigationBars = useDarkIcons;
+	}
 
-		if (OperatingSystem.IsAndroidVersionAtLeast(23) && useDarkStatusBarIcons)
+	void SetReaderSystemBarsVisible(bool isVisible)
+	{
+		if (readerInsetsController is not { } controller)
 		{
-			systemUiFlags |= Android.Views.SystemUiFlags.LightStatusBar;
+			return;
+		}
+
+		int systemBars = WindowInsetsCompat.Type.SystemBars();
+		if (isVisible)
+		{
+			controller.Show(systemBars);
 		}
 		else
 		{
-			systemUiFlags &= ~Android.Views.SystemUiFlags.LightStatusBar;
+			controller.Hide(systemBars);
 		}
-
-		window.DecorView.SystemUiFlags = systemUiFlags;
 	}
 
 	void RestoreSystemUi()
 	{
-		Android.Views.Window? window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
-		if (window is null || !readerSystemUiConfigured)
+		if (!readerSystemUiConfigured)
 		{
 			return;
 		}
 
-		if (previousStatusBarColor is { } previousStatusBarColor1 && !OperatingSystem.IsAndroidVersionAtLeast(35))
-		{
-			window.SetStatusBarColor(previousStatusBarColor1);
-		}
-		if (!OperatingSystem.IsAndroidVersionAtLeast(30))
-		{
-			window.DecorView.SystemUiFlags = previousSystemUiFlags;
-		}
-
+		readerInsetsController?.Show(WindowInsetsCompat.Type.SystemBars());
+		readerInsetsController = null;
 		readerSystemUiConfigured = false;
+
+		// Recompute the app's normal status/nav bar color, icon appearance, and cutout
+		// handling from the live app theme (MainActivity.ConfigureSystemBars) rather than
+		// replaying a snapshot captured at reader-entry time - a stale snapshot is what
+		// previously left the bar showing the reader's last color/icon scheme (e.g. light
+		// sepia icons) over a since-changed, possibly dark-mode, app theme.
+		(Microsoft.Maui.ApplicationModel.Platform.CurrentActivity as MainActivity)?.ConfigureSystemBars();
 	}
 #endif
 

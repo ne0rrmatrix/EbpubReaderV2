@@ -88,9 +88,9 @@ public sealed class BookMetadataService(
 	public async Task<string> DownloadCoverAsync(string bookId, string coverUrl, CancellationToken cancellationToken)
 	{
 		string extension = ExtensionFor(coverUrl);
-		string relativePath = $"Books/{bookId}/cover.metadata{extension}";
-		string destinationPath = BookStorageService.GetAbsolutePath(relativePath);
-		Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+		string relativePath = BookStorageService.GetCoverRelativePath(bookId, extension);
+		string destinationPath = BookStorageService.GetCoverFilePath(bookId, extension);
+		Directory.CreateDirectory(BookStorageService.CoversRoot);
 
 		HttpClient client = httpClientFactory.CreateClient();
 		using HttpResponseMessage response = await client.GetAsync(coverUrl, cancellationToken);

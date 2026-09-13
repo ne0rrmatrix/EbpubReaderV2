@@ -15,6 +15,10 @@
 		<IsAotCompatible>true</IsAotCompatible>
 		<IsTrimmable>true</IsTrimmable>
 		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<!-- Required by CsWinRT to generate trim/AOT-safe marshalling for the in-memory
+		     Dictionary of string to byte array resource caches (EpubArchive/ReaderAssetHost)
+		     on the Windows TFM. See CsWinRT1030. -->
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
 		<WarningsAsErrors>$(WarningsAsErrors);IL2026;IL3050</WarningsAsErrors>
 

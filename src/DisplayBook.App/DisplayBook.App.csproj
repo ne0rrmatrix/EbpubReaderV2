@@ -93,9 +93,12 @@
 
 	<!-- Bakes the Firebase Web API key (see Secrets.local.props.example) into this
 	     platform's assembly at compile time, since a runtime environment variable
-	     doesn't reach an iOS/MacCatalyst app process the way it does Windows/Android
-	     dev runs. Read back via AssemblyMetadataAttribute in FirebaseOptions.cs. -->
-	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+	     doesn't reach an iOS/MacCatalyst/Android app process the way it does a
+	     Windows dev run (a Windows build here runs directly on the dev machine and
+	     inherits its shell env; an installed Android APK does not, even when
+	     installed via adb from that same machine). Read back via
+	     AssemblyMetadataAttribute in FirebaseOptions.cs. -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst' or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 	  <AssemblyMetadata Include="FirebaseWebApiKeyEncoded" Value="$(FirebaseWebApiKeyEncoded)" />
 	</ItemGroup>
 

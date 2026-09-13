@@ -19,7 +19,7 @@ public class BookDetailsViewModelMetadataTests
 			Language: "en",
 			Publisher: "Original Publisher",
 			CoverPath: "/covers/book-1.jpg",
-			PublicationRoot: "Books/book-1",
+			EpubRelativePath: "Books/book-1.epub",
 			PublicationOpfPath: "content.opf",
 			OriginalFileName: "hobbit.epub",
 			ImportedAt: new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),

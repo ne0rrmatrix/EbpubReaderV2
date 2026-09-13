@@ -157,8 +157,19 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 				return;
 			}
 
-			StatusMessage = e.Message;
+			StatusMessage = e.Error is null
+				? e.Message
+				: $"{e.Message} ({DescribeError(e.Error)})";
 		});
+	}
+
+	// Release builds have no logging sink (AddDebug() is #if DEBUG-only in MauiProgram),
+	// so this is the only place the actual cause of a discovery failure is visible on-device.
+	static string DescribeError(Exception error)
+	{
+		return error is System.Net.Sockets.SocketException socketError
+			? $"{socketError.SocketErrorCode}: {socketError.Message}"
+			: $"{error.GetType().Name}: {error.Message}";
 	}
 
 	[RelayCommand]

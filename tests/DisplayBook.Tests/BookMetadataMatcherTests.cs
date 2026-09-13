@@ -79,7 +79,7 @@ public class BookMetadataMatcherTests
 			Language: "en",
 			Publisher: "",
 			CoverPath: "",
-			PublicationRoot: "",
+			EpubRelativePath: "",
 			PublicationOpfPath: "",
 			OriginalFileName: "",
 			ImportedAt: new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),

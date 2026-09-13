@@ -11,7 +11,7 @@
              Background="Black">
     <viewer:EpubReaderView  x:Name="Reader"
                            SafeAreaEdges="None"
-                           PublicationRoot="{Binding Book.PublicationRoot}"
+                           PublicationSource="{Binding PublicationSource}"
                            PublicationOpfPath="{Binding Book.PublicationOpfPath}"
                            StartLocator="{Binding Locator}"
                            CoverImageSource="{Binding Book.CoverPath}"

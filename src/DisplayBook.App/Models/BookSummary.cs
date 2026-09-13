@@ -8,7 +8,7 @@ public sealed record BookSummary(
 	string Language,
 	string Publisher,
 	string CoverPath,
-	string PublicationRoot,
+	string EpubRelativePath,
 	string PublicationOpfPath,
 	string OriginalFileName,
 	DateTimeOffset ImportedAt,

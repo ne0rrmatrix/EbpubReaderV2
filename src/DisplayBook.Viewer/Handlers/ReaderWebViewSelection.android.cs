@@ -16,10 +16,13 @@ namespace DisplayBook.Viewer.Handlers;
 sealed class ReaderSelectionWebView(WebViewHandler handler, Android.Content.Context context) : MauiWebView(handler, context)
 {
 	/// <summary>
-	/// Raised with the currently selected text when the user taps "Look up" in the
-	/// replacement selection toolbar.
+	/// Invoked with the currently selected text when the user taps "Look up" in the
+	/// replacement selection toolbar. A plain settable delegate rather than an event: the
+	/// reader shell (and this WebView with it) now outlives any single book, so
+	/// ReaderAssetHost.android.cs's ConfigurePlatformWebViewAsync just replaces this on every
+	/// book open instead of accumulating one more subscriber per book via +=.
 	/// </summary>
-	public event EventHandler<string>? SelectionLookupRequested;
+	public Action<string>? LookupRequestedHandler { get; set; }
 
 	public override ActionMode? StartActionMode(ActionMode.ICallback? callback, ActionModeType type)
 	{
@@ -35,7 +38,7 @@ sealed class ReaderSelectionWebView(WebViewHandler handler, Android.Content.Cont
 	{
 		if (!string.IsNullOrEmpty(selectedText))
 		{
-			SelectionLookupRequested?.Invoke(this, selectedText);
+			LookupRequestedHandler?.Invoke(selectedText);
 		}
 	}
 }

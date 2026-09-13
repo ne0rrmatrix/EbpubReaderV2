@@ -36,6 +36,11 @@
 		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IBookMetadataService.cs" Link="App\Interfaces\IBookMetadataService.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IBookCatalogService.cs" Link="App\Interfaces\IBookCatalogService.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\ViewModels\BookDetailsViewModel.cs" Link="App\ViewModels\BookDetailsViewModel.cs" />
+		<Compile Include="..\..\src\DisplayBook.Viewer\Services\EpubArchive.cs" Link="Viewer\Services\EpubArchive.cs" />
+		<Compile Include="..\..\src\DisplayBook.Viewer\Services\EpubPathUtilities.cs" Link="Viewer\Services\EpubPathUtilities.cs" />
+		<Compile Include="..\..\src\DisplayBook.Viewer\Services\EpubPublicationParser.cs" Link="Viewer\Services\EpubPublicationParser.cs" />
+		<Compile Include="..\..\src\DisplayBook.Viewer\Services\CombinedDocumentBuilder.cs" Link="Viewer\Services\CombinedDocumentBuilder.cs" />
+		<Compile Include="..\..\src\DisplayBook.Viewer\Models\EpubPublicationInfo.cs" Link="Viewer\Models\EpubPublicationInfo.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

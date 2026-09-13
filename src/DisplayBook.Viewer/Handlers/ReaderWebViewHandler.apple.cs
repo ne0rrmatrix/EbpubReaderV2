@@ -7,8 +7,16 @@ using WebKit;
 
 namespace DisplayBook.Viewer.Handlers;
 
-public sealed partial class ReaderWebViewHandler
+public sealed partial class ReaderWebViewHandler : IDisposable
 {
+	ReaderContentSchemeHandler? contentSchemeHandler;
+
+	public void Dispose()
+	{
+		contentSchemeHandler?.Dispose();
+		contentSchemeHandler = null;
+	}
+
 	partial void ConfigurePlatformView(bool isReaderContentHost)
 	{
 		// WKWebView is configured by ReaderAssetHost after the view is created, so no additional configuration is needed here.
@@ -17,60 +25,43 @@ public sealed partial class ReaderWebViewHandler
 	/// <summary>
 	/// Registers a <see cref="ReaderContentSchemeHandler"/> instead of relying on a plain
 	/// <c>file://</c> load. WKWebView only grants read access to the folder containing the
-	/// loaded page and blocks <c>fetch()</c> to other <c>file://</c> resources, so a
-	/// publication stored in a sibling folder under <see cref="ReaderAssetHost.ContentRoot"/>
-	/// would otherwise fail to load.
+	/// loaded page and blocks <c>fetch()</c> to other <c>file://</c> resources, so serving a
+	/// publication needs its own scheme regardless of whether the content is disk- or
+	/// memory-backed.
 	/// </summary>
 	protected override WKWebView CreatePlatformView()
 	{
 		WKWebViewConfiguration configuration = MauiWKWebView.CreateConfiguration();
-		configuration.SetUrlSchemeHandler(
-			new ReaderContentSchemeHandler(ReaderAssetHost.ContentRoot),
-			ReaderAssetHost.AppleContentScheme);
+		contentSchemeHandler = new ReaderContentSchemeHandler();
+		configuration.SetUrlSchemeHandler(contentSchemeHandler, ReaderAssetHost.AppleContentScheme);
 
 		return new MauiWKWebView(CGRect.Empty, this, configuration);
 	}
 
-	sealed class ReaderContentSchemeHandler(string contentRoot) : NSObject, IWKUrlSchemeHandler
+	/// <summary>
+	/// Points this handler's scheme handler at the currently-open book. Called from
+	/// <c>ReaderAssetHost.ios.cs</c>/<c>.maccatalyst.cs</c>'s <c>ConfigurePlatformWebViewAsync</c>
+	/// each time <c>LoadPublicationAsync</c> runs, before the WebView navigates to the viewer URI.
+	/// </summary>
+	internal void SetPublicationSource(EpubArchive publicationSource)
 	{
-		static readonly Dictionary<string, string> mimeTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
-		{
-			[".html"] = "text/html",
-			[".htm"] = "text/html",
-			[".xhtml"] = "application/xhtml+xml",
-			[".js"] = "text/javascript",
-			[".mjs"] = "text/javascript",
-			[".css"] = "text/css",
-			[".json"] = "application/json",
-			[".xml"] = "application/xml",
-			[".opf"] = "application/oebps-package+xml",
-			[".ncx"] = "application/x-dtbncx+xml",
-			[".png"] = "image/png",
-			[".jpg"] = "image/jpeg",
-			[".jpeg"] = "image/jpeg",
-			[".gif"] = "image/gif",
-			[".svg"] = "image/svg+xml",
-			[".webp"] = "image/webp",
-			[".otf"] = "font/otf",
-			[".ttf"] = "font/ttf",
-			[".woff"] = "font/woff",
-			[".woff2"] = "font/woff2",
-			[".mp3"] = "audio/mpeg",
-			[".m4a"] = "audio/mp4",
-		};
+		ReaderContentSchemeHandler handler = contentSchemeHandler
+			?? throw new InvalidOperationException("The Apple reader WebView has no content scheme handler yet.");
+		handler.PublicationSource = publicationSource;
+	}
 
-		readonly string contentRoot = Path.GetFullPath(contentRoot);
+	sealed class ReaderContentSchemeHandler : NSObject, IWKUrlSchemeHandler
+	{
+		public EpubArchive? PublicationSource { get; set; }
 
 		public void StartUrlSchemeTask(WKWebView webView, IWKUrlSchemeTask urlSchemeTask)
 		{
 			NSUrl? requestUrl = urlSchemeTask.Request.Url;
 			string requestedPath = Uri.UnescapeDataString(requestUrl?.Path ?? string.Empty).TrimStart('/');
-			string fullPath = Path.GetFullPath(
-				Path.Combine(contentRoot, requestedPath.Replace('/', Path.DirectorySeparatorChar)));
+			EpubArchive? publicationSource = PublicationSource;
 
-			if (requestUrl is null ||
-				!fullPath.StartsWith(contentRoot, StringComparison.Ordinal) ||
-				!File.Exists(fullPath))
+			if (requestUrl is null || publicationSource is null ||
+				!ReaderAssetHost.TryGetResourceBytes(publicationSource, requestedPath, out byte[] data))
 			{
 				urlSchemeTask.DidFailWithError(new NSError(new NSString("DisplayBookReaderContent"), 404));
 				return;
@@ -78,8 +69,7 @@ public sealed partial class ReaderWebViewHandler
 
 			try
 			{
-				byte[] data = File.ReadAllBytes(fullPath);
-				string mimeType = mimeTypesByExtension.TryGetValue(Path.GetExtension(fullPath), out string? type)
+				string mimeType = ReaderAssetHost.MimeTypesByExtension.TryGetValue(Path.GetExtension(requestedPath), out string? type)
 					? type
 					: "application/octet-stream";
 

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using DisplayBook.Viewer.Bridge;
 using DisplayBook.Viewer.Models;
 using DisplayBook.Viewer.Serialization;
@@ -14,13 +14,22 @@ public partial class EpubReaderView : ContentView
 	bool isLoading;
 	bool isReadyForLocationChanges;
 	bool readerReadyReceived;
+	bool reloadDispatchQueued;
 	EpubLocator? pendingStartLocator;
 
-	public static readonly BindableProperty PublicationRootProperty = BindableProperty.Create(
-		nameof(PublicationRoot),
-		typeof(string),
+	// The reader shell (index.html/EpubText.js) is navigated to at most once per WebView2/WKWebView/
+	// Android WebView instance -- not once per book. Once isShellReady is true, opening a
+	// different book calls window.DisplayBookReader.loadPublication(...) on the already-running
+	// JS instead of a fresh navigation, so the WebView/JS engine warm-up and shell asset parsing
+	// only ever happens once per app session.
+	bool isShellReady;
+	TaskCompletionSource<bool>? shellReadyTcs;
+
+	public static readonly BindableProperty PublicationSourceProperty = BindableProperty.Create(
+		nameof(PublicationSource),
+		typeof(EpubArchive),
 		typeof(EpubReaderView),
-		string.Empty,
+		default(EpubArchive),
 		propertyChanged: OnPublicationChanged);
 
 	public static readonly BindableProperty PublicationOpfPathProperty = BindableProperty.Create(
@@ -50,10 +59,10 @@ public partial class EpubReaderView : ContentView
 		ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
 	}
 
-	public string PublicationRoot
+	public EpubArchive? PublicationSource
 	{
-		get => (string)GetValue(PublicationRootProperty);
-		set => SetValue(PublicationRootProperty, value);
+		get => (EpubArchive?)GetValue(PublicationSourceProperty);
+		set => SetValue(PublicationSourceProperty, value);
 	}
 
 	public string PublicationOpfPath
@@ -85,7 +94,9 @@ public partial class EpubReaderView : ContentView
 
 	public async Task LoadPublicationAsync(CancellationToken cancellationToken = default)
 	{
-		if (string.IsNullOrWhiteSpace(PublicationRoot) || string.IsNullOrWhiteSpace(PublicationOpfPath))
+		EpubArchive? publicationSource = PublicationSource;
+		string opfPath = PublicationOpfPath;
+		if (publicationSource is null || string.IsNullOrWhiteSpace(opfPath))
 		{
 			return;
 		}
@@ -100,20 +111,77 @@ public partial class EpubReaderView : ContentView
 		LoadingOverlay.IsVisible = true;
 		try
 		{
-			await assetHost.InitializeAsync(ReaderWebView, HandleNativeNavigationAsync, HandleDictionaryLookupRequested, cancellationToken);
+			// Parsing the OPF/spine/TOC and assembling every chapter into one combined document
+			// usually isn't work this method does at all any more: whoever supplied the archive
+			// is expected to have started the same memoized call while the user was still on the
+			// details page (see the App project's EpubArchivePrefetchCache), leaving this await
+			// to complete immediately. It stays here so a publication that arrives without that
+			// head start -- or one whose prefetch was still running -- still loads correctly,
+			// just without the saving. The token is applied to the wait rather than to the work,
+			// since that work is shared and must not be cancelled on another caller's behalf.
+			EpubPublicationInfo publication = await EpubPublicationLoader
+				.PrepareAsync(publicationSource)
+				.WaitAsync(cancellationToken);
+
+			// Wires the resource host (WebResourceRequested/asset loader/URL scheme handler,
+			// depending on platform) to this book's archive -- cheap and safe to redo on every
+			// book, whether or not the shell itself needs a fresh navigation below.
+			await assetHost.InitializeAsync(ReaderWebView, publicationSource, HandleNativeNavigationAsync, HandleDictionaryLookupRequested, cancellationToken);
 			hasLoadedPublication = true;
 			isReadyForLocationChanges = false;
 			readerReadyReceived = false;
 			pendingStartLocator = null;
-			ReaderWebView.Source = new UrlWebViewSource
-			{
-				Url = assetHost.GetViewerUri(PublicationRoot, PublicationOpfPath).ToString()
-			};
+
+			await EnsureReaderShellLoadedAsync(cancellationToken);
+			await SendLoadPublicationAsync(publication, cancellationToken);
 		}
 		finally
 		{
 			isLoading = false;
 		}
+	}
+
+	/// <summary>
+	/// Navigates to the reader shell (index.html/EpubText.js) the first time this control's
+	/// WebView is used, and simply returns once that's already happened for every later book --
+	/// see the isShellReady/shellReadyTcs remarks above. Waits for the shell's own "shellReady"
+	/// bridge message (fired once EpubText.js has finished its book-independent boot: event
+	/// bindings, reader stylesheet preload) rather than the WebView's Navigated event, since the
+	/// latter only means the HTML document loaded, not that the script running inside it is ready
+	/// to receive a book.
+	/// </summary>
+	async Task EnsureReaderShellLoadedAsync(CancellationToken cancellationToken)
+	{
+		if (isShellReady)
+		{
+			return;
+		}
+
+		if (shellReadyTcs is null)
+		{
+			shellReadyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			ReaderWebView.Source = new UrlWebViewSource
+			{
+				Url = assetHost.GetShellUri().ToString()
+			};
+		}
+
+		await shellReadyTcs.Task.WaitAsync(cancellationToken);
+	}
+
+	async Task SendLoadPublicationAsync(EpubPublicationInfo publication, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// The shell (index.html) is served from "DisplayBookViewer/"; resolving a book-relative
+		// path against that base without escaping back out of it first would 404 every request --
+		// see GetBookRelativePath.
+		string combinedHref = EpubPathUtilities.GetBookRelativePath(CombinedDocumentBuilder.CombinedDocumentPath);
+		string? coverHref = publication.CoverHref is null ? null : EpubPathUtilities.GetBookRelativePath(publication.CoverHref);
+		ReaderPublicationPayload payload = new(combinedHref, publication.Title, publication.Author, publication.Spine, publication.Toc, coverHref);
+		string json = JsonSerializer.Serialize(payload, ReaderJsonContext.Default.ReaderPublicationPayload);
+		string script = $"window.DisplayBookReader?.loadPublication({json});";
+		await ReaderWebView.EvaluateJavaScriptAsync(script);
 	}
 
 	public async Task SetLocatorAsync(EpubLocator locator, CancellationToken cancellationToken = default)
@@ -130,12 +198,12 @@ public partial class EpubReaderView : ContentView
 		reader.LoadingCoverImage.Source = (ImageSource?)newValue;
 	}
 
-	static async void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
+	static void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
 	{
 		EpubReaderView reader = (EpubReaderView)bindable;
 
 		// Reset unconditionally, not just when IsLoaded: the ViewModel can set
-		// PublicationRoot/PublicationOpfPath before the page is pushed onto the visual
+		// PublicationSource/PublicationOpfPath before the page is pushed onto the visual
 		// tree, so IsLoaded is still false here. Leaving hasLoadedPublication set would
 		// make the next OnLoaded/TryLoadPublicationAsync call silently skip loading.
 		reader.hasLoadedPublication = false;
@@ -144,14 +212,34 @@ public partial class EpubReaderView : ContentView
 			return;
 		}
 
-		try
+		// PublicationSource and PublicationOpfPath (bound to Book.PublicationOpfPath) are set as
+		// two separate steps by ReaderViewModel.InitializeAsync, each firing this callback
+		// synchronously in turn -- so the first firing here can see the NEW PublicationSource
+		// paired with the OLD PublicationOpfPath (or vice versa) for one instant. That was
+		// harmless while every reload was a full page navigation (the second, correct navigation
+		// simply superseded the first, stale one before it finished) but matters now that a
+		// same-shell reload calls straight into already-running JS -- an in-between, inconsistent
+		// pairing would really be sent to it. Dispatching the actual reload, and coalescing a
+		// second firing that arrives before the dispatched one runs, defers the real work until
+		// after both properties have settled, so it only ever sees the final, consistent pairing.
+		if (reader.reloadDispatchQueued)
 		{
-			await reader.ReloadPublicationAsync();
+			return;
 		}
-		catch (Exception exception)
+
+		reader.reloadDispatchQueued = true;
+		reader.Dispatcher.Dispatch(async () =>
 		{
-			reader.RaiseReaderError(exception.Message);
-		}
+			reader.reloadDispatchQueued = false;
+			try
+			{
+				await reader.ReloadPublicationAsync();
+			}
+			catch (Exception exception)
+			{
+				reader.RaiseReaderError(exception.Message);
+			}
+		});
 	}
 
 	async void OnLoaded(object? sender, EventArgs e)
@@ -161,6 +249,16 @@ public partial class EpubReaderView : ContentView
 
 	async void OnReaderWebViewHandlerChanged(object? sender, EventArgs e)
 	{
+		// A handler change can mean the underlying native WebView was actually torn down and
+		// replaced (e.g. some platform disposing/recreating it across a page pop/push) rather
+		// than the same instance simply being reattached. There's no cheap, cross-platform way to
+		// tell those two cases apart here, and getting it wrong the optimistic way (assuming the
+		// shell survived when it didn't) would leave the reader stuck sending loadPublication to a
+		// WebView that was never navigated to the shell at all. Resetting unconditionally instead
+		// just costs one extra shell navigation in the case where the native view did survive.
+		hasLoadedPublication = false;
+		isShellReady = false;
+		shellReadyTcs = null;
 		if (IsLoaded)
 		{
 			await TryLoadPublicationAsync();
@@ -275,6 +373,10 @@ public partial class EpubReaderView : ContentView
 		MessageReceived?.Invoke(this, new ReaderMessageEventArgs(message));
 		switch (message.Type)
 		{
+			case ReaderBridgeMessageTypes.ShellReady:
+				isShellReady = true;
+				shellReadyTcs?.TrySetResult(true);
+				break;
 			case ReaderBridgeMessageTypes.ReaderReady:
 				if (readerReadyReceived)
 				{

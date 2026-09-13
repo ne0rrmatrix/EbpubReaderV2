@@ -58,16 +58,19 @@ public sealed class BookImportService(
 	{
 		string importId = Guid.NewGuid().ToString("N");
 		string importRoot = Path.Combine(FileSystem.CacheDirectory, "DisplayBookImports", importId);
-		string stagingRoot = Path.Combine(importRoot, "Book");
-		Directory.CreateDirectory(stagingRoot);
+		Directory.CreateDirectory(importRoot);
+		string stagingEpubPath = Path.Combine(importRoot, "Book.epub");
 		try
 		{
 			ReportProgress(progress, "Importing book", originalFileName, 0, 1);
-			using ZipArchive archive = new(source, ZipArchiveMode.Read, leaveOpen: true);
-			ExtractArchive(archive, stagingRoot, cancellationToken);
-			string contentHash = await ComputeDirectoryHashAsync(stagingRoot, cancellationToken);
+			await using (FileStream staging = File.Create(stagingEpubPath))
+			{
+				await source.CopyToAsync(staging, cancellationToken);
+			}
+
+			string contentHash = await ComputeArchiveHashAsync(stagingEpubPath, cancellationToken);
 			HashSet<string> knownHashes = await GetKnownContentHashesAsync(progress, cancellationToken);
-			BookSummary? book = await SaveImportedBookAsync(stagingRoot, originalFileName, importId, contentHash, knownHashes, cancellationToken);
+			BookSummary? book = await SaveImportedBookAsync(stagingEpubPath, originalFileName, importId, contentHash, knownHashes, cancellationToken);
 			ReportProgress(progress, "Import complete", book?.Title ?? originalFileName, 1, 1);
 			return book is null ? [] : [book];
 		}
@@ -144,7 +147,7 @@ public sealed class BookImportService(
 	}
 
 	async Task<BookSummary?> SaveImportedBookAsync(
-		string stagingRoot,
+		string stagingEpubPath,
 		string originalFileName,
 		string importId,
 		string contentHash,
@@ -154,21 +157,23 @@ public sealed class BookImportService(
 		if (knownHashes.Contains(contentHash) || await catalog.ContainsContentHashAsync(contentHash, cancellationToken))
 		{
 			logger.LogInformation("Skipped duplicate EPUB {FileName}.", originalFileName);
-			DeleteDirectory(stagingRoot);
+			DeleteFile(stagingEpubPath);
 			return null;
 		}
 
-		EpubPackageMetadata metadata = EpubPackageReader.Read(stagingRoot);
-		await BookStorageService.InitializeAsync(cancellationToken);
 		string bookId = importId;
-		string finalRoot = BookStorageService.GetBookRoot(bookId);
-		if (Directory.Exists(finalRoot))
+		(EpubPackageMetadata metadata, string coverRelativePath, string coverAbsolutePath) = ReadMetadataAndExtractCover(stagingEpubPath, bookId);
+
+		await BookStorageService.InitializeAsync(cancellationToken);
+		string finalEpubPath = BookStorageService.GetBookFilePath(bookId);
+		if (File.Exists(finalEpubPath))
 		{
-			throw new IOException("A storage directory already exists for this book.");
+			throw new IOException("A storage file already exists for this book.");
 		}
 
 		Directory.CreateDirectory(BookStorageService.BooksRoot);
-		Directory.Move(stagingRoot, finalRoot);
+		File.Move(stagingEpubPath, finalEpubPath);
+
 		BookSummary summary = new(
 			bookId,
 			metadata.Title,
@@ -176,10 +181,8 @@ public sealed class BookImportService(
 			metadata.Description,
 			metadata.Language,
 			metadata.Publisher,
-			string.IsNullOrWhiteSpace(metadata.CoverRelativePath)
-				? string.Empty
-				: BookStorageService.GetAbsolutePath($"Books/{bookId}/{metadata.CoverRelativePath}"),
-			$"Books/{bookId}",
+			coverAbsolutePath,
+			$"Books/{bookId}.epub",
 			metadata.OpfRelativePath,
 			originalFileName,
 			DateTimeOffset.UtcNow,
@@ -192,16 +195,57 @@ public sealed class BookImportService(
 
 		try
 		{
-			await catalog.AddBookAsync(summary, string.IsNullOrWhiteSpace(metadata.CoverRelativePath) ? string.Empty : $"Books/{bookId}/{metadata.CoverRelativePath}", cancellationToken);
+			await catalog.AddBookAsync(summary, coverRelativePath, cancellationToken);
 			knownHashes.Add(contentHash);
-			logger.LogInformation("Imported EPUB {Title} into {Path}.", summary.Title, finalRoot);
+			logger.LogInformation("Imported EPUB {Title} into {Path}.", summary.Title, finalEpubPath);
 			return summary;
 		}
 		catch
 		{
-			DeleteDirectory(finalRoot);
+			DeleteFile(finalEpubPath);
+			DeleteFile(coverAbsolutePath);
 			throw;
 		}
+	}
+
+	/// <summary>
+	/// Reads title/author/cover metadata and, if the EPUB declares a cover image, extracts just
+	/// that one file to its own small persisted location (<see cref="BookStorageService.GetCoverFilePath"/>).
+	/// Everything else in the archive is left untouched on disk -- chapters/CSS/fonts/other
+	/// images are parsed into memory fresh each time the book is opened for reading instead.
+	/// </summary>
+	static (EpubPackageMetadata Metadata, string CoverRelativePath, string CoverAbsolutePath) ReadMetadataAndExtractCover(string epubFilePath, string bookId)
+	{
+		using FileStream stream = File.OpenRead(epubFilePath);
+		using ZipArchive archive = new(stream, ZipArchiveMode.Read, leaveOpen: false);
+		EpubPackageMetadata metadata = EpubPackageReader.Read(archive);
+
+		if (string.IsNullOrWhiteSpace(metadata.CoverRelativePath))
+		{
+			return (metadata, string.Empty, string.Empty);
+		}
+
+		ZipArchiveEntry? coverEntry = archive.GetEntry(metadata.CoverRelativePath);
+		if (coverEntry is null)
+		{
+			return (metadata, string.Empty, string.Empty);
+		}
+
+		string extension = Path.GetExtension(metadata.CoverRelativePath);
+		if (string.IsNullOrEmpty(extension))
+		{
+			extension = ".jpg";
+		}
+
+		string coverAbsolutePath = BookStorageService.GetCoverFilePath(bookId, extension);
+		Directory.CreateDirectory(BookStorageService.CoversRoot);
+		using (Stream entryStream = coverEntry.Open())
+		using (FileStream output = File.Create(coverAbsolutePath))
+		{
+			entryStream.CopyTo(output);
+		}
+
+		return (metadata, BookStorageService.GetCoverRelativePath(bookId, extension), coverAbsolutePath);
 	}
 
 	async Task<BookSummary?> ImportCandidateAsync(
@@ -213,13 +257,19 @@ public sealed class BookImportService(
 		CandidateProgress candidateProgress,
 		CancellationToken cancellationToken)
 	{
-		string candidateRoot = Path.Combine(importRoot, "Books", Guid.NewGuid().ToString("N"));
-		Directory.CreateDirectory(candidateRoot);
+		string stagingEpubPath = Path.Combine(importRoot, "Books", $"{Guid.NewGuid():N}.epub");
+		Directory.CreateDirectory(Path.GetDirectoryName(stagingEpubPath)!);
 		try
 		{
 			if (candidate.IsDirectory)
 			{
-				CopyDirectory(candidate.Path, candidateRoot, progress, cancellationToken);
+				ReportProgress(
+					progress,
+					importingBooksStage,
+					$"Packaging {Path.GetFileName(candidate.Path)}",
+					candidateProgress.Index,
+					candidateProgress.Total);
+				CreateArchiveFromDirectory(candidate.Path, stagingEpubPath, cancellationToken);
 			}
 			else
 			{
@@ -229,14 +279,12 @@ public sealed class BookImportService(
 					$"Reading {Path.GetFileName(candidate.Path)}",
 					candidateProgress.Index,
 					candidateProgress.Total);
-				await using FileStream source = File.OpenRead(candidate.Path);
-				using ZipArchive archive = new(source, ZipArchiveMode.Read, leaveOpen: false);
-				ExtractArchive(archive, candidateRoot, cancellationToken);
+				File.Copy(candidate.Path, stagingEpubPath, overwrite: false);
 			}
 
-			string contentHash = await ComputeDirectoryHashAsync(candidateRoot, cancellationToken);
+			string contentHash = await ComputeArchiveHashAsync(stagingEpubPath, cancellationToken);
 			return await SaveImportedBookAsync(
-				candidateRoot,
+				stagingEpubPath,
 				Path.GetFileName(candidate.Path),
 				Guid.NewGuid().ToString("N"),
 				contentHash,
@@ -258,7 +306,7 @@ public sealed class BookImportService(
 
 	async Task<HashSet<string>> GetKnownContentHashesAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{
-		HashSet<string> knownHashes = [with(StringComparer.OrdinalIgnoreCase)];
+		HashSet<string> knownHashes = new(StringComparer.OrdinalIgnoreCase);
 		IReadOnlyList<BookSummary> books = await catalog.GetBooksAsync(cancellationToken);
 		ReportProgress(progress, checkingExistingLibraryStage, "Preparing duplicate check", 0, books.Count);
 		for (int index = 0; index < books.Count; index++)
@@ -273,17 +321,19 @@ public sealed class BookImportService(
 				continue;
 			}
 
-			string existingRoot = BookStorageService.GetAbsolutePath(book.PublicationRoot);
-			if (!Directory.Exists(existingRoot))
+			// Legacy fallback for rows imported before ContentHash existed: fingerprint the
+			// persisted .epub directly instead of failing the duplicate check outright.
+			string existingEpubPath = BookStorageService.GetAbsolutePath(book.EpubRelativePath);
+			if (!File.Exists(existingEpubPath))
 			{
 				continue;
 			}
 
 			try
 			{
-				knownHashes.Add(await ComputeDirectoryHashAsync(existingRoot, cancellationToken));
+				knownHashes.Add(await ComputeArchiveHashAsync(existingEpubPath, cancellationToken));
 			}
-			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
 			{
 				logger.LogWarning(exception, "Could not fingerprint existing EPUB {BookId}.", book.Id);
 			}
@@ -309,28 +359,33 @@ public sealed class BookImportService(
 		return File.Exists(Path.Combine(path, "META-INF", "container.xml"));
 	}
 
-	static async Task<string> ComputeDirectoryHashAsync(string root, CancellationToken cancellationToken)
+	/// <summary>
+	/// Relative-path-ordered SHA-256 over the archive's entries (not the raw .epub bytes) so two
+	/// zips of byte-identical content hash the same even if their container/compression differs
+	/// across tools or devices -- see CLAUDE.md's note on cross-device sync determinism.
+	/// </summary>
+	static async Task<string> ComputeArchiveHashAsync(string epubFilePath, CancellationToken cancellationToken)
 	{
 		using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-		var files = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-			.Select(path => new
-			{
-				Path = path,
-				RelativePath = Path.GetRelativePath(root, path).Replace('\\', '/')
-			})
-			.OrderBy(item => item.RelativePath, StringComparer.Ordinal)
-			.ToList();
 		byte[] separator = [0];
 		byte[] buffer = new byte[81920];
 
-		foreach (var file in files)
+		await using FileStream fileStream = new(epubFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, buffer.Length, useAsync: true);
+		using ZipArchive archive = new(fileStream, ZipArchiveMode.Read, leaveOpen: false);
+		var entries = archive.Entries
+			.Where(entry => !string.IsNullOrEmpty(entry.Name))
+			.Select(entry => new { Entry = entry, RelativePath = entry.FullName.Replace('\\', '/') })
+			.OrderBy(item => item.RelativePath, StringComparer.Ordinal)
+			.ToList();
+
+		foreach (var item in entries)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			hash.AppendData(Encoding.UTF8.GetBytes(file.RelativePath));
+			hash.AppendData(Encoding.UTF8.GetBytes(item.RelativePath));
 			hash.AppendData(separator);
-			await using FileStream stream = new(file.Path, FileMode.Open, FileAccess.Read, FileShare.Read, buffer.Length, useAsync: true);
+			using Stream entryStream = item.Entry.Open();
 			int bytesRead;
-			while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+			while ((bytesRead = await entryStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
 			{
 				hash.AppendData(buffer, 0, bytesRead);
 			}
@@ -339,55 +394,20 @@ public sealed class BookImportService(
 		return Convert.ToHexString(hash.GetHashAndReset());
 	}
 
-	static void ExtractArchive(ZipArchive archive, string destinationRoot, CancellationToken cancellationToken)
-	{
-		foreach (ZipArchiveEntry entry in archive.Entries)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-			string entryPath = EpubPackageReader.ResolveWithinRoot(destinationRoot, entry.FullName);
-			if (string.IsNullOrEmpty(entry.Name))
-			{
-				Directory.CreateDirectory(entryPath);
-				continue;
-			}
-
-			Directory.CreateDirectory(Path.GetDirectoryName(entryPath)!);
-			using Stream input = entry.Open();
-			using FileStream output = File.Create(entryPath);
-			input.CopyTo(output);
-		}
-	}
-
-	static void CopyDirectory(
-		string sourceRoot,
-		string destinationRoot,
-		IProgress<BookImportProgress>? progress,
-		CancellationToken cancellationToken)
+	static void CreateArchiveFromDirectory(string sourceRoot, string destinationEpubPath, CancellationToken cancellationToken)
 	{
 		if (!Directory.Exists(sourceRoot))
 		{
 			throw new DirectoryNotFoundException("The selected EPUB folder no longer exists.");
 		}
 
-		foreach (string directory in Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+		using FileStream destination = File.Create(destinationEpubPath);
+		using ZipArchive archive = new(destination, ZipArchiveMode.Create, leaveOpen: false);
+		foreach (string file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			string relative = Path.GetRelativePath(sourceRoot, directory);
-			string destination = EpubPackageReader.ResolveWithinRoot(destinationRoot, relative);
-			Directory.CreateDirectory(destination);
-		}
-
-		List<string> files = [.. Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)];
-		ReportProgress(progress, "Copying selected folder", "Starting folder copy", 0, files.Count);
-		for (int index = 0; index < files.Count; index++)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-			string file = files[index];
-			string relative = Path.GetRelativePath(sourceRoot, file);
-			string destination = EpubPackageReader.ResolveWithinRoot(destinationRoot, relative);
-			Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-			File.Copy(file, destination, overwrite: false);
-			ReportProgress(progress, "Copying selected folder", relative, index + 1, files.Count);
+			string relative = Path.GetRelativePath(sourceRoot, file).Replace('\\', '/');
+			archive.CreateEntryFromFile(file, relative);
 		}
 	}
 
@@ -414,6 +434,14 @@ public sealed class BookImportService(
 		if (Directory.Exists(path))
 		{
 			Directory.Delete(path, recursive: true);
+		}
+	}
+
+	static void DeleteFile(string path)
+	{
+		if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+		{
+			File.Delete(path);
 		}
 	}
 
