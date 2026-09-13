@@ -1,6 +1,8 @@
 using DisplayBook.App.ViewModels;
 using DisplayBook.Viewer.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Controls.PlatformConfiguration;
+using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
 
 namespace DisplayBook.App.Views;
 
@@ -37,8 +39,13 @@ public partial class ReaderPage : ContentPage
 #if ANDROID
 		ConfigureReaderSystemUi();
 #endif
+		// The reader's own JS/CSS starts in immersive (chrome-hidden) mode, so the native
+		// status bar should start hidden to match rather than waiting for the first
+		// chromeVisibilityChanged bridge message.
+		this.On<iOS>().SetPrefersStatusBarHidden(StatusBarHiddenMode.True);
 		Reader.LocationChanged += OnLocationChanged;
 		Reader.ExitRequested += OnExitRequested;
+		Reader.ChromeVisibilityChanged += OnReaderChromeVisibilityChanged;
 #if ANDROID
 		Reader.ThemeChanged += OnReaderThemeChanged;
 #endif
@@ -48,6 +55,8 @@ public partial class ReaderPage : ContentPage
 	{
 		Reader.LocationChanged -= OnLocationChanged;
 		Reader.ExitRequested -= OnExitRequested;
+		Reader.ChromeVisibilityChanged -= OnReaderChromeVisibilityChanged;
+		this.On<iOS>().SetPrefersStatusBarHidden(StatusBarHiddenMode.Default);
 #if ANDROID
 		Reader.ThemeChanged -= OnReaderThemeChanged;
 #endif
@@ -56,6 +65,12 @@ public partial class ReaderPage : ContentPage
 #endif
 		_ = FlushPendingSyncAsync();
 		base.OnDisappearing();
+	}
+
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S1172:Unused method parameters should be removed", Justification = "It is an event handler")]
+	void OnReaderChromeVisibilityChanged(object? sender, bool isChromeVisible)
+	{
+		this.On<iOS>().SetPrefersStatusBarHidden(isChromeVisible ? StatusBarHiddenMode.False : StatusBarHiddenMode.True);
 	}
 
 	async Task FlushPendingSyncAsync()

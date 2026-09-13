@@ -1261,6 +1261,7 @@
             closeContents();
             closeSettings();
         }
+        notifyNative("chromeVisibilityChanged", { visible: isVisible });
         window.requestAnimationFrame(() => {
             if (state.isReady) {
                 elements.frame.contentDocument?.documentElement.style.setProperty(

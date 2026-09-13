@@ -7,8 +7,10 @@
              x:DataType="vm:ReaderViewModel"
              Shell.NavBarIsVisible="False"
              Padding="0"
+             SafeAreaEdges="None"
              Background="Black">
     <viewer:EpubReaderView  x:Name="Reader"
+                           SafeAreaEdges="None"
                            PublicationRoot="{Binding Book.PublicationRoot}"
                            PublicationOpfPath="{Binding Book.PublicationOpfPath}"
                            StartLocator="{Binding Locator}"

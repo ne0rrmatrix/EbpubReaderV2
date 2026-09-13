@@ -80,6 +80,7 @@ public partial class EpubReaderView : ContentView
 	public event EventHandler? ExitRequested;
 	public event EventHandler? SettingsRequested;
 	public event EventHandler<string>? ThemeChanged;
+	public event EventHandler<bool>? ChromeVisibilityChanged;
 	public event EventHandler<string>? ReaderError;
 
 	public async Task LoadPublicationAsync(CancellationToken cancellationToken = default)
@@ -333,6 +334,13 @@ public partial class EpubReaderView : ContentView
 					!string.IsNullOrWhiteSpace(themeElement.GetString()))
 				{
 					ThemeChanged?.Invoke(this, themeElement.GetString()!);
+				}
+				break;
+			case ReaderBridgeMessageTypes.ChromeVisibilityChanged:
+				if (message.Payload.TryGetProperty("visible", out JsonElement visibleElement) &&
+					visibleElement.ValueKind is JsonValueKind.True or JsonValueKind.False)
+				{
+					ChromeVisibilityChanged?.Invoke(this, visibleElement.GetBoolean());
 				}
 				break;
 			case ReaderBridgeMessageTypes.ReaderError:

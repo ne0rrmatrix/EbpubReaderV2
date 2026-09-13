@@ -8,7 +8,7 @@
     <Shell.BackButtonBehavior>
         <BackButtonBehavior IsVisible="False" IsEnabled="False" />
     </Shell.BackButtonBehavior>
-    <Grid>
+    <Grid SafeAreaEdges="None">
         <viewer:ReaderWebView x:Name="ReaderWebView"
                               AutomationId="EpubReaderWebView"
                               HorizontalOptions="Fill"
