@@ -1,10 +1,11 @@
 using Android.Database;
 using Android.Provider;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 
 namespace DisplayBook.App.Services;
 
-public sealed partial class BookPickerService
+public sealed partial class BookPickerService : IBookPickerService
 {
 	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{

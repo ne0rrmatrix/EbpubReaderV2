@@ -1,3 +1,4 @@
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using Foundation;
 using UIKit;
@@ -5,12 +6,10 @@ using UniformTypeIdentifiers;
 
 namespace DisplayBook.App.Services;
 
-public sealed partial class BookPickerService
+public sealed partial class BookPickerService : IBookPickerService
 {
-	public async partial Task<string?> PickFolderAsync(
-		IProgress<BookImportProgress>? progress,
-		CancellationToken cancellationToken)
-	{
+	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
+	{ 
 		cancellationToken.ThrowIfCancellationRequested();
 
 		UIViewController presenter = Platform.GetCurrentUIViewController()

@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using DisplayBook.App.Interfaces;
-using DisplayBook.App.Picker;
 using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.Services.Sync;

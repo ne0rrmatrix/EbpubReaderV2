@@ -1,3 +1,4 @@
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -7,7 +8,7 @@ using NativeWindow = Microsoft.UI.Xaml.Window;
 
 namespace DisplayBook.App.Services;
 
-public sealed partial class BookPickerService
+public sealed partial class BookPickerService : IBookPickerService
 {
 	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{
