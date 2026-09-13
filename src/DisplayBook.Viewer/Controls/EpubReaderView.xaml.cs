@@ -187,6 +187,8 @@ public partial class EpubReaderView : ContentView
 	public async Task SetLocatorAsync(EpubLocator locator, CancellationToken cancellationToken = default)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
+		System.Diagnostics.Debug.WriteLine(
+			$"[EpubReaderView] SetLocatorAsync -> ResourceHref={locator.ResourceHref}, Page={locator.Page}, CharOffset={locator.CharOffset}");
 		string resource = JsonSerializer.Serialize(locator.ResourceHref, ReaderJsonContext.Default.String);
 		string script = $"window.DisplayBookReader?.setLocator({resource}, {locator.Page}, {locator.CharOffset});";
 		await ReaderWebView.EvaluateJavaScriptAsync(script);
@@ -384,6 +386,8 @@ public partial class EpubReaderView : ContentView
 				}
 
 				readerReadyReceived = true;
+				System.Diagnostics.Debug.WriteLine(
+					$"[EpubReaderView] readerReady received; StartLocator=({StartLocator.ResourceHref}, Page={StartLocator.Page}, CharOffset={StartLocator.CharOffset})");
 				if (string.IsNullOrWhiteSpace(StartLocator.ResourceHref))
 				{
 					CompleteInitialReaderReady();
@@ -398,6 +402,8 @@ public partial class EpubReaderView : ContentView
 				EpubLocator? locator = message.Payload.Deserialize(ReaderJsonContext.Default.EpubLocator);
 				if (locator is not null)
 				{
+					System.Diagnostics.Debug.WriteLine(
+						$"[EpubReaderView] locationChanged -> ResourceHref={locator.ResourceHref}, Page={locator.Page}, PageCount={locator.PageCount}, CharOffset={locator.CharOffset}, isReadyForLocationChanges={isReadyForLocationChanges}, hasPendingStartLocator={pendingStartLocator is not null}");
 					if (!isReadyForLocationChanges)
 					{
 						// Not matched by ResourceHref: the JS setLocator() call this responds

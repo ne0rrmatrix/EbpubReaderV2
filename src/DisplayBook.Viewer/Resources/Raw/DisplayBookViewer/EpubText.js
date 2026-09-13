@@ -42,6 +42,16 @@
         imageTreatment: new Set(["normal", "dim", "invert", "dim-invert"])
     };
 
+    // console.info(label, dataObject) reaches Chrome DevTools (chrome://inspect / Safari Web
+    // Inspector / WebView2 DevTools) with the object fully expandable, but Android's
+    // WebChromeClient.OnConsoleMessage bridge (used to forward these into logcat/Debug Output
+    // for on-device diagnosis without attaching a remote debugger) only sees Chromium's
+    // flattened single-string rendering of the console call, which reduces any object argument
+    // to "[object Object]". Stringifying it ourselves keeps the data readable everywhere.
+    function logDiagnostic(label, data) {
+        console.info(`${label} ${JSON.stringify(data)}`);
+    }
+
     const elements = {
         author: document.getElementById("book-author"),
         bookTitle: document.getElementById("book-title"),
@@ -264,7 +274,7 @@
         }
 
         if (settings.columnMode === "two") {
-            console.info("DisplayBook reader columns", {
+            logDiagnostic("DisplayBook reader columns", {
                 viewportWidth: window.innerWidth,
                 minimumViewportWidth: WIDE_VIEWPORT_MINIMUM,
                 requestedColumnCount: state.settings.columnCount,
@@ -735,14 +745,21 @@
             return true;
         }
 
-        const rect = range.getClientRects()[0];
+        // Prefer the Range's own rect (most precise -- it's the exact character position, not
+        // just its containing element); fall back to the containing element's rect when the
+        // Range one is empty, which happens on some Chromium builds (observed on Android's
+        // WebView, not WebView2) for a collapsed Range positioned exactly at a text-node
+        // boundary. Either way, compute and apply the target page ourselves via the same
+        // scrollToCurrentPage() every other navigation path uses, rather than calling the
+        // element's scrollIntoView() and immediately reading scrollLeft back: scrollIntoView's
+        // effect on scrollLeft is not guaranteed synchronous, and reading it back on the very
+        // next line raced a still-in-flight scroll on Android, reporting page 0 (wherever the
+        // scroller happened to already be) before correcting itself moments later once a
+        // "scroll" event caught up -- which looked, from the native side, like an accepted
+        // synced position silently failing to apply.
+        const rect = range.getClientRects()[0] ?? target?.getBoundingClientRect();
         if (!rect) {
-            if (!target) {
-                return false;
-            }
-            target.scrollIntoView({ block: "start" });
-            state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round(scroller.scrollLeft / state.viewportWidth)));
-            return true;
+            return false;
         }
 
         const targetLeft = scroller.scrollLeft + rect.left;
@@ -759,7 +776,18 @@
         if (!frameDocument?.body) {
             return false;
         }
-        return scrollRangeIntoView(findRangeAtTextOffset(frameDocument, offset));
+        const range = findRangeAtTextOffset(frameDocument, offset);
+        const applied = scrollRangeIntoView(range);
+        logDiagnostic("DisplayBook reader resolveCharOffset", {
+            offset,
+            spineIndex: state.currentSpineIndex,
+            rangeFound: range !== null,
+            applied,
+            resultingPage: state.currentPage,
+            pageCount: state.pageCount,
+            viewportWidth: state.viewportWidth
+        });
+        return applied;
     }
 
     function updateProgress() {
@@ -845,7 +873,16 @@
         }
     }
 
-    function measurePageLayout(preservePosition = false, preservedScrollRatio = null) {
+    // notify=false lets a caller that is about to resolve and report the REAL target position
+    // itself (goToSpineIndex, right after switching chapters) skip the notifyNative this would
+    // otherwise send for the merely provisional page-0-of-the-new-chapter position that
+    // showSection() just reset state.currentPage to -- without it, that transient position was
+    // getting reported as a locationChanged, which the native side treats as the definitive
+    // "reader ready" locator (see EpubReaderView's pendingStartLocator handling) and saves/syncs
+    // immediately, a heartbeat before the correct one arrives right behind it. Every other
+    // caller (resize, setSettings, setSafeAreaInsets) is the only source of a position update
+    // for that change and still wants its notification, so they keep the default.
+    function measurePageLayout(preservePosition = false, preservedScrollRatio = null, notify = true) {
         const oldPageCount = Math.max(1, state.pageCount);
         const oldPosition = state.currentPage / Math.max(1, oldPageCount - 1);
         const scrollRatio = preservePosition && state.settings.paginationMode === "scroll"
@@ -861,7 +898,9 @@
             state.pageCount = 1;
             state.currentPage = 0;
             restoreScrollPosition(scrollRatio);
-            updateUi();
+            if (notify) {
+                updateUi();
+            }
             return;
         }
 
@@ -875,7 +914,9 @@
             state.currentPage = Math.min(state.currentPage, state.pageCount - 1);
         }
         scrollToCurrentPage();
-        updateUi();
+        if (notify) {
+            updateUi();
+        }
     }
 
     function waitForNextFrame() {
@@ -1100,6 +1141,12 @@
             }
             const page = Math.round(scroller.scrollLeft / state.viewportWidth);
             if (page !== state.currentPage && page >= 0 && page < state.pageCount) {
+                logDiagnostic("DisplayBook reader scroll listener correcting page", {
+                    priorPage: state.currentPage,
+                    correctedPage: page,
+                    scrollLeft: scroller.scrollLeft,
+                    viewportWidth: state.viewportWidth
+                });
                 state.currentPage = page;
                 updateUi();
             }
@@ -1278,28 +1325,48 @@
     // The single entry point for "navigate to this chapter", used by page turns, TOC clicks,
     // in-book links, and setLocator alike -- mirrors the old loadResource/handleFrameLoad
     // structure (including its exact position-resolution precedence: charOffset, then
-    // openAtEnd, then a fragment, then plain page 0) but synchronous, since there's no longer
-    // any I/O to await between "chapter selected" and "chapter visible".
+    // openAtEnd, then a fragment, then an explicit page, then plain page 0) but synchronous,
+    // since there's no longer any I/O to await between "chapter selected" and "chapter visible".
     function goToSpineIndex(spineIndex, options = {}) {
         if (!showSection(spineIndex)) {
             return false;
         }
 
-        measurePageLayout();
-        const { fragment = "", openAtEnd = false, charOffset = null } = options;
+        measurePageLayout(false, null, false);
+        const { fragment = "", openAtEnd = false, charOffset = null, page = null } = options;
+        let resolution = "none";
         if (typeof charOffset === "number" && charOffset >= 0 && resolveCharOffset(charOffset)) {
             // Position already applied by resolveCharOffset.
+            resolution = "charOffset";
         } else if (openAtEnd) {
             state.currentPage = state.pageCount - 1;
             scrollToCurrentPage();
+            resolution = "openAtEnd";
         } else if (fragment) {
             const fragmentId = fragment.slice(1);
             const target = elements.frame.contentDocument?.getElementById(decodeURIComponent(fragmentId));
             if (target) {
                 target.scrollIntoView({ block: "start" });
                 state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round(getFrameScroller().scrollLeft / state.viewportWidth)));
+                resolution = "fragment";
             }
+        } else if (typeof page === "number" && page > 0) {
+            // Falls back to the caller's page number (e.g. setLocator's normalizedPage) when
+            // there's no charOffset to resolve -- without this, a locator that couldn't resolve
+            // a charOffset (a legacy locator, or one whose text wasn't found) would silently
+            // land on page 0 of the target chapter instead of anywhere close to the right spot.
+            state.currentPage = Math.min(state.pageCount - 1, Math.max(0, page));
+            scrollToCurrentPage();
+            resolution = "page";
         }
+        logDiagnostic("DisplayBook reader goToSpineIndex", {
+            spineIndex,
+            options,
+            resolution,
+            resultingPage: state.currentPage,
+            pageCount: state.pageCount,
+            viewportWidth: state.viewportWidth
+        });
         updateUi();
         updateTocHighlight();
         return true;
@@ -1418,6 +1485,12 @@
             window.clearTimeout(state.resizeTimer);
             state.resizeTimer = window.setTimeout(() => {
                 if (state.isReady) {
+                    logDiagnostic("DisplayBook reader resize->measurePageLayout", {
+                        priorPage: state.currentPage,
+                        priorPageCount: state.pageCount,
+                        priorViewportWidth: state.viewportWidth,
+                        newFrameClientWidth: elements.frame.clientWidth
+                    });
                     applySettingsToFrame(elements.frame.contentDocument);
                     measurePageLayout(true);
                 }
@@ -1452,12 +1525,29 @@
         const normalizedPage = isGenuineMatch ? page : 0;
         const normalizedCharOffset = isGenuineMatch && typeof charOffset === "number" && charOffset >= 0 ? charOffset : null;
 
+        logDiagnostic("DisplayBook reader setLocator", {
+            requestedResourceHref: resourceHref,
+            requestedPage: page,
+            requestedCharOffset: charOffset,
+            byRelativeHref,
+            byLegacyAbsoluteHref,
+            isGenuineMatch,
+            currentSpineIndex: state.currentSpineIndex,
+            targetIndex,
+            normalizedPage,
+            normalizedCharOffset,
+            viewportWidth: state.viewportWidth,
+            frameClientWidth: elements.frame.clientWidth,
+            frameClientHeight: elements.frame.clientHeight
+        });
+
         if (targetIndex !== state.currentSpineIndex) {
-            goToSpineIndex(targetIndex, { charOffset: normalizedCharOffset });
+            goToSpineIndex(targetIndex, { charOffset: normalizedCharOffset, page: normalizedPage });
             return;
         }
 
         if (normalizedCharOffset === null || !resolveCharOffset(normalizedCharOffset)) {
+            logDiagnostic("DisplayBook reader setLocator: falling back to page in current chapter", { normalizedPage });
             goToPage(normalizedPage);
         } else {
             updateUi();
@@ -1509,6 +1599,14 @@
 
         applySettingsToFrame(frameDocument);
         if (state.isReady) {
+            logDiagnostic("DisplayBook reader setSafeAreaInsets->measurePageLayout", {
+                topPx,
+                bottomPx,
+                priorPage: state.currentPage,
+                priorPageCount: state.pageCount,
+                priorViewportWidth: state.viewportWidth,
+                newFrameClientWidth: elements.frame.clientWidth
+            });
             measurePageLayout(true);
         }
     }

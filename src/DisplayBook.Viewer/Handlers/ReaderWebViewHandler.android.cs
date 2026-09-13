@@ -45,6 +45,13 @@ public sealed partial class ReaderWebViewHandler
 			platformView.SetLayerType(LayerType.Software, null);
 		}
 
+#if DEBUG
+		// Forwards EpubText.js's console.info/warn/error calls into logcat (visible in the
+		// same Debug Output the rest of this app's ILogger/Debug.WriteLine diagnostics show
+		// up in) so reader-locator diagnostics can be read without attaching chrome://inspect.
+		platformView.SetWebChromeClient(new ReaderChromeClient());
+#endif
+
 		// ReaderPage/EpubReaderView opt out of MAUI's safe-area handling
 		// (SafeAreaEdges="None") so the reader's themed background can draw truly
 		// edge-to-edge behind the status bar/notch and navigation bar. Unlike
@@ -61,6 +68,36 @@ public sealed partial class ReaderWebViewHandler
 
 		return platformView;
 	}
+
+#if DEBUG
+	sealed class ReaderChromeClient : WebChromeClient
+	{
+		public override bool OnConsoleMessage(ConsoleMessage? consoleMessage)
+		{
+			if (consoleMessage is null)
+			{
+				return base.OnConsoleMessage(consoleMessage);
+			}
+
+			string text = $"{consoleMessage.Message()} -- {consoleMessage.SourceId()}:{consoleMessage.LineNumber()}";
+			ConsoleMessage.MessageLevel? level = consoleMessage.InvokeMessageLevel();
+			if (level == ConsoleMessage.MessageLevel.Error)
+			{
+				Android.Util.Log.Error("DisplayBookReaderJs", text);
+			}
+			else if (level == ConsoleMessage.MessageLevel.Warning)
+			{
+				Android.Util.Log.Warn("DisplayBookReaderJs", text);
+			}
+			else
+			{
+				Android.Util.Log.Debug("DisplayBookReaderJs", text);
+			}
+
+			return true;
+		}
+	}
+#endif
 
 	static void PushSafeAreaInsets(Android.Webkit.WebView platformView)
 	{
