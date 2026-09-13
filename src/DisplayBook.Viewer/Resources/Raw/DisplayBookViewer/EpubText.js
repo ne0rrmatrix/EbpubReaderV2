@@ -98,6 +98,7 @@
         resourceCache: new Map(),
         textCache: new Map(),
         resizeTimer: 0,
+        safeAreaInsets: { top: 0, bottom: 0 },
         spine: [],
         toc: [],
         viewportWidth: 1,
@@ -256,7 +257,9 @@
             "--USER__letterSpacing": settings.letterSpacing,
             "--USER__fontWeight": settings.fontWeight === "original" ? undefined : settings.fontWeight,
             "--USER__darkenImages": imageTreatment.darken,
-            "--USER__invertImages": imageTreatment.invert
+            "--USER__invertImages": imageTreatment.invert,
+            "--reader-safe-area-inset-top": `${state.safeAreaInsets.top}px`,
+            "--reader-safe-area-inset-bottom": `${state.safeAreaInsets.bottom}px`
         };
         for (const [name, value] of Object.entries(variables)) {
             if (value === undefined) {
@@ -672,6 +675,17 @@
                 scrollbar-width: none;
                 margin: 0 !important;
                 padding-inline: 0 !important;
+                /* Reserves space for the status bar/notch (top) and navigation bar
+                   (bottom) on every column, not just the first/last: the reader
+                   window draws edge-to-edge (see ReaderPage's SafeAreaEdges="None"),
+                   and Android WebView has no native env(safe-area-inset-*) support,
+                   so the native side pushes real inset values in via
+                   setSafeAreaInsets(). Without this, a line of text can lay out
+                   underneath an opaque system bar -- invisible, but already
+                   consumed by pagination's page-count math, so it never reappears
+                   on the next page either. */
+                padding-top: var(--reader-safe-area-inset-top, env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: var(--reader-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) !important;
                 box-sizing: border-box !important;
                 background: var(--USER__backgroundColor, transparent) !important;
             }
@@ -686,6 +700,8 @@
                 width: 100vw !important;
                 min-width: 100vw !important;
                 max-width: 100vw !important;
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
                 overflow: hidden !important;
             }
 
@@ -1839,7 +1855,31 @@
         hideLookupButton();
     }
 
-    window.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo };
+    // Android has no native CSS env(safe-area-inset-*) support (unlike WKWebView on
+    // iOS/macOS, where the CSS fallback above already resolves it), so the native side
+    // measures the status bar/notch and navigation bar insets itself and pushes them
+    // in here -- see ReaderWebViewHandler.android.cs. Re-applied on every chapter load
+    // via applySettingsToFrame, since each chapter is a fresh iframe document.
+    function setSafeAreaInsets(top = 0, bottom = 0) {
+        const topPx = Math.max(0, Number(top) || 0);
+        const bottomPx = Math.max(0, Number(bottom) || 0);
+        if (state.safeAreaInsets.top === topPx && state.safeAreaInsets.bottom === bottomPx) {
+            return;
+        }
+
+        state.safeAreaInsets = { top: topPx, bottom: bottomPx };
+        const frameDocument = elements.frame.contentDocument;
+        if (!frameDocument?.documentElement) {
+            return;
+        }
+
+        applySettingsToFrame(frameDocument);
+        if (state.isReady) {
+            measurePageLayout(true);
+        }
+    }
+
+    window.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo, setSafeAreaInsets };
 
     function scheduleBackgroundPreload(publication) {
         const preload = () => {

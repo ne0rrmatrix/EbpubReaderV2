@@ -30,8 +30,10 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 			debounceCts = new CancellationTokenSource();
 			cts = debounceCts;
 		}
-
-		previousCts?.Cancel();
+		if(previousCts is not null)
+		{
+			await previousCts.CancelAsync();
+		}
 		await RunDebouncedPushAsync(cts.Token);
 	}
 

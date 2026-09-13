@@ -7,7 +7,7 @@ namespace DisplayBook.App.Services;
 
 public sealed partial class BookPickerService : IBookPickerService
 {
-	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
+	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress = null, CancellationToken cancellationToken = default)
 	{
 		if (Platform.CurrentActivity is not MainActivity activity)
 		{

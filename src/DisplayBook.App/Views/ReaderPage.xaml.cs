@@ -23,14 +23,6 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 		this.logger = logger;
 		BindingContext = viewModel;
 		InitializeComponent();
-
-		// ReaderPage is a singleton (see MauiProgram) so the same WKWebView/EpubReaderView
-		// instance is reused for every book instead of being recreated - and torn down and
-		// rebuilt - on every open. By default MAUI disconnects a page's whole visual tree's
-		// handlers when it's popped from the navigation stack; Manual opts Reader (and its
-		// WebView) out of that so the native reader view survives being popped and pushed
-		// again for the next book.
-		Microsoft.Maui.Controls.HandlerProperties.SetDisconnectPolicy(Reader, Microsoft.Maui.HandlerDisconnectPolicy.Manual);
 	}
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3168:Async methods should not return void", Justification = "This method is part of interface contract.")]

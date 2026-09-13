@@ -134,12 +134,10 @@ public partial class EpubReaderView : ContentView
 	{
 		EpubReaderView reader = (EpubReaderView)bindable;
 
-		// Reset unconditionally, not just when IsLoaded: with a reused reader instance
-		// (a singleton reader page kept across books), the ViewModel sets the new book's
-		// PublicationRoot/PublicationOpfPath *before* the page is pushed back onto the
-		// visual tree, so IsLoaded is still false here. Leaving hasLoadedPublication set
-		// from the previous book would make the next OnLoaded/TryLoadPublicationAsync
-		// call silently skip loading and keep showing the previous book.
+		// Reset unconditionally, not just when IsLoaded: the ViewModel can set
+		// PublicationRoot/PublicationOpfPath before the page is pushed onto the visual
+		// tree, so IsLoaded is still false here. Leaving hasLoadedPublication set would
+		// make the next OnLoaded/TryLoadPublicationAsync call silently skip loading.
 		reader.hasLoadedPublication = false;
 		if (!reader.IsLoaded)
 		{
