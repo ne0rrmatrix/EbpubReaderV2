@@ -15,12 +15,12 @@ namespace DisplayBook.App.ViewModels;
 public sealed partial class OpdsCatalogViewModel(
 	IOpdsParserService parser,
 	IOpdsCatalogCache cache,
-	INavigationService navigation,
+	IOpdsEntryStagingCache entryStaging,
 	ILogger<OpdsCatalogViewModel> logger) : ObservableObject, IDisposable
 {
 	readonly IOpdsParserService parser = parser;
 	readonly IOpdsCatalogCache cache = cache;
-	readonly INavigationService navigation = navigation;
+	readonly IOpdsEntryStagingCache entryStaging = entryStaging;
 	readonly ILogger<OpdsCatalogViewModel> logger = logger;
 	readonly List<Crumb> crumbs = [];
 	string? serverId;
@@ -74,20 +74,27 @@ public sealed partial class OpdsCatalogViewModel(
 
 	public void OnPageDisappearing() => loadCts?.Cancel();
 
-	internal Task OpenEntryAsync(CatalogEntryModel model)
+	internal async Task OpenEntryAsync(CatalogEntryModel model)
 	{
 		string? href = GetEntryHref(model.Entry);
 		if (string.IsNullOrEmpty(href))
 		{
-			return Task.CompletedTask;
+			return;
 		}
 		else if (model.IsBook)
 		{
-			return navigation.ShowOpdsBookAsync(href, serverId, model.Entry);
+			entryStaging.Stage(href, model.Entry);
+			string query = $"entryUrl={Uri.EscapeDataString(href)}";
+			if (!string.IsNullOrWhiteSpace(serverId))
+			{
+				query += $"&serverId={Uri.EscapeDataString(serverId)}";
+			}
+
+			await Shell.Current.GoToAsync($"opds/book?{query}");
 		}
 		else
 		{
-			return LoadFeedAsync(href, pushCrum: true);
+			await LoadFeedAsync(href, pushCrum: true);
 		}
 	}
 
@@ -106,7 +113,7 @@ public sealed partial class OpdsCatalogViewModel(
 			return;
 		}
 
-		await navigation.GoBackAsync();
+		await Shell.Current.GoToAsync("..");
 	}
 
 	async Task LoadPreviousCrumbAsync()

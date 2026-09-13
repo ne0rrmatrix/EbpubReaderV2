@@ -12,7 +12,6 @@ namespace DisplayBook.App.ViewModels;
 /// </summary>
 public sealed partial class SettingsViewModel(
 	IFirebaseAuthService authService,
-	INavigationService navigation,
 	ILogger<SettingsViewModel> logger) : ObservableObject
 {
 	MfaChallenge? pendingMfaChallenge;
@@ -20,7 +19,7 @@ public sealed partial class SettingsViewModel(
 	string? totpEnrollmentId;
 
 	[RelayCommand]
-	Task GoBackAsync() => navigation.GoBackAsync();
+	async Task GoBackAsync() => await Shell.Current.GoToAsync("..");
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(ShowSignInForm))]

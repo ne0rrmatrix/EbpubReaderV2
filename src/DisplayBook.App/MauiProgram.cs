@@ -69,7 +69,7 @@ public static class MauiProgram
 				sp.GetRequiredService<IHttpClientFactory>().CreateClient(SyncConstants.HttpClientName),
 				sp.GetRequiredService<IFirebaseAuthService>(),
 				sp.GetRequiredService<ILogger<PositionSyncService>>()));
-		builder.Services.AddSingleton<INavigationService, NavigationService>();
+		builder.Services.AddSingleton<IOpdsEntryStagingCache, OpdsEntryStagingCache>();
 		builder.Services.AddSingletonWithShellRoute<LibraryPage, LibraryViewModel>("library");
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddTransientWithShellRoute<BookDetailsPage, BookDetailsViewModel>("Details");

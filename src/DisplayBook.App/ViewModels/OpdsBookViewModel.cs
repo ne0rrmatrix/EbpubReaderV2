@@ -17,7 +17,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 	readonly IOpdsParserService parser;
 	readonly IDownloadQueueService queue;
 	readonly IBookCatalogService catalog;
-	readonly INavigationService navigation;
+	readonly IOpdsEntryStagingCache entryStaging;
 	readonly ILogger<OpdsBookViewModel> logger;
 	CancellationTokenSource? loadCts;
 	bool isInLibrary;
@@ -27,13 +27,13 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		IOpdsParserService parser,
 		IDownloadQueueService queue,
 		IBookCatalogService catalog,
-		INavigationService navigation,
+		IOpdsEntryStagingCache entryStaging,
 		ILogger<OpdsBookViewModel> logger)
 	{
 		this.parser = parser;
 		this.queue = queue;
 		this.catalog = catalog;
-		this.navigation = navigation;
+		this.entryStaging = entryStaging;
 		this.logger = logger;
 		this.queue.ItemUpdated += OnItemUpdated;
 	}
@@ -152,7 +152,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		// Catalog navigation stages the parsed entry because some servers (notably
 		// Calibre) expose only an acquisition URL for a book. Use that metadata first
 		// instead of downloading the binary EPUB and attempting to parse it as XML.
-		OpdsEntry? pendingEntry = navigation.TakePendingEntry(entryUrl);
+		OpdsEntry? pendingEntry = entryStaging.TakePendingEntry(entryUrl);
 		if (pendingEntry is not null)
 		{
 			BookDetails stagedDetails = await parser.ParseBookDetailsAsync(pendingEntry, ct).ConfigureAwait(false);
@@ -167,7 +167,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			// Servers such as Calibre may not expose a separate detail document.
-			OpdsEntry? fallbackEntry = navigation.TakePendingEntry(entryUrl);
+			OpdsEntry? fallbackEntry = entryStaging.TakePendingEntry(entryUrl);
 			if (fallbackEntry is null)
 			{
 				throw;
@@ -268,10 +268,10 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 	}
 
 	[RelayCommand]
-	Task GoToDownloadsAsync() => navigation.ShowDownloadsAsync();
+	async Task GoToDownloadsAsync() => await Shell.Current.GoToAsync("opds/downloads");
 
 	[RelayCommand]
-	Task GoBackAsync() => navigation.GoBackAsync();
+	async Task GoBackAsync() => await Shell.Current.GoToAsync("..");
 
 	public void Dispose()
 	{

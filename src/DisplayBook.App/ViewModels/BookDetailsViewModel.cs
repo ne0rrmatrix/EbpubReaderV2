@@ -10,13 +10,11 @@ using Microsoft.Extensions.Logging;
 namespace DisplayBook.App.ViewModels;
 
 public partial class BookDetailsViewModel(
-	INavigationService navigationService,
 	IBookMetadataService bookMetadataService,
 	IBookCatalogService catalogService,
 	ILogger<BookDetailsViewModel> logger) : ObservableObject
 {
 	[ObservableProperty]
-	[NotifyCanExecuteChangedFor(nameof(OpenCommand))]
 	[NotifyCanExecuteChangedFor(nameof(UpdateMetadataCommand))]
 	public partial BookSummary? Book { get; set; }
 
@@ -76,20 +74,6 @@ public partial class BookDetailsViewModel(
 		pendingFetchedBook = null;
 		_ = RefreshCanUndoAsync();
 	}
-
-	[RelayCommand(CanExecute = nameof(CanOpen))]
-	Task OpenAsync()
-	{
-		return navigationService.ShowReaderAsync(Book ?? throw new InvalidOperationException("A book must be selected before opening the reader."));
-	}
-
-	[RelayCommand]
-	Task BackAsync()
-	{
-		return navigationService.GoBackAsync();
-	}
-
-	bool CanOpen() => Book is not null;
 
 	[RelayCommand(CanExecute = nameof(CanUpdateMetadata))]
 	async Task UpdateMetadataAsync(CancellationToken cancellationToken)
@@ -155,24 +139,6 @@ public partial class BookDetailsViewModel(
 		PanelState = MetadataUpdatePanelState.Idle;
 		ProposedChanges = [];
 		pendingFetchedBook = null;
-	}
-
-	[RelayCommand]
-	async Task OpenSourceLinkAsync()
-	{
-		if (pendingFetchedBook?.SourceLink is not { Length: > 0 } link || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri))
-		{
-			return;
-		}
-
-		try
-		{
-			await navigationService.OpenExternalLinkAsync(uri);
-		}
-		catch (Exception exception)
-		{
-			logger.LogDebug(exception, "Could not open the metadata source link {Link}.", link);
-		}
 	}
 
 	[RelayCommand(CanExecute = nameof(CanApplyMetadata))]

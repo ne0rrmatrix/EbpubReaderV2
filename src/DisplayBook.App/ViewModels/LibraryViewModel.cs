@@ -10,7 +10,6 @@ namespace DisplayBook.App.ViewModels;
 public partial class LibraryViewModel(
 	IBookCatalogService catalogService,
 	IBookImportService importService,
-	INavigationService navigationService,
 	IFirebaseAuthService authService,
 	ILogger<LibraryViewModel> logger) : ObservableObject
 {
@@ -185,27 +184,27 @@ public partial class LibraryViewModel(
 	}
 
 	[RelayCommand]
-	Task OpenDetailsAsync(LibraryBookItem? book)
+	async Task OpenDetailsAsync(LibraryBookItem? book)
 	{
 		if (book is null)
 		{
-			return Task.CompletedTask;
+			return;
 		}
 
 		if (IsSelectionMode)
 		{
 			ToggleSelectionCore(book);
-			return Task.CompletedTask;
+			return;
 		}
 
-		return navigationService.ShowBookDetailsAsync(book.Book);
+		await Shell.Current.GoToAsync($"Details?id={book.Book.Id}");
 	}
 
 	[RelayCommand]
-	Task BrowseOpdsAsync() => navigationService.ShowOpdsServersAsync();
+	async Task BrowseOpdsAsync() => await Shell.Current.GoToAsync("opds/servers");
 
 	[RelayCommand]
-	Task OpenSettingsAsync() => navigationService.ShowSettingsAsync();
+	async Task OpenSettingsAsync() => await Shell.Current.GoToAsync("settings");
 
 	[RelayCommand(CanExecute = nameof(CanEnterSelectionMode))]
 	void EnterSelectionMode()
@@ -258,7 +257,7 @@ public partial class LibraryViewModel(
 		}
 
 		string bookLabel = selectedIds.Length == 1 ? "book" : "books";
-		bool confirmed = await navigationService.ConfirmAsync(
+		bool confirmed = await Shell.Current.DisplayAlertAsync(
 			"Delete books?",
 			$"Permanently delete {selectedIds.Length} {bookLabel} and its stored EPUB content?",
 			"Delete",

@@ -84,6 +84,18 @@ sealed class ReaderSelectionActionModeCallback(ReaderSelectionWebView view) : Ja
 	/// </summary>
 	async Task HandleLookupAsync()
 	{
+		try
+		{
+			await LookupAndRaiseAsync();
+		}
+		catch (Exception exception)
+		{
+			Android.Util.Log.Error(nameof(ReaderSelectionActionModeCallback), $"Dictionary lookup selection read failed: {exception}");
+		}
+	}
+
+	async Task LookupAndRaiseAsync()
+	{
 		EvaluateJavaScriptAsyncRequest request = new(
 			"JSON.stringify(window.DisplayBookReader?.getSelectionInfo()?.text ?? null)");
 		view.EvaluateJavaScript(request);

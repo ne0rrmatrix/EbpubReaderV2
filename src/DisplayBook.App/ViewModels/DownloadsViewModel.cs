@@ -15,16 +15,14 @@ namespace DisplayBook.App.ViewModels;
 public sealed partial class DownloadsViewModel : ObservableObject, IDisposable
 {
 	readonly IDownloadQueueService queue;
-	readonly INavigationService navigation;
 	readonly ILogger<DownloadsViewModel> logger;
 	readonly Dictionary<string, DownloadItemModel> byId = [];
 	readonly Dictionary<string, DownloadBatchProgress> batches = [];
 	bool disposed;
 
-	public DownloadsViewModel(IDownloadQueueService queue, INavigationService navigation, ILogger<DownloadsViewModel> logger)
+	public DownloadsViewModel(IDownloadQueueService queue, ILogger<DownloadsViewModel> logger)
 	{
 		this.queue = queue;
-		this.navigation = navigation;
 		this.logger = logger;
 		this.queue.ItemUpdated += OnItemUpdated;
 		this.queue.BatchUpdated += OnBatchUpdated;
@@ -151,7 +149,7 @@ public sealed partial class DownloadsViewModel : ObservableObject, IDisposable
 	}
 
 	[RelayCommand]
-	Task GoBackAsync() => navigation.GoBackAsync();
+	async Task GoBackAsync() => await Shell.Current.GoToAsync("..");
 
 	[RelayCommand]
 	async Task ClearFinishedAsync()

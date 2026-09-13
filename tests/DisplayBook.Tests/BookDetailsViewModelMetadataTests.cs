@@ -46,7 +46,7 @@ public class BookDetailsViewModelMetadataTests
 		FakeBookMetadataService metadataService,
 		FakeBookCatalogService catalog)
 	{
-		BookDetailsViewModel viewModel = new(new FakeNavigationService(), metadataService, catalog, NullLogger<BookDetailsViewModel>.Instance);
+		BookDetailsViewModel viewModel = new(metadataService, catalog, NullLogger<BookDetailsViewModel>.Instance);
 		viewModel.SetBook(book);
 		return viewModel;
 	}
@@ -273,29 +273,4 @@ public class BookDetailsViewModelMetadataTests
 		public Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, int charOffset = -1, CancellationToken cancellationToken = default) => Task.CompletedTask;
 	}
 
-	sealed class FakeNavigationService : INavigationService
-	{
-		public Task ShowBookDetailsAsync(BookSummary book) => Task.CompletedTask;
-
-		public Task ShowReaderAsync(BookSummary book) => Task.CompletedTask;
-
-		public Task GoBackAsync() => Task.CompletedTask;
-
-		public Task<bool> ConfirmAsync(string title, string message, string accept, string cancel) => Task.FromResult(true);
-
-		public Task OpenExternalLinkAsync(Uri uri) => Task.CompletedTask;
-
-		public Task ShowOpdsServersAsync() => Task.CompletedTask;
-
-		public Task ShowOpdsCatalogAsync(string feedUrl, string? title = null) => Task.CompletedTask;
-
-		public Task ShowOpdsBookAsync(string entryUrl, string? serverId = null, OpdsEntry? entry = null) => Task.CompletedTask;
-
-		public OpdsEntry? TakePendingEntry(string entryUrl) => null;
-
-		public Task ShowDownloadsAsync() => Task.CompletedTask;
-
-		public Task ShowSettingsAsync() => Task.CompletedTask;
-
-	}
 }

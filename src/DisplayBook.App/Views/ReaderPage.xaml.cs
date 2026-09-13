@@ -6,7 +6,7 @@ using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
 
 namespace DisplayBook.App.Views;
 
-public partial class ReaderPage : ContentPage
+public partial class ReaderPage : ContentPage, IQueryAttributable
 {
 	readonly ReaderViewModel viewModel;
 	readonly ILogger<ReaderPage> logger;
@@ -31,6 +31,15 @@ public partial class ReaderPage : ContentPage
 		// WebView) out of that so the native reader view survives being popped and pushed
 		// again for the next book.
 		Microsoft.Maui.Controls.HandlerProperties.SetDisconnectPolicy(Reader, Microsoft.Maui.HandlerDisconnectPolicy.Manual);
+	}
+
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3168:Async methods should not return void", Justification = "This method is part of interface contract.")]
+	public async void ApplyQueryAttributes(IDictionary<string, object> query)
+	{
+		if (query.TryGetValue("id", out object? id) && id is string bookId && !string.IsNullOrWhiteSpace(bookId))
+		{
+			await viewModel.InitializeAsync(bookId);
+		}
 	}
 
 	protected override void OnAppearing()

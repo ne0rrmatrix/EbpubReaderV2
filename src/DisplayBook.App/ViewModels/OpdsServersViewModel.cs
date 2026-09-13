@@ -15,7 +15,6 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 {
 	readonly IOpdsServerRepository servers;
 	readonly IBonjourDiscoveryService discovery;
-	readonly INavigationService navigation;
 	readonly ILogger<OpdsServersViewModel> logger;
 	readonly ObservableCollection<OpdsServerDisplayModel> saved = [];
 	readonly ObservableCollection<OpdsServerDisplayModel> discovered = [];
@@ -25,12 +24,10 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 	public OpdsServersViewModel(
 		IOpdsServerRepository servers,
 		IBonjourDiscoveryService discovery,
-		INavigationService navigation,
 		ILogger<OpdsServersViewModel> logger)
 	{
 		this.servers = servers;
 		this.discovery = discovery;
-		this.navigation = navigation;
 		this.logger = logger;
 
 		this.discovery.ServerDiscovered += OnServerDiscovered;
@@ -49,7 +46,7 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 	public string ToggleButtonText => IsDiscovering ? "Stop discovery" : "Start discovery";
 
 	[RelayCommand]
-	Task GoBackAsync() => navigation.GoBackAsync();
+	async Task GoBackAsync() => await Shell.Current.GoToAsync("..");
 
 	[ObservableProperty]
 	public partial string ManualUrl { get; set; } = string.Empty;
@@ -234,7 +231,7 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 			StatusMessage = null;
 			ManualUrl = string.Empty;
 			ManualName = string.Empty;
-			await navigation.ShowOpdsCatalogAsync(url, server.Name);
+			await Shell.Current.GoToAsync($"opds/catalog?feedUrl={Uri.EscapeDataString(url)}&title={Uri.EscapeDataString(server.Name)}");
 		}
 		finally
 		{
@@ -244,9 +241,9 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 
 	bool CanAddManual() => !IsBusy;
 
-	internal Task OpenServerAsync(OpdsServerDisplayModel model)
+	internal async Task OpenServerAsync(OpdsServerDisplayModel model)
 	{
-		return navigation.ShowOpdsCatalogAsync(model.Url, model.Name);
+		await Shell.Current.GoToAsync($"opds/catalog?feedUrl={Uri.EscapeDataString(model.Url)}&title={Uri.EscapeDataString(model.Name)}");
 	}
 
 	internal async Task SetEnabledAsync(OpdsServerDisplayModel model, bool enabled)
@@ -277,7 +274,7 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 	}
 
 	[RelayCommand]
-	Task GoToDownloadsAsync() => navigation.ShowDownloadsAsync();
+	async Task GoToDownloadsAsync() => await Shell.Current.GoToAsync("opds/downloads");
 
 	static bool IsValidHttpUrl(string url)
 	{

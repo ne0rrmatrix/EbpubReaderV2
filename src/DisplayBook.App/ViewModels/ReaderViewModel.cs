@@ -7,7 +7,6 @@ using DisplayBook.Viewer.Models;
 namespace DisplayBook.App.ViewModels;
 
 public partial class ReaderViewModel(
-	INavigationService navigationService,
 	IBookCatalogService catalogService,
 	IPositionSyncService syncService) : ObservableObject
 {
@@ -19,26 +18,36 @@ public partial class ReaderViewModel(
 	[ObservableProperty]
 	public partial EpubLocator Locator { get; set; } = EpubLocator.Empty;
 
-	public void SetBook(BookSummary book)
-	{
-		Book = book;
-		Locator = string.IsNullOrWhiteSpace(book.LocatorResourceHref)
-			? EpubLocator.Empty
-			: new EpubLocator(book.LocatorResourceHref, book.LocatorPage, book.LocatorPageCount, book.LocatorCharOffset);
-	}
-
 	/// <summary>
-	/// Checks for a newer position synced from another device and, if found, overwrites
-	/// <see cref="Locator"/> before the reader page is shown. Must be awaited before the
-	/// page is pushed: the WebView only reads its start locator once, at startup, so
-	/// updating <see cref="Locator"/> after that point would have no effect. Bounded by
-	/// a short timeout so a slow/unreachable network never delays opening a book for long.
+	/// Loads the book by id and resolves its start locator, checking for a newer position
+	/// synced from another device. <see cref="Locator"/> is always set before <see cref="Book"/>:
+	/// the EpubReaderView control only reads its bound StartLocator once, when it (re)loads a
+	/// publication in response to Book/PublicationRoot changing, so Book must never become
+	/// non-empty until the final locator (local or remote, whichever is newer) is already in place.
+	/// The remote lookup is bounded by a short timeout so a slow/unreachable network never delays
+	/// opening a book for long.
 	/// </summary>
-	public async Task ApplyRemoteLocatorIfNewerAsync()
+	public async Task InitializeAsync(string bookId)
 	{
-		if (Book is not { ContentHash.Length: > 0 } book)
+		BookSummary? book = await catalogService.GetBookAsync(bookId);
+		if (book is null)
 		{
 			return;
+		}
+
+		EpubLocator locator = string.IsNullOrWhiteSpace(book.LocatorResourceHref)
+			? EpubLocator.Empty
+			: new EpubLocator(book.LocatorResourceHref, book.LocatorPage, book.LocatorPageCount, book.LocatorCharOffset);
+
+		Locator = await ResolveRemoteLocatorAsync(book, locator);
+		Book = book;
+	}
+
+	async Task<EpubLocator> ResolveRemoteLocatorAsync(BookSummary book, EpubLocator localLocator)
+	{
+		if (string.IsNullOrEmpty(book.ContentHash))
+		{
+			return localLocator;
 		}
 
 		using CancellationTokenSource timeoutCts = new(remotePositionLookupTimeout);
@@ -49,28 +58,25 @@ public partial class ReaderViewModel(
 		}
 		catch (OperationCanceledException)
 		{
-			return;
+			return localLocator;
 		}
 
 		if (remote is null || string.IsNullOrWhiteSpace(remote.ResourceHref))
 		{
-			return;
+			return localLocator;
 		}
 
 		DateTimeOffset localUpdatedAt = book.LastOpenedAt ?? DateTimeOffset.MinValue;
-		if (remote.UpdatedAt <= localUpdatedAt)
-		{
-			return;
-		}
-
-		Locator = new EpubLocator(remote.ResourceHref, remote.Page, remote.PageCount, remote.CharOffset);
+		return remote.UpdatedAt <= localUpdatedAt
+			? localLocator
+			: new EpubLocator(remote.ResourceHref, remote.Page, remote.PageCount, remote.CharOffset);
 	}
 
 	[RelayCommand]
 	async Task ExitReaderAsync(CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
-		await navigationService.GoBackAsync();
+		await Shell.Current.GoToAsync("..");
 	}
 
 	public async Task UpdateLocatorAsync(EpubLocator locator)
