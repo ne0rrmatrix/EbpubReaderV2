@@ -11,7 +11,7 @@ public partial class BookDetailsViewModel
 {
 	public async Task LoadBookAsync(string bookId)
 	{
-		BookSummary? book = await catalogService.GetBookAsync(bookId);
+		BookSummary? book = await catalogService.GetBookAsync(bookId, cancellationToken: CancellationToken.None);
 		if (book is null)
 		{
 			return;
