@@ -381,3 +381,8 @@ src/DisplayBook.App/appsettings.json
 
 # macOS Finder metadata
 .DS_Store
+.headroom/memory_graph.db
+.headroom/memory_vectors.db
+.headroom/memory.db
+device_logs.txt
+device_logs.txt
