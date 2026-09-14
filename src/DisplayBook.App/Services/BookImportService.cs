@@ -383,7 +383,7 @@ public sealed class BookImportService(
 			cancellationToken.ThrowIfCancellationRequested();
 			hash.AppendData(Encoding.UTF8.GetBytes(item.RelativePath));
 			hash.AppendData(separator);
-			using Stream entryStream = item.Entry.Open();
+			using Stream entryStream = await item.Entry.OpenAsync(cancellationToken);
 			int bytesRead;
 			while ((bytesRead = await entryStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
 			{

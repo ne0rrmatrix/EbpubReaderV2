@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DisplayBook.App.Models;
 
 /// <summary>
@@ -169,11 +171,12 @@ public sealed class Link
 	/// <summary>
 	/// OPDS 1.0/1.1 acquisition relation (opds-spec.org namespace identifier, not a URL target).
 	/// </summary>
-#pragma warning disable S5332
+[SuppressMessage("Security", "S5649", Justification = "These are standard OPDS URI identifiers, not active network endpoints.")]
 	public const string RelAcquisition = "http://opds-spec.org/acquisition";
+	[SuppressMessage("Security", "S5649", Justification = "These are standard OPDS URI identifiers, not active network endpoints.")]
 	public const string RelSale = "http://opds-spec.org/sale";
+	[SuppressMessage("Security", "S5649", Justification = "These are standard OPDS URI identifiers, not active network endpoints.")]
 	public const string RelSample = "http://opds-spec.org/sample";
-#pragma warning restore S5332
 	public string Href { get; set; } = string.Empty;
 
 	public string? Rel { get; set; }

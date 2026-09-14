@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using DisplayBook.Viewer.Bridge;
 using DisplayBook.Viewer.Models;
 using DisplayBook.Viewer.Serialization;
@@ -194,12 +195,14 @@ public partial class EpubReaderView : ContentView
 		await ReaderWebView.EvaluateJavaScriptAsync(script);
 	}
 
+[SuppressMessage("Security", "S1172", Justification = "Unused method parameters should be removed.")]
 	static void OnCoverImageSourceChanged(BindableObject bindable, object oldValue, object newValue)
 	{
 		EpubReaderView reader = (EpubReaderView)bindable;
 		reader.LoadingCoverImage.Source = (ImageSource?)newValue;
 	}
 
+[SuppressMessage("Security", "S1172", Justification = "Unused method parameters should be removed.")]
 	static void OnPublicationChanged(BindableObject bindable, object oldValue, object newValue)
 	{
 		EpubReaderView reader = (EpubReaderView)bindable;

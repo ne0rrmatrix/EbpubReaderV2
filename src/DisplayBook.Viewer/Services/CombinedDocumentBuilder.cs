@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -27,6 +28,7 @@ public static partial class CombinedDocumentBuilder
 	/// </summary>
 	public const string CombinedDocumentPath = "__displaybook_reader__/combined.html";
 
+	[SuppressMessage("Security", "S1075", Justification = "Standard external namespace URI convention.")]
 	const string xlinkNamespaceUri = "http://www.w3.org/1999/xlink";
 	static readonly XName xlinkHrefName = XName.Get("href", xlinkNamespaceUri);
 
@@ -50,7 +52,7 @@ public static partial class CombinedDocumentBuilder
 		html.Append("<link rel=\"stylesheet\" href=\"../DisplayBookViewer/ReadiumCSS-default.css\">");
 		html.Append("<link rel=\"stylesheet\" href=\"../DisplayBookViewer/ReadiumCSS-after.css\">");
 
-		foreach (EpubManifestItem cssItem in publication.ManifestById.Values.Where(item =>
+		foreach (EpubManifestItem cssItem in publication.ManifestById.Values.Where(static item =>
 			string.Equals(item.MediaType, "text/css", StringComparison.OrdinalIgnoreCase)))
 		{
 			if (!archive.TryGetEntry(cssItem.Href, out byte[] cssBytes))
@@ -93,7 +95,7 @@ public static partial class CombinedDocumentBuilder
 		{
 			string chapterDirectory = EpubPathUtilities.GetEntryDirectory(chapterHref);
 			XDocument chapterDocument = ParseLeniently(chapterText);
-			XElement? body = chapterDocument.Descendants().FirstOrDefault(element =>
+			XElement? body = chapterDocument.Descendants().FirstOrDefault(static element =>
 				string.Equals(element.Name.LocalName, "body", StringComparison.OrdinalIgnoreCase));
 			if (body is null)
 			{
@@ -101,7 +103,7 @@ public static partial class CombinedDocumentBuilder
 			}
 
 			RewriteAssetReferences(body, chapterDirectory);
-			return string.Concat(body.Nodes().Select(node => node.ToString(SaveOptions.DisableFormatting)));
+			return string.Concat(body.Nodes().Select(static node => node.ToString(SaveOptions.DisableFormatting)));
 		}
 		catch (Exception exception) when (exception is XmlException or InvalidOperationException)
 		{
