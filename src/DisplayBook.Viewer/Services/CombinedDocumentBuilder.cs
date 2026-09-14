@@ -52,15 +52,16 @@ public static partial class CombinedDocumentBuilder
 		html.Append("<link rel=\"stylesheet\" href=\"../DisplayBookViewer/ReadiumCSS-default.css\">");
 		html.Append("<link rel=\"stylesheet\" href=\"../DisplayBookViewer/ReadiumCSS-after.css\">");
 
-		foreach (EpubManifestItem cssItem in publication.ManifestById.Values.Where(static item =>
-			string.Equals(item.MediaType, "text/css", StringComparison.OrdinalIgnoreCase)))
+		foreach (string cssHref in publication.ManifestById.Values
+			.Where(static item => string.Equals(item.MediaType, "text/css", StringComparison.OrdinalIgnoreCase))
+			.Select(static item => item.Href))
 		{
-			if (!archive.TryGetEntry(cssItem.Href, out byte[] cssBytes))
+			if (!archive.TryGetEntry(cssHref, out byte[] cssBytes))
 			{
 				continue;
 			}
 
-			string cssDirectory = EpubPathUtilities.GetEntryDirectory(cssItem.Href);
+			string cssDirectory = EpubPathUtilities.GetEntryDirectory(cssHref);
 			string rewrittenCss = RewriteCssUrls(Encoding.UTF8.GetString(cssBytes), cssDirectory);
 			html.Append("<style>").Append(rewrittenCss).Append("</style>");
 		}

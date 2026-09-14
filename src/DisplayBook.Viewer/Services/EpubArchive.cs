@@ -40,7 +40,7 @@ public sealed class EpubArchive
 					continue;
 				}
 
-				using Stream entryStream = entry.Open();
+				using Stream entryStream = await entry.OpenAsync(cancellationToken);
 				using MemoryStream buffer = new(checked((int)entry.Length));
 				await entryStream.CopyToAsync(buffer, cancellationToken);
 				entries[NormalizePath(entry.FullName)] = buffer.ToArray();
