@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Text;
 using DisplayBook.App.Models;
 using DisplayBook.App.Services;
@@ -15,8 +14,8 @@ namespace DisplayBook.Tests;
 /// </summary>
 public class OpdsParserServiceTests
 {
-    private static readonly byte[] AtomCatalog = Xml(
-        """
+	static readonly byte[] atomCatalog = Xml(
+		"""
         <feed xmlns="http://www.w3.org/2005/Atom"
               xmlns:opds="http://opds-spec.org/2010/catalog"
               xmlns:dct="http://purl.org/dc/terms/"
@@ -61,10 +60,10 @@ public class OpdsParserServiceTests
           </entry>
         </feed>
         """
-    );
+	);
 
-    private static readonly byte[] SingleEntry = Xml(
-        """
+	static readonly byte[] singleEntry = Xml(
+		"""
         <entry xmlns="http://www.w3.org/2005/Atom">
           <id>urn:uuid:solo-1</id>
           <title>Solo book</title>
@@ -74,10 +73,10 @@ public class OpdsParserServiceTests
           <link type="application/pdf" href="http://calibre.local:8080/download/solo" length="5"/>
         </entry>
         """
-    );
+	);
 
-    private static readonly byte[] Opds20Rdf = Xml(
-        """
+	static readonly byte[] opds20Rdf = Xml(
+		"""
         <RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
              xmlns:opds="http://opds-spec.org/2017/catalog#">
           <Description id="urn:uuid:book-1">
@@ -92,10 +91,10 @@ public class OpdsParserServiceTests
           </Description>
         </RDF>
         """
-    );
+	);
 
-    private static readonly byte[] CalibreCatalog = Xml(
-        """
+	static readonly byte[] calibreCatalog = Xml(
+		"""
         <feed xmlns="http://www.w3.org/2005/Atom"
               xmlns:dc="http://purl.org/dc/terms/">
           <title>calibre Library :: By Newest</title>
@@ -126,234 +125,234 @@ public class OpdsParserServiceTests
           </entry>
         </feed>
         """
-    );
+	);
 
-    private static readonly byte[] Garbage = Encoding.UTF8.GetBytes("not xml at all <<<");
+	static readonly byte[] garbage = Encoding.UTF8.GetBytes("not xml at all <<<");
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void ParseFeedFromBytes_NullOrWhitespaceSource_IsTolerated(string? ignored)
-    {
-        // Guards the entry contract: valid XML still parses, sourceUrl may be null.
-        var feed = OpdsParserService.ParseFeedFromBytes(Garbage, ignored);
-        Assert.Null(feed);
-    }
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("   ")]
+	public void ParseFeedFromBytes_NullOrWhitespaceSource_IsTolerated(string? ignored)
+	{
+		// Guards the entry contract: valid XML still parses, sourceUrl may be null.
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(garbage, ignored);
+		Assert.Null(feed);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_GarbageData_ReturnsNull()
-    {
-        Assert.Null(OpdsParserService.ParseFeedFromBytes(Garbage, "http://x/y"));
-    }
+	[Fact]
+	public void ParseFeedFromBytes_GarbageData_ReturnsNull()
+	{
+		Assert.Null(OpdsParserService.ParseFeedFromBytes(garbage, "http://x/y"));
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_AtomCatalog_ParsesFeedMetadata()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(AtomCatalog, "http://calibre.local:8080/");
-        Assert.NotNull(feed);
-        Assert.Equal("Test catalog", feed!.Title);
-        Assert.Equal("Entries used by the OPDS unit tests", feed.Subtitle);
-        Assert.Equal("urn:uuid:feed-1", feed.Id);
-        Assert.Equal(FeedType.Navigation, feed.FeedType);
-        Assert.NotNull(feed.Updated);
-        Assert.Equal(new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), feed.Updated!.Value);
-        Assert.Equal("42", feed.ExtendedFeedMetadata["totalResults"]);
-        Assert.Equal("Calibre", feed.Author?.Name);
-    }
+	[Fact]
+	public void ParseFeedFromBytes_AtomCatalog_ParsesFeedMetadata()
+	{
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(atomCatalog, "http://calibre.local:8080/");
+		Assert.NotNull(feed);
+		Assert.Equal("Test catalog", feed!.Title);
+		Assert.Equal("Entries used by the OPDS unit tests", feed.Subtitle);
+		Assert.Equal("urn:uuid:feed-1", feed.Id);
+		Assert.Equal(FeedType.Navigation, feed.FeedType);
+		Assert.NotNull(feed.Updated);
+		Assert.Equal(new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), feed.Updated!.Value);
+		Assert.Equal("42", feed.ExtendedFeedMetadata["totalResults"]);
+		Assert.Equal("Calibre", feed.Author?.Name);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_AtomCatalog_ParsesEntriesAndCounts()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(AtomCatalog, "http://calibre.local:8080/")!;
-        Assert.Equal(2, feed.Entries.Count);
-        Assert.Equal("Sample book", feed.Entries[0].Title);
-        Assert.Equal("Second book", feed.Entries[1].Title);
-    }
+	[Fact]
+	public void ParseFeedFromBytes_AtomCatalog_ParsesEntriesAndCounts()
+	{
+		OpdsFeed feed = OpdsParserService.ParseFeedFromBytes(atomCatalog, "http://calibre.local:8080/")!;
+		Assert.Equal(2, feed.Entries.Count);
+		Assert.Equal("Sample book", feed.Entries[0].Title);
+		Assert.Equal("Second book", feed.Entries[1].Title);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_AtomCatalog_ParsesEntryMetadata()
-    {
-        var entry = OpdsParserService.ParseFeedFromBytes(AtomCatalog, "http://calibre.local:8080/")!.Entries[0];
-        Assert.Equal("First entry.", entry.Summary);
-        Assert.Equal("Full text content", entry.Content);
-        Assert.Equal("Jane Doe", entry.Authors[0].Name);
-        Assert.Equal("Test series", entry.Series);
-        // The series is mirrored into Categories as its first entry; the feed-level
-        // <category> (Fiction) follows it.
-        Assert.Equal("Test series", entry.Categories[0].Term);
-        Assert.Equal("Fiction", entry.Categories[1].Term);
-        Assert.Equal("en", entry.ExtendedMetadata["language"]);
-        Assert.Equal("Acme Press", entry.ExtendedMetadata["publisher"]);
-        Assert.Equal("978-0-123456-78-9", entry.Identifiers["isbn13"]);
-        Assert.NotNull(entry.Published);
-        Assert.Equal(new DateTime(2023, 6, 15, 12, 0, 0, DateTimeKind.Utc), entry.Published!.Value);
-    }
+	[Fact]
+	public void ParseFeedFromBytes_AtomCatalog_ParsesEntryMetadata()
+	{
+		OpdsEntry entry = OpdsParserService.ParseFeedFromBytes(atomCatalog, "http://calibre.local:8080/")!.Entries[0];
+		Assert.Equal("First entry.", entry.Summary);
+		Assert.Equal("Full text content", entry.Content);
+		Assert.Equal("Jane Doe", entry.Authors[0].Name);
+		Assert.Equal("Test series", entry.Series);
+		// The series is mirrored into Categories as its first entry; the feed-level
+		// <category> (Fiction) follows it.
+		Assert.Equal("Test series", entry.Categories[0].Term);
+		Assert.Equal("Fiction", entry.Categories[1].Term);
+		Assert.Equal("en", entry.ExtendedMetadata["language"]);
+		Assert.Equal("Acme Press", entry.ExtendedMetadata["publisher"]);
+		Assert.Equal("978-0-123456-78-9", entry.Identifiers["isbn13"]);
+		Assert.NotNull(entry.Published);
+		Assert.Equal(new DateTime(2023, 6, 15, 12, 0, 0, DateTimeKind.Utc), entry.Published!.Value);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_AtomCatalog_CoverPrefersFullImageAndKeepsThumbnail()
-    {
-        var entry = OpdsParserService.ParseFeedFromBytes(AtomCatalog, "http://calibre.local:8080/")!.Entries[0];
-        Assert.NotNull(entry.Cover);
-        Assert.Equal("http://calibre.local:8080/cover1.jpg", entry.Cover!.Url);
-        Assert.Equal("image/jpeg", entry.Cover.Format);
-        Assert.Equal(1234, entry.Cover.Size);
-        Assert.Equal("http://calibre.local:8080/cover1-thumb.jpg", entry.Cover.ThumbnailUrl);
-    }
+	[Fact]
+	public void ParseFeedFromBytes_AtomCatalog_CoverPrefersFullImageAndKeepsThumbnail()
+	{
+		OpdsEntry entry = OpdsParserService.ParseFeedFromBytes(atomCatalog, "http://calibre.local:8080/")!.Entries[0];
+		Assert.NotNull(entry.Cover);
+		Assert.Equal("http://calibre.local:8080/cover1.jpg", entry.Cover!.Url);
+		Assert.Equal("image/jpeg", entry.Cover.Format);
+		Assert.Equal(1234, entry.Cover.Size);
+		Assert.Equal("http://calibre.local:8080/cover1-thumb.jpg", entry.Cover.ThumbnailUrl);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_AtomCatalog_ImageLinksAreNotAcquisitionLinks()
-    {
-        var entry = OpdsParserService.ParseFeedFromBytes(AtomCatalog, "http://calibre.local:8080/")!.Entries[0];
-        // Cover/thumbnail links must not leak into the entry link list.
-        Assert.DoesNotContain(entry.Links, link => link.Href.EndsWith(".jpg"));
-        // The entry keeps its self link plus exactly one EPUB acquisition link.
-        Assert.Single(entry.Links, link => link.Type == "application/epub+zip");
-    }
+	[Fact]
+	public void ParseFeedFromBytes_AtomCatalog_ImageLinksAreNotAcquisitionLinks()
+	{
+		OpdsEntry entry = OpdsParserService.ParseFeedFromBytes(atomCatalog, "http://calibre.local:8080/")!.Entries[0];
+		// Cover/thumbnail links must not leak into the entry link list.
+		Assert.DoesNotContain(entry.Links, link => link.Href.EndsWith(".jpg"));
+		// The entry keeps its self link plus exactly one EPUB acquisition link.
+		Assert.Single(entry.Links, link => link.Type == "application/epub+zip");
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_AtomCatalog_PaginationIsDerivedFromLinks()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(AtomCatalog, "http://calibre.local:8080/")!;
-        Assert.NotNull(feed.Pagination);
-        Assert.True(feed.Pagination!.HasNext);
-        Assert.False(feed.Pagination.HasPrevious);
-        Assert.Equal("http://calibre.local:8080/?page=1", feed.Pagination.NextUrl);
-    }
+	[Fact]
+	public void ParseFeedFromBytes_AtomCatalog_PaginationIsDerivedFromLinks()
+	{
+		OpdsFeed feed = OpdsParserService.ParseFeedFromBytes(atomCatalog, "http://calibre.local:8080/")!;
+		Assert.NotNull(feed.Pagination);
+		Assert.True(feed.Pagination!.HasNext);
+		Assert.False(feed.Pagination.HasPrevious);
+		Assert.Equal("http://calibre.local:8080/?page=1", feed.Pagination.NextUrl);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_SingleEntryDocument_WrapsInFeed()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(SingleEntry, "http://calibre.local:8080/entry/solo");
-        Assert.NotNull(feed);
-        Assert.Single(feed!.Entries);
-        Assert.Equal("Solo book", feed.Entries[0].Title);
-        Assert.Equal("Bob Smith", feed.Entries[0].Authors[0].Name);
-    }
+	[Fact]
+	public void ParseFeedFromBytes_SingleEntryDocument_WrapsInFeed()
+	{
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(singleEntry, "http://calibre.local:8080/entry/solo");
+		Assert.NotNull(feed);
+		Assert.Single(feed!.Entries);
+		Assert.Equal("Solo book", feed.Entries[0].Title);
+		Assert.Equal("Bob Smith", feed.Entries[0].Authors[0].Name);
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_Opds20Rdf_ParsesBookDescription()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(Opds20Rdf, "http://calibre.local:8080/rdf");
-        Assert.NotNull(feed);
-        Assert.Single(feed!.Entries);
+	[Fact]
+	public void ParseFeedFromBytes_Opds20Rdf_ParsesBookDescription()
+	{
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(opds20Rdf, "http://calibre.local:8080/rdf");
+		Assert.NotNull(feed);
+		Assert.Single(feed!.Entries);
 
-        var entry = feed.Entries[0];
-        Assert.Equal("OPDS 2.0 book", entry.Title);
-        Assert.Equal("RDF description.", entry.Summary);
-        Assert.Equal("Ada Lovelace", entry.Authors[0].Name);
-        // The parser maps inLanguage -> "language" and provider -> "publisher".
-        Assert.Equal("en", entry.ExtendedMetadata["language"]);
-        Assert.Equal("Acme", entry.ExtendedMetadata["publisher"]);
-        Assert.Equal("http://calibre.local:8080/cover-rdf.jpg", entry.Cover?.Url);
-        Assert.Contains(entry.Links, link =>
-            link.Type == "application/epub+zip" && link.Href == "http://calibre.local:8080/rdf-epub");
-    }
+		OpdsEntry entry = feed.Entries[0];
+		Assert.Equal("OPDS 2.0 book", entry.Title);
+		Assert.Equal("RDF description.", entry.Summary);
+		Assert.Equal("Ada Lovelace", entry.Authors[0].Name);
+		// The parser maps inLanguage -> "language" and provider -> "publisher".
+		Assert.Equal("en", entry.ExtendedMetadata["language"]);
+		Assert.Equal("Acme", entry.ExtendedMetadata["publisher"]);
+		Assert.Equal("http://calibre.local:8080/cover-rdf.jpg", entry.Cover?.Url);
+		Assert.Contains(entry.Links, link =>
+			link.Type == "application/epub+zip" && link.Href == "http://calibre.local:8080/rdf-epub");
+	}
 
-    [Fact]
-    public async Task ParseFeedAsync_Stream_ParsesAtomCatalog()
-    {
-        var parser = new OpdsParserService(new HttpClient());
-        using var stream = new MemoryStream(AtomCatalog);
-        var feed = await parser.ParseFeedAsync(stream);
-        Assert.Equal("Test catalog", feed.Title);
-        Assert.Equal(2, feed.Entries.Count);
-    }
+	[Fact]
+	public async Task ParseFeedAsync_Stream_ParsesAtomCatalog()
+	{
+		OpdsParserService parser = new(new HttpClient());
+		using MemoryStream stream = new(atomCatalog);
+		OpdsFeed feed = await parser.ParseFeedAsync(stream);
+		Assert.Equal("Test catalog", feed.Title);
+		Assert.Equal(2, feed.Entries.Count);
+	}
 
-    [Fact]
-    public async Task ParseFeedAsync_Stream_Garbage_ThrowsOpdsFeedException()
-    {
-        var parser = new OpdsParserService(new HttpClient());
-        using var stream = new MemoryStream(Garbage);
-        await Assert.ThrowsAsync<OpdsFeedException>(() => parser.ParseFeedAsync(stream));
-    }
+	[Fact]
+	public async Task ParseFeedAsync_Stream_Garbage_ThrowsOpdsFeedException()
+	{
+		OpdsParserService parser = new(new HttpClient());
+		using MemoryStream stream = new(garbage);
+		await Assert.ThrowsAsync<OpdsFeedException>(() => parser.ParseFeedAsync(stream));
+	}
 
-    [Fact]
-    public void ParseFeedFromBytes_CalibreCatalog_RecognizesAcquisitionRelLinks()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(CalibreCatalog, "http://calibre.local:8012/opds/navcatalog/newest");
-        Assert.NotNull(feed);
+	[Fact]
+	public void ParseFeedFromBytes_CalibreCatalog_RecognizesAcquisitionRelLinks()
+	{
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(calibreCatalog, "http://calibre.local:8012/opds/navcatalog/newest");
+		Assert.NotNull(feed);
 
-        var entry = feed!.Entries[0];
-        var epub = entry.Links.First(link => link.Type == "application/epub+zip");
-        // Calibre marks download links with the OPDS acquisition rel, not rel="self".
-        Assert.True(epub.IsAcquisition());
-        Assert.False(epub.IsNavigation());
-        Assert.Equal("http://calibre.local:8012/get/epub/3820/Calibre_Library", epub.Href);
-        // The two download links (epub, kfx) stay in entry.Links so details can offer them.
-        Assert.Equal(2, entry.Links.Count);
-        // Cover/thumbnail image links are routed to entry.Cover, not the link list.
-        Assert.NotNull(entry.Cover);
-        Assert.Equal("http://calibre.local:8012/get/cover/3820/Calibre_Library", entry.Cover!.Url);
-        Assert.DoesNotContain(entry.Links, link => link.Type is not null && link.Type.StartsWith("image/"));
-    }
+		OpdsEntry entry = feed!.Entries[0];
+		Link epub = entry.Links.First(link => link.Type == "application/epub+zip");
+		// Calibre marks download links with the OPDS acquisition rel, not rel="self".
+		Assert.True(epub.IsAcquisition());
+		Assert.False(epub.IsNavigation());
+		Assert.Equal("http://calibre.local:8012/get/epub/3820/Calibre_Library", epub.Href);
+		// The two download links (epub, kfx) stay in entry.Links so details can offer them.
+		Assert.Equal(2, entry.Links.Count);
+		// Cover/thumbnail image links are routed to entry.Cover, not the link list.
+		Assert.NotNull(entry.Cover);
+		Assert.Equal("http://calibre.local:8012/get/cover/3820/Calibre_Library", entry.Cover!.Url);
+		Assert.DoesNotContain(entry.Links, link => link.Type is not null && link.Type.StartsWith("image/"));
+	}
 
-    [Fact]
-    public void BuildDetailsFromEntry_CalibreEntry_KeepsMetadataAndDownloads()
-    {
-        var feed = OpdsParserService.ParseFeedFromBytes(CalibreCatalog, "http://calibre.local:8012/opds/navcatalog/newest");
-        var entry = feed!.Entries[0];
+	[Fact]
+	public void BuildDetailsFromEntry_CalibreEntry_KeepsMetadataAndDownloads()
+	{
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(calibreCatalog, "http://calibre.local:8012/opds/navcatalog/newest");
+		OpdsEntry entry = feed!.Entries[0];
 
-        var details = OpdsParserService.BuildDetailsFromEntry(entry);
-        Assert.Equal("Elric: The Stealer of Souls", details.Title);
-        Assert.Equal("Michael Moorcock", details.Authors[0].Name);
-        Assert.NotNull(details.Cover);
-        Assert.Equal(2, details.DownloadLinks.Count);
-        Assert.Contains(details.DownloadLinks, link => link.FormatName == "EPUB" && link.Size == 2295017);
-        Assert.Contains(details.DownloadLinks, link => link.FormatName == "MOBI" && link.Size == 3124099);
-    }
+		BookDetails details = OpdsParserService.BuildDetailsFromEntry(entry);
+		Assert.Equal("Elric: The Stealer of Souls", details.Title);
+		Assert.Equal("Michael Moorcock", details.Authors[0].Name);
+		Assert.NotNull(details.Cover);
+		Assert.Equal(2, details.DownloadLinks.Count);
+		Assert.Contains(details.DownloadLinks, link => link.FormatName == "EPUB" && link.Size == 2295017);
+		Assert.Contains(details.DownloadLinks, link => link.FormatName == "MOBI" && link.Size == 3124099);
+	}
 
-    [Fact]
-    public void FormatNameFor_KnownMimesMapsToHumanNames()
-    {
-        Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub+zip"));
-        Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub3"));
-        Assert.Equal("PDF", OpdsParserService.FormatNameFor("application/pdf"));
-        Assert.Equal("MOBI", OpdsParserService.FormatNameFor("application/mobi"));
-        Assert.Equal("MOBI", OpdsParserService.FormatNameFor("application/x-mobipocket-ebook"));
-        Assert.Equal("MOBI", OpdsParserService.FormatNameFor("application/x-mobi10-ebook"));
-        Assert.Equal("AZW3", OpdsParserService.FormatNameFor("application/kindle+azw3"));
-        Assert.Equal("RTF", OpdsParserService.FormatNameFor("application/rtf"));
-        Assert.Equal("TXT", OpdsParserService.FormatNameFor("text/plain"));
-        Assert.Equal("FB2", OpdsParserService.FormatNameFor("application/fb2+zip"));
-        Assert.Equal("LIT", OpdsParserService.FormatNameFor("application/lit"));
-    }
+	[Fact]
+	public void FormatNameFor_KnownMimesMapsToHumanNames()
+	{
+		Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub+zip"));
+		Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub3"));
+		Assert.Equal("PDF", OpdsParserService.FormatNameFor("application/pdf"));
+		Assert.Equal("MOBI", OpdsParserService.FormatNameFor("application/mobi"));
+		Assert.Equal("MOBI", OpdsParserService.FormatNameFor("application/x-mobipocket-ebook"));
+		Assert.Equal("MOBI", OpdsParserService.FormatNameFor("application/x-mobi10-ebook"));
+		Assert.Equal("AZW3", OpdsParserService.FormatNameFor("application/kindle+azw3"));
+		Assert.Equal("RTF", OpdsParserService.FormatNameFor("application/rtf"));
+		Assert.Equal("TXT", OpdsParserService.FormatNameFor("text/plain"));
+		Assert.Equal("FB2", OpdsParserService.FormatNameFor("application/fb2+zip"));
+		Assert.Equal("LIT", OpdsParserService.FormatNameFor("application/lit"));
+	}
 
-    [Fact]
-    public void FormatNameFor_ParameterizedMime_IgnoresCharset()
-    {
-        Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub+zip; charset=utf-8"));
-    }
+	[Fact]
+	public void FormatNameFor_ParameterizedMime_IgnoresCharset()
+	{
+		Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub+zip; charset=utf-8"));
+	}
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void FormatNameFor_NullOrWhitespace_ReturnsFile(string? mimeType)
-    {
-        Assert.Equal("File", OpdsParserService.FormatNameFor(mimeType));
-    }
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	public void FormatNameFor_NullOrWhitespace_ReturnsFile(string? mimeType)
+	{
+		Assert.Equal("File", OpdsParserService.FormatNameFor(mimeType));
+	}
 
-    [Fact]
-    public void FormatNameFor_UnknownMime_FallsBackToExtensionOrOriginal()
-    {
-        Assert.Equal("HTML", OpdsParserService.FormatNameFor("text/html"));
-        Assert.Equal("audio/mpeg", OpdsParserService.FormatNameFor("audio/mpeg"));
-    }
+	[Fact]
+	public void FormatNameFor_UnknownMime_FallsBackToExtensionOrOriginal()
+	{
+		Assert.Equal("HTML", OpdsParserService.FormatNameFor("text/html"));
+		Assert.Equal("audio/mpeg", OpdsParserService.FormatNameFor("audio/mpeg"));
+	}
 
-    [Theory]
-    [InlineData("http://opds-spec.org/acquisition", true, false)]
-    [InlineData("http://opds-spec.org/sale", true, false)]
-    [InlineData("http://opds-spec.org/sample", true, false)]
-    [InlineData("self", true, false)]
-    [InlineData("next", false, true)]
-    [InlineData(null, true, false)]
-    [InlineData("", true, false)]
-    public void Link_RelClassification_FollowsOpdsRelations(string? rel, bool expectedAcquisition, bool expectedNavigation)
-    {
-        var link = new Link { Href = "http://calibre.local:8012/x", Rel = rel };
-        Assert.Equal(expectedAcquisition, link.IsAcquisition());
-        Assert.Equal(expectedNavigation, link.IsNavigation());
-    }
+	[Theory]
+	[InlineData("http://opds-spec.org/acquisition", true, false)]
+	[InlineData("http://opds-spec.org/sale", true, false)]
+	[InlineData("http://opds-spec.org/sample", true, false)]
+	[InlineData("self", true, false)]
+	[InlineData("next", false, true)]
+	[InlineData(null, true, false)]
+	[InlineData("", true, false)]
+	public void Link_RelClassification_FollowsOpdsRelations(string? rel, bool expectedAcquisition, bool expectedNavigation)
+	{
+		Link link = new() { Href = "http://calibre.local:8012/x", Rel = rel };
+		Assert.Equal(expectedAcquisition, link.IsAcquisition());
+		Assert.Equal(expectedNavigation, link.IsNavigation());
+	}
 
-    private static byte[] Xml(string document) => Encoding.UTF8.GetBytes(document);
+	static byte[] Xml(string document) => Encoding.UTF8.GetBytes(document);
 }

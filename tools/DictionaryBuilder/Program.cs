@@ -11,11 +11,11 @@ using Microsoft.Data.Sqlite;
 // Source text: https://www.gutenberg.org/ebooks/29765.txt.utf-8
 // See ../../src/DisplayBook.Viewer/Resources/Raw/Dictionary/SOURCE.md for provenance.
 
-var headwordLineRegex = new Regex(@"^[A-Z][A-Z0-9 '\-.;,]{0,48}$", RegexOptions.Compiled);
+var headwordLineRegex = new Regex(@"^[A-Z][A-Z0-9 '\-.;,]{0,48}$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(2000));
 
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: dotnet run -- <path-to-raw-gutenberg-txt> <path-to-output-db>");
+    await Console.Error.WriteLineAsync("Usage: dotnet run -- <path-to-raw-gutenberg-txt> <path-to-output-db>");
     return 1;
 }
 

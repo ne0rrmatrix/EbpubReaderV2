@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Maui;
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Services;
 using DisplayBook.App.Services.BookMetadata;
 using DisplayBook.App.Services.Opds;
@@ -6,8 +7,6 @@ using DisplayBook.App.Services.Sync;
 using DisplayBook.App.ViewModels;
 using DisplayBook.App.Views;
 using DisplayBook.Viewer;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
 #if MAUI_DEVFLOW
@@ -20,7 +19,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
-		var builder = MauiApp.CreateBuilder();
+		MauiAppBuilder builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
 			.UseMauiCommunityToolkit()
@@ -36,7 +35,6 @@ public static class MauiProgram
 #endif
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddSingleton<IBookCatalogService, BookCatalogService>();
-		builder.Services.AddSingleton<BookStorageService>();
 		builder.Services.AddHttpClient(OpdsConstants.HttpClientName)
 			.ConfigureHttpClient(client => client.Timeout = OpdsConstants.HttpClientTimeout);
 		builder.Services.AddHttpClient<IOpdsParserService, OpdsParserService>(OpdsConstants.HttpClientName);
@@ -71,7 +69,7 @@ public static class MauiProgram
 				sp.GetRequiredService<IHttpClientFactory>().CreateClient(SyncConstants.HttpClientName),
 				sp.GetRequiredService<IFirebaseAuthService>(),
 				sp.GetRequiredService<ILogger<PositionSyncService>>()));
-		builder.Services.AddSingleton<INavigationService, NavigationService>();
+		builder.Services.AddSingleton<IOpdsEntryStagingCache, OpdsEntryStagingCache>();
 		builder.Services.AddSingletonWithShellRoute<LibraryPage, LibraryViewModel>("library");
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddTransientWithShellRoute<BookDetailsPage, BookDetailsViewModel>("Details");

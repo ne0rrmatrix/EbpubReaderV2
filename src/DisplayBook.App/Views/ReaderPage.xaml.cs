@@ -1,195 +1,230 @@
 using DisplayBook.App.ViewModels;
-using DisplayBook.Viewer.Controls;
 using DisplayBook.Viewer.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Controls.PlatformConfiguration;
+using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
+#if ANDROID
+using AndroidX.Core.View;
+#endif
 
 namespace DisplayBook.App.Views;
 
-public partial class ReaderPage : ContentPage
+public partial class ReaderPage : ContentPage, IQueryAttributable
 {
-    private readonly ReaderViewModel _viewModel;
-    private readonly ILogger<ReaderPage> _logger;
+	readonly ReaderViewModel viewModel;
+	readonly ILogger<ReaderPage> logger;
 #if ANDROID
-    private Android.Graphics.Color? _previousStatusBarColor;
-    private Android.Views.SystemUiFlags _previousSystemUiFlags;
-    private bool _readerSystemUiConfigured;
-    private string _readerTheme = "sepia";
+	WindowInsetsControllerCompat? readerInsetsController;
+	bool readerSystemUiConfigured;
+	string readerTheme = "sepia";
 #endif
 
-    public ReaderPage(ReaderViewModel viewModel, ILogger<ReaderPage> logger)
-    {
-        _viewModel = viewModel;
-        _logger = logger;
-        BindingContext = viewModel;
-        InitializeComponent();
-    }
+	public ReaderPage(ReaderViewModel viewModel, ILogger<ReaderPage> logger)
+	{
+		this.viewModel = viewModel;
+		this.logger = logger;
+		BindingContext = viewModel;
+		InitializeComponent();
+	}
 
-    protected override void OnAppearing()
-    {
-        base.OnAppearing();
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3168:Async methods should not return void", Justification = "This method is part of interface contract.")]
+	public async void ApplyQueryAttributes(IDictionary<string, object> query)
+	{
+		if (query.TryGetValue("id", out object? id) && id is string bookId && !string.IsNullOrWhiteSpace(bookId))
+		{
+			await viewModel.InitializeAsync(bookId);
+		}
+	}
+
+	protected override void OnAppearing()
+	{
+		base.OnAppearing();
 #if ANDROID
-        ConfigureReaderSystemUi();
+		ConfigureReaderSystemUi();
 #endif
-        Reader.LocationChanged += OnLocationChanged;
-        Reader.ExitRequested += OnExitRequested;
+		// The reader's own JS/CSS starts in immersive (chrome-hidden) mode, so the native
+		// status bar should start hidden to match rather than waiting for the first
+		// chromeVisibilityChanged bridge message.
+		this.On<iOS>().SetPrefersStatusBarHidden(StatusBarHiddenMode.True);
+		Reader.LocationChanged += OnLocationChanged;
+		Reader.ExitRequested += OnExitRequested;
+		Reader.ChromeVisibilityChanged += OnReaderChromeVisibilityChanged;
 #if ANDROID
-        Reader.ThemeChanged += OnReaderThemeChanged;
+		Reader.ThemeChanged += OnReaderThemeChanged;
 #endif
-    }
+	}
 
-    protected override void OnDisappearing()
-    {
-        Reader.LocationChanged -= OnLocationChanged;
-        Reader.ExitRequested -= OnExitRequested;
+	protected override void OnDisappearing()
+	{
+		Reader.LocationChanged -= OnLocationChanged;
+		Reader.ExitRequested -= OnExitRequested;
+		Reader.ChromeVisibilityChanged -= OnReaderChromeVisibilityChanged;
+		this.On<iOS>().SetPrefersStatusBarHidden(StatusBarHiddenMode.Default);
 #if ANDROID
-        Reader.ThemeChanged -= OnReaderThemeChanged;
+		Reader.ThemeChanged -= OnReaderThemeChanged;
 #endif
 #if ANDROID
-        RestoreSystemUi();
+		RestoreSystemUi();
 #endif
-        _ = FlushPendingSyncAsync();
-        base.OnDisappearing();
-    }
+		_ = FlushPendingSyncAsync();
+		base.OnDisappearing();
+	}
 
-    private async Task FlushPendingSyncAsync()
-    {
-        try
-        {
-            await _viewModel.FlushPendingSyncAsync();
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Could not flush the pending reading-position sync.");
-        }
-    }
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S1172:Unused method parameters should be removed", Justification = "It is an event handler")]
+	void OnReaderChromeVisibilityChanged(object? sender, bool isChromeVisible)
+	{
+		this.On<iOS>().SetPrefersStatusBarHidden(isChromeVisible ? StatusBarHiddenMode.False : StatusBarHiddenMode.True);
+#if ANDROID
+		SetReaderSystemBarsVisible(isChromeVisible);
+#endif
+	}
+
+	async Task FlushPendingSyncAsync()
+	{
+		try
+		{
+			await viewModel.FlushPendingSyncAsync();
+		}
+		catch (Exception exception)
+		{
+			logger.LogError(exception, "Could not flush the pending reading-position sync.");
+		}
+	}
 
 #if ANDROID
-    private void ConfigureReaderSystemUi()
-    {
-        var window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
-        if (window is null || _readerSystemUiConfigured)
-        {
-            return;
-        }
+	void ConfigureReaderSystemUi()
+	{
+		Android.Views.Window? window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
+		if (window?.DecorView is not { } decorView || readerSystemUiConfigured)
+		{
+			return;
+		}
 
-        _previousStatusBarColor = new Android.Graphics.Color(window.StatusBarColor);
-        if (!OperatingSystem.IsAndroidVersionAtLeast(30))
-        {
-            _previousSystemUiFlags = window.DecorView.SystemUiFlags;
-        }
-        SetStatusBarColor(window);
+		if (WindowCompat.GetInsetsController(window, decorView) is not { } controller)
+		{
+			return;
+		}
 
-        UpdateStatusBarAppearance(window);
-        _readerSystemUiConfigured = true;
-    }
+		readerInsetsController = controller;
+		controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
 
-    private void OnReaderThemeChanged(object? sender, string theme)
-    {
-        _readerTheme = theme;
-        var window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
-        if (window is not null && _readerSystemUiConfigured)
-        {
-            SetStatusBarColor(window);
-            UpdateStatusBarAppearance(window);
-        }
-    }
+		SetStatusBarColor(window);
+		UpdateStatusBarAppearance();
 
-    private void SetStatusBarColor(Android.Views.Window window)
-    {
-        if (OperatingSystem.IsAndroidVersionAtLeast(35))
-        {
-            return;
-        }
+		// The reader's own JS/CSS starts in immersive (chrome-hidden) mode, so the native
+		// system bars should start hidden too, matching the iOS SetPrefersStatusBarHidden
+		// call in OnAppearing rather than waiting for the first chromeVisibilityChanged
+		// bridge message.
+		readerInsetsController.Hide(WindowInsetsCompat.Type.SystemBars());
+		readerSystemUiConfigured = true;
+	}
 
-        window.SetStatusBarColor(_readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase)
-            ? Android.Graphics.Color.Rgb(28, 36, 48)
-            : Android.Graphics.Color.Rgb(246, 241, 232));
-    }
+	void OnReaderThemeChanged(object? sender, string theme)
+	{
+		readerTheme = theme;
+		Android.Views.Window? window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
+		if (window is not null && readerSystemUiConfigured)
+		{
+			SetStatusBarColor(window);
+			UpdateStatusBarAppearance();
+		}
+	}
 
-    private void UpdateStatusBarAppearance(Android.Views.Window window)
-    {
-        var useDarkStatusBarIcons = !_readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase);
+	void SetStatusBarColor(Android.Views.Window window)
+	{
+		if (OperatingSystem.IsAndroidVersionAtLeast(35))
+		{
+			return;
+		}
 
-        if (OperatingSystem.IsAndroidVersionAtLeast(30) && window.InsetsController is { } insetsController)
-        {
-            const int lightStatusBarsAppearance = 8;
-            var appearance = useDarkStatusBarIcons ? lightStatusBarsAppearance : 0;
-            insetsController.SetSystemBarsAppearance(
-                appearance,
-                lightStatusBarsAppearance);
-        }
-        if (OperatingSystem.IsAndroidVersionAtLeast(30) || (!OperatingSystem.IsAndroidVersionAtLeast(23)))
-        {
-            return;
-        }
-        
-        var systemUiFlags = window.DecorView.SystemUiFlags;
-        systemUiFlags |= Android.Views.SystemUiFlags.LayoutStable | Android.Views.SystemUiFlags.LayoutFullscreen;
+		Android.Graphics.Color color = readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase)
+			? Android.Graphics.Color.Rgb(28, 36, 48)
+			: Android.Graphics.Color.Rgb(246, 241, 232);
+		window.SetStatusBarColor(color);
+		window.SetNavigationBarColor(color);
+	}
 
-        if (OperatingSystem.IsAndroidVersionAtLeast(23) && useDarkStatusBarIcons)
-        {
-            systemUiFlags |= Android.Views.SystemUiFlags.LightStatusBar;
-        }
-        else
-        {
-            systemUiFlags &= ~Android.Views.SystemUiFlags.LightStatusBar;
-        }
+	void UpdateStatusBarAppearance()
+	{
+		if (readerInsetsController is not { } controller)
+		{
+			return;
+		}
 
-        window.DecorView.SystemUiFlags = systemUiFlags;
-    }
+		bool useDarkIcons = !readerTheme.Equals("night", StringComparison.OrdinalIgnoreCase);
+		controller.AppearanceLightStatusBars = useDarkIcons;
+		controller.AppearanceLightNavigationBars = useDarkIcons;
+	}
 
-    private void RestoreSystemUi()
-    {
-        var window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
-        if (window is null || !_readerSystemUiConfigured)
-        {
-            return;
-        }
+	void SetReaderSystemBarsVisible(bool isVisible)
+	{
+		if (readerInsetsController is not { } controller)
+		{
+			return;
+		}
 
-        if (_previousStatusBarColor is { } previousStatusBarColor && !OperatingSystem.IsAndroidVersionAtLeast(35))
-        {
-            window.SetStatusBarColor(previousStatusBarColor);
-        }
-        if(!OperatingSystem.IsAndroidVersionAtLeast(30))
-        {
-            window.DecorView.SystemUiFlags = _previousSystemUiFlags;
-        }
-       
-        _readerSystemUiConfigured = false;
-    }
+		int systemBars = WindowInsetsCompat.Type.SystemBars();
+		if (isVisible)
+		{
+			controller.Show(systemBars);
+		}
+		else
+		{
+			controller.Hide(systemBars);
+		}
+	}
+
+	void RestoreSystemUi()
+	{
+		if (!readerSystemUiConfigured)
+		{
+			return;
+		}
+
+		readerInsetsController?.Show(WindowInsetsCompat.Type.SystemBars());
+		readerInsetsController = null;
+		readerSystemUiConfigured = false;
+
+		// Recompute the app's normal status/nav bar color, icon appearance, and cutout
+		// handling from the live app theme (MainActivity.ConfigureSystemBars) rather than
+		// replaying a snapshot captured at reader-entry time - a stale snapshot is what
+		// previously left the bar showing the reader's last color/icon scheme (e.g. light
+		// sepia icons) over a since-changed, possibly dark-mode, app theme.
+		(Microsoft.Maui.ApplicationModel.Platform.CurrentActivity as MainActivity)?.ConfigureSystemBars();
+	}
 #endif
 
-    private async void OnLocationChanged(object? sender, EpubLocator locator)
-    {
-        if (sender is null)
-        {
-            return;
-        }
+	async void OnLocationChanged(object? sender, EpubLocator locator)
+	{
+		if (sender is null)
+		{
+			return;
+		}
 
-        try
-        {
-            await _viewModel.UpdateLocatorAsync(locator);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Could not save the reader location.");
-        }
-    }
+		try
+		{
+			await viewModel.UpdateLocatorAsync(locator);
+		}
+		catch (Exception exception)
+		{
+			logger.LogError(exception, "Could not save the reader location.");
+		}
+	}
 
-    private async void OnExitRequested(object? sender, EventArgs e)
-    {
-        if (sender is null)
-        {
-            return;
-        }
+	async void OnExitRequested(object? sender, EventArgs e)
+	{
+		if (sender is null)
+		{
+			return;
+		}
 
-        try
-        {
-            await _viewModel.ExitReaderCommand.ExecuteAsync(null);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Could not exit the reader.");
-        }
-    }
+		try
+		{
+			await viewModel.ExitReaderCommand.ExecuteAsync(null);
+		}
+		catch (Exception exception)
+		{
+			logger.LogError(exception, "Could not exit the reader.");
+		}
+	}
 }

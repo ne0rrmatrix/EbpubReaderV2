@@ -782,7 +782,10 @@ body.reader-body {
 }
 
 .settings-range output {
-    color: var(--reader-accent);
+    /* --reader-chrome-accent, not --reader-accent: only the former is rewritten per theme by
+       applySettings in EpubText.js, and this readout sits on --reader-chrome-surface alongside
+       --reader-chrome-ink text, so it has to move with them. */
+    color: var(--reader-chrome-accent);
     font-variant-numeric: tabular-nums;
 }
 
