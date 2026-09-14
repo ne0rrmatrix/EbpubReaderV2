@@ -10,7 +10,8 @@ namespace DisplayBook.App.Services;
 
 public sealed partial class BookPickerService : IBookPickerService
 {
-	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress = null, CancellationToken cancellationToken = default)
+	#pragma warning disable CA1822
+	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{
 		Microsoft.Maui.Controls.Window? mauiWindow = MauiApplication.Current?.Windows[0];
 		if (mauiWindow?.Handler?.PlatformView is not NativeWindow nativeWindow)
@@ -26,4 +27,5 @@ public sealed partial class BookPickerService : IBookPickerService
 		cancellationToken.ThrowIfCancellationRequested();
 		return folder?.Path;
 	}
+	#pragma warning restore CA1822
 }

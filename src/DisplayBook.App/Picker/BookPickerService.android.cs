@@ -7,7 +7,7 @@ namespace DisplayBook.App.Services;
 
 public sealed partial class BookPickerService : IBookPickerService
 {
-	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress = null, CancellationToken cancellationToken = default)
+	public async partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{
 		if (Platform.CurrentActivity is not MainActivity activity)
 		{
@@ -27,7 +27,7 @@ public sealed partial class BookPickerService : IBookPickerService
 		{
 			Android.Net.Uri treeUri = Android.Net.Uri.Parse(uriString) ?? throw new IOException("Android returned an invalid folder URI.");
 			string documentId = DocumentsContract.GetTreeDocumentId(treeUri) ?? throw new IOException("Android returned an invalid folder document.");
-			await CopyDocumentTreeAsync(activity.ContentResolver!, treeUri, documentId, destination, progress, cancellationToken);
+			await CopyDocumentTreeAsync(activity.ContentResolver ?? throw new IOException("Android returned an invalid content resolver."), treeUri, documentId, destination, progress, cancellationToken);
 			return destination;
 		}
 		catch
