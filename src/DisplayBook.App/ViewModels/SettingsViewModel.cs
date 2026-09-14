@@ -107,6 +107,11 @@ public sealed partial class SettingsViewModel(
 		if (IsSignedIn)
 		{
 			await RefreshSecurityStateAsync();
+
+			// RefreshSecurityStateAsync can fail to refresh the ID token (e.g. a revoked/expired
+			// refresh token), which signs the service out from underneath us. Re-sync so the page
+			// doesn't keep showing the stale "signed in" state.
+			RefreshAuthState();
 		}
 	}
 

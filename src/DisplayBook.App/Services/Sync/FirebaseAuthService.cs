@@ -54,11 +54,11 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 				return;
 			}
 
-			string? refreshToken = await SecureStorage.Default.GetAsync(refreshTokenKey);
+			string? refreshToken = await TryReadSecureValueAsync(refreshTokenKey);
 			if (!string.IsNullOrWhiteSpace(refreshToken))
 			{
-				CurrentUserId = await SecureStorage.Default.GetAsync(userIdKey);
-				CurrentEmail = await SecureStorage.Default.GetAsync(emailKey);
+				CurrentUserId = await TryReadSecureValueAsync(userIdKey);
+				CurrentEmail = await TryReadSecureValueAsync(emailKey);
 				IsSignedIn = true;
 			}
 
@@ -145,7 +145,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 				return cachedIdToken;
 			}
 
-			string? refreshToken = await SecureStorage.Default.GetAsync(refreshTokenKey);
+			string? refreshToken = await TryReadSecureValueAsync(refreshTokenKey);
 			if (string.IsNullOrWhiteSpace(refreshToken))
 			{
 				await SignOutAsync();
@@ -173,7 +173,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 			string newRefreshToken = root.GetProperty("refresh_token").GetString()!;
 			int expiresInSeconds = int.Parse(root.GetProperty("expires_in").GetString()!);
 
-			await SecureStorage.Default.SetAsync(refreshTokenKey, newRefreshToken);
+			await TryWriteSecureValueAsync(refreshTokenKey, newRefreshToken);
 			cachedIdToken = idToken;
 			// Refresh a little early so a call made right at expiry doesn't race the server's clock.
 			idTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(Math.Max(30, expiresInSeconds - 60));
@@ -409,9 +409,9 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 
 	async Task ApplySessionAsync(string idToken, string refreshToken, string localId, string email, int expiresInSeconds)
 	{
-		await SecureStorage.Default.SetAsync(refreshTokenKey, refreshToken);
-		await SecureStorage.Default.SetAsync(userIdKey, localId);
-		await SecureStorage.Default.SetAsync(emailKey, email);
+		await TryWriteSecureValueAsync(refreshTokenKey, refreshToken);
+		await TryWriteSecureValueAsync(userIdKey, localId);
+		await TryWriteSecureValueAsync(emailKey, email);
 
 		cachedIdToken = idToken;
 		idTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(Math.Max(30, expiresInSeconds - 60));
@@ -419,6 +419,37 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		CurrentEmail = email;
 		IsSignedIn = true;
 		AuthStateChanged?.Invoke(this, EventArgs.Empty);
+	}
+
+	// SecureStorage.GetAsync/SetAsync can throw -- most commonly on Android, where Auto Backup
+	// restores the encrypted preferences file without the KeyStore key that encrypted it, but
+	// Microsoft's own docs note it can happen on any platform (encryption keys changing, data
+	// corruption). Per that guidance: catch it and clear storage rather than letting it propagate,
+	// which would otherwise leave `initialized` stuck false and IsSignedIn permanently unrestored.
+	async Task<string?> TryReadSecureValueAsync(string key)
+	{
+		try
+		{
+			return await SecureStorage.Default.GetAsync(key);
+		}
+		catch (Exception exception)
+		{
+			logger.LogWarning(exception, "Could not read {Key} from secure storage; clearing stored session.", key);
+			SecureStorage.Default.RemoveAll();
+			return null;
+		}
+	}
+
+	async Task TryWriteSecureValueAsync(string key, string value)
+	{
+		try
+		{
+			await SecureStorage.Default.SetAsync(key, value);
+		}
+		catch (Exception exception)
+		{
+			logger.LogWarning(exception, "Could not persist {Key} to secure storage; the session won't survive an app restart.", key);
+		}
 	}
 
 	static string GetErrorMessage(JsonDocument json)
