@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using Microsoft.Data.Sqlite;
@@ -128,7 +129,7 @@ public sealed partial class BookDatabase : IBookDatabase, IDisposable
 		MetadataSnapshot snapshot = new(
 			current.Title, current.Author, current.Description, current.Publisher,
 			current.Isbn, current.Asin, current.CoverRelativePath);
-		string snapshotJson = JsonSerializer.Serialize(snapshot);
+		string snapshotJson = JsonSerializer.Serialize(snapshot, MetadataJsonContext.Default.MetadataSnapshot);
 
 		await using SqliteCommand command = connection.CreateCommand();
 		command.CommandText = """
@@ -166,7 +167,7 @@ public sealed partial class BookDatabase : IBookDatabase, IDisposable
 			return null;
 		}
 
-		MetadataSnapshot snapshot = JsonSerializer.Deserialize<MetadataSnapshot>(previousMetadataJson)
+		MetadataSnapshot snapshot = JsonSerializer.Deserialize(previousMetadataJson, MetadataJsonContext.Default.MetadataSnapshot)
 			?? throw new InvalidOperationException("The stored metadata snapshot could not be read.");
 
 		await using SqliteCommand command = connection.CreateCommand();
@@ -510,6 +511,11 @@ public sealed partial class BookDatabase : IBookDatabase, IDisposable
 		string Isbn,
 		string Asin,
 		string CoverRelativePath);
+
+	[JsonSerializable(typeof(MetadataSnapshot))]
+	partial class MetadataJsonContext : JsonSerializerContext
+	{
+	}
 
 	void Dispose(bool disposing)
 	{

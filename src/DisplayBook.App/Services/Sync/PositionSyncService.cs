@@ -93,7 +93,7 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 			string url = BuildDocumentUrl(uid, pending1.ContentHash);
 			using HttpRequestMessage request = new(HttpMethod.Patch, url);
 			request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", idToken);
-			request.Content = JsonContent.Create(BuildFieldsPayload(pending1));
+			request.Content = JsonContent.Create(BuildFieldsPayload(pending1), SyncJsonContext.Default.FirestoreDocument);
 
 			using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
 			if (!response.IsSuccessStatusCode)
@@ -168,17 +168,12 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 	static string BuildDocumentUrl(string uid, string contentHash) =>
 		$"https://firestore.googleapis.com/v1/projects/{FirebaseOptions.ProjectId}/databases/(default)/documents/users/{Uri.EscapeDataString(uid)}/positions/{Uri.EscapeDataString(contentHash)}";
 
-	static object BuildFieldsPayload(PendingPush pending) => new
-	{
-		fields = new
-		{
-			resourceHref = new { stringValue = pending.ResourceHref },
-			charOffset = new { integerValue = pending.CharOffset.ToString() },
-			page = new { integerValue = pending.Page.ToString() },
-			pageCount = new { integerValue = pending.PageCount.ToString() },
-			updatedAt = new { timestampValue = pending.UpdatedAtUtc.UtcDateTime.ToString("O") }
-		}
-	};
+	static FirestoreDocument BuildFieldsPayload(PendingPush pending) => new(new FirestorePositionFields(
+		new FirestoreString(pending.ResourceHref),
+		new FirestoreInteger(pending.CharOffset.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+		new FirestoreInteger(pending.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+		new FirestoreInteger(pending.PageCount.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+		new FirestoreTimestamp(pending.UpdatedAtUtc.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture))));
 
 	static string? GetString(JsonElement fields, string name) =>
 		fields.TryGetProperty(name, out JsonElement field) && field.TryGetProperty("stringValue", out JsonElement value)

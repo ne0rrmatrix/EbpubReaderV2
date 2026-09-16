@@ -26,6 +26,8 @@ public sealed partial class OpdsCatalogCache : IOpdsCatalogCache, IDisposable
 		},
 	};
 
+	static readonly OpdsJsonContext serializerContext = new(serializerOptions);
+
 	readonly string folderPath = Path.Combine(BookStorageService.ContentRoot, folderName);
 	readonly SemaphoreSlim gate = new(1, 1);
 
@@ -46,7 +48,7 @@ public sealed partial class OpdsCatalogCache : IOpdsCatalogCache, IDisposable
 			}
 
 			string json = await File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
-			OpdsFeedCacheEntry? entry = JsonSerializer.Deserialize<OpdsFeedCacheEntry>(json, serializerOptions);
+			OpdsFeedCacheEntry? entry = JsonSerializer.Deserialize(json, serializerContext.OpdsFeedCacheEntry);
 			if (entry == null || string.IsNullOrEmpty(entry.SerializedFeed))
 			{
 				return null;
@@ -57,7 +59,7 @@ public sealed partial class OpdsCatalogCache : IOpdsCatalogCache, IDisposable
 				return null;
 			}
 
-			OpdsFeed? feed = JsonSerializer.Deserialize<OpdsFeed>(entry.SerializedFeed, serializerOptions);
+			OpdsFeed? feed = JsonSerializer.Deserialize(entry.SerializedFeed, serializerContext.OpdsFeed);
 			if (feed == null)
 			{
 				return null;
@@ -97,14 +99,14 @@ public sealed partial class OpdsCatalogCache : IOpdsCatalogCache, IDisposable
 			ServerId = serverId,
 			CachedAt = DateTime.UtcNow,
 			EntryCount = feed.Entries?.Count ?? 0,
-			SerializedFeed = JsonSerializer.Serialize(feed, serializerOptions),
+			SerializedFeed = JsonSerializer.Serialize(feed, serializerContext.OpdsFeed),
 		};
 
 		await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
 			Directory.CreateDirectory(folderPath);
-			string json = JsonSerializer.Serialize(entry, serializerOptions);
+			string json = JsonSerializer.Serialize(entry, serializerContext.OpdsFeedCacheEntry);
 			await File.WriteAllTextAsync(filePath, json, cancellationToken).ConfigureAwait(false);
 		}
 		finally
@@ -184,90 +186,5 @@ public sealed partial class OpdsCatalogCache : IOpdsCatalogCache, IDisposable
 	public void Dispose()
 	{
 		gate.Dispose();
-	}
-}
-
-/// <summary>
-/// Serializes <see cref="Dictionary{TKey,TValue}"/> with <see langword="string"/> keys and
-/// <see langword="object"/> values as plain JSON (values written/read as strings), which is what
-/// the OPDS parser stores in <c>ExtendedFeedMetadata</c> and <c>ExtendedMetadata</c>.
-/// </summary>
-sealed class StringDictionaryConverter : JsonConverter<Dictionary<string, object>>
-{
-	public override Dictionary<string, object> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-	{
-		if (reader.TokenType != JsonTokenType.StartObject)
-		{
-			throw new JsonException($"Cannot deserialize dictionary from token {reader.TokenType}.");
-		}
-
-		Dictionary<string, object> result = [with(StringComparer.OrdinalIgnoreCase)];
-		while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
-		{
-			if (reader.TokenType != JsonTokenType.PropertyName)
-			{
-				throw new JsonException($"Unexpected token {reader.TokenType} while reading dictionary.");
-			}
-
-			string key = reader.GetString() ?? string.Empty;
-			reader.Read();
-
-			object value = reader.TokenType switch
-			{
-				JsonTokenType.Null => null!,
-				JsonTokenType.String => reader.GetString() ?? string.Empty,
-				JsonTokenType.True => true,
-				JsonTokenType.False => false,
-				JsonTokenType.Number => reader.GetDecimal(),
-				_ => reader.GetString() ?? string.Empty,
-			};
-
-			result[key] = value;
-		}
-
-		return result;
-	}
-
-	public override void Write(Utf8JsonWriter writer, Dictionary<string, object> value, JsonSerializerOptions options)
-	{
-		writer.WriteStartObject();
-		foreach (KeyValuePair<string, object> pair in value)
-		{
-			writer.WritePropertyName(pair.Key);
-			WriteValue(writer, pair.Value);
-		}
-
-		writer.WriteEndObject();
-	}
-
-	static void WriteValue(Utf8JsonWriter writer, object? value)
-	{
-		switch (value)
-		{
-			case null:
-				writer.WriteNullValue();
-				break;
-			case string s:
-				writer.WriteStringValue(s);
-				break;
-			case bool b:
-				writer.WriteBooleanValue(b);
-				break;
-			case int i:
-				writer.WriteNumberValue(i);
-				break;
-			case long l:
-				writer.WriteNumberValue(l);
-				break;
-			case decimal d:
-				writer.WriteNumberValue(d);
-				break;
-			case double dbl:
-				writer.WriteNumberValue(dbl);
-				break;
-			default:
-				writer.WriteStringValue(value.ToString() ?? string.Empty);
-				break;
-		}
 	}
 }

@@ -81,14 +81,9 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 	public async Task<FirebaseAuthResult> CompleteMfaSignInAsync(MfaChallenge challenge, string code, CancellationToken cancellationToken = default)
 	{
 		string url = $"{mfaSignInFinalizeUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-		var payload = new
-		{
-			mfaPendingCredential = challenge.PendingCredential,
-			mfaEnrollmentId = challenge.EnrollmentId,
-			totpVerificationInfo = new { verificationCode = code }
-		};
+		MfaSignInFinalizeRequest payload = new(challenge.PendingCredential, challenge.EnrollmentId, new TotpVerificationCode(code));
 
-		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, cancellationToken);
+		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, AuthJsonContext.Default.MfaSignInFinalizeRequest, cancellationToken);
 		using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 		if (!response.IsSuccessStatusCode)
 		{
@@ -196,7 +191,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		try
 		{
 			string url = $"{lookupUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-			using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new { idToken }, cancellationToken);
+			using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new IdTokenRequest(idToken), AuthJsonContext.Default.IdTokenRequest, cancellationToken);
 			using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 			if (!response.IsSuccessStatusCode)
 			{
@@ -240,7 +235,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		string url = $"{sendOobCodeUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new { requestType = "VERIFY_EMAIL", idToken }, cancellationToken);
+		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new SendOobCodeRequest("VERIFY_EMAIL", idToken), AuthJsonContext.Default.SendOobCodeRequest, cancellationToken);
 		using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 		return response.IsSuccessStatusCode
 			? FirebaseAuthResult.Success
@@ -256,8 +251,8 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		string url = $"{mfaEnrollmentStartUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-		var payload = new { idToken, totpEnrollmentInfo = new { } };
-		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, cancellationToken);
+		TotpEnrollmentStartRequest payload = new(idToken, new TotpEnrollmentInfo());
+		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, AuthJsonContext.Default.TotpEnrollmentStartRequest, cancellationToken);
 		using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 		if (!response.IsSuccessStatusCode)
 		{
@@ -282,14 +277,9 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		string url = $"{mfaEnrollmentFinalizeUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-		var payload = new
-		{
-			idToken,
-			displayName = totpDisplayName,
-			totpVerificationInfo = new { sessionInfo, verificationCode = code }
-		};
+		TotpEnrollmentFinalizeRequest payload = new(idToken, totpDisplayName, new TotpVerificationSession(sessionInfo, code));
 
-		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, cancellationToken);
+		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, AuthJsonContext.Default.TotpEnrollmentFinalizeRequest, cancellationToken);
 		using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 		if (!response.IsSuccessStatusCode)
 		{
@@ -316,7 +306,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		string url = $"{mfaEnrollmentWithdrawUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new { idToken, mfaEnrollmentId = enrollmentId }, cancellationToken);
+		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new TotpEnrollmentWithdrawRequest(idToken, enrollmentId), AuthJsonContext.Default.TotpEnrollmentWithdrawRequest, cancellationToken);
 		using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 		if (!response.IsSuccessStatusCode)
 		{
@@ -390,7 +380,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		try
 		{
 			string url = $"{lookupUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-			using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new { idToken }, cancellationToken);
+			using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, new IdTokenRequest(idToken), AuthJsonContext.Default.IdTokenRequest, cancellationToken);
 			using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 			if (!response.IsSuccessStatusCode)
 			{

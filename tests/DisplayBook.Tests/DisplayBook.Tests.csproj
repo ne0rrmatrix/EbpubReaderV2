@@ -28,6 +28,8 @@
 		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsParserService.cs" Link="App\Services\Opds\OpdsParserService.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsUrlNormalizer.cs" Link="App\Services\Opds\OpdsUrlNormalizer.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\DownloadFileNaming.cs" Link="App\Services\Opds\DownloadFileNaming.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsJsonContext.cs" Link="App\Services\Opds\OpdsJsonContext.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\StringDictionaryConverter.cs" Link="App\Services\Opds\StringDictionaryConverter.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Services\BookMetadataMatcher.cs" Link="App\Services\BookMetadataMatcher.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Models\BookSummary.cs" Link="App\Models\BookSummary.cs" />
 		<Compile Include="..\..\src\DisplayBook.App\Services\BookMetadata\*.cs" Link="App\Services\BookMetadata\%(Filename)%(Extension)" />

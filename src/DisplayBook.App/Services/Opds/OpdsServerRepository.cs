@@ -21,6 +21,8 @@ public sealed partial class OpdsServerRepository : IOpdsServerRepository, IDispo
 		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
 	};
 
+	static readonly OpdsJsonContext serializerContext = new(serializerOptions);
+
 	readonly string filePath = Path.Combine(BookStorageService.ContentRoot, folderName, fileName);
 	readonly SemaphoreSlim gate = new(1, 1);
 	List<OpdsServer>? servers;
@@ -142,7 +144,7 @@ public sealed partial class OpdsServerRepository : IOpdsServerRepository, IDispo
 			if (File.Exists(filePath))
 			{
 				string json = File.ReadAllText(filePath);
-				List<OpdsServer>? loaded = JsonSerializer.Deserialize<List<OpdsServer>>(json, serializerOptions);
+				List<OpdsServer>? loaded = JsonSerializer.Deserialize(json, serializerContext.ListOpdsServer);
 				servers = NormalizeLoaded(loaded);
 			}
 			else
@@ -228,7 +230,7 @@ public sealed partial class OpdsServerRepository : IOpdsServerRepository, IDispo
 	async Task SaveAsync(List<OpdsServer> servers)
 	{
 		Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-		string json = JsonSerializer.Serialize(servers, serializerOptions);
+		string json = JsonSerializer.Serialize(servers, serializerContext.ListOpdsServer);
 		await File.WriteAllTextAsync(filePath, json).ConfigureAwait(false);
 		this.servers = [.. servers];
 	}
