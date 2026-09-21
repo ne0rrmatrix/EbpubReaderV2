@@ -23,6 +23,41 @@ public partial class EpubReaderView : ContentView
 
 	bool isShellReady;
 	TaskCompletionSource<bool>? shellReadyTcs;
+	Window? lifecycleWindow;
+
+	/// <summary>
+	/// How long to wait for the reader shell's <c>shellReady</c> bridge message before giving up on
+	/// that navigation and starting it over. Generous, because the wait covers a real WebView
+	/// navigation on a cold, possibly slow device -- but bounded, because an unbounded wait here is
+	/// unrecoverable: it leaves <c>isLoading</c> stuck on, which turns every later load request into
+	/// a no-op (see <see cref="LoadPublicationAsync"/>) and strands the loading overlay on screen
+	/// until the app is force-quit.
+	/// </summary>
+	static readonly TimeSpan shellReadyTimeout = TimeSpan.FromSeconds(20);
+
+	/// <summary>
+	/// Bound separately from <see cref="shellReadyTimeout"/>: this one only covers a single
+	/// already-loaded round trip into JS, so it can be short. It exists so a WebView whose web
+	/// content process is gone -- which is exactly what the probe is trying to detect -- can't hang
+	/// the probe instead of answering it.
+	/// </summary>
+	static readonly TimeSpan readerLivenessProbeTimeout = TimeSpan.FromSeconds(5);
+
+	/// <summary>
+	/// How many times <see cref="EnsureReaderShellLoadedAsync"/> will start a fresh shell
+	/// navigation before giving up and surfacing an error. One retry is enough to clear the case
+	/// this exists for -- a navigation stranded by a torn-down web content process -- while still
+	/// failing fast enough that the user isn't left watching the overlay for a full minute.
+	/// </summary>
+	const int shellReadyAttempts = 2;
+
+	/// <summary>
+	/// Several methods here touch only x:Name fields declared in EpubReaderView.xaml. Those fields
+	/// are produced by the XAML source generator, which SonarLint doesn't see, so it reports them
+	/// as using no instance state. Making any of them static would not compile.
+	/// </summary>
+	const string generatedXamlFieldJustification =
+		"Accesses x:Name fields generated from EpubReaderView.xaml; the method cannot be static.";
 
 	public static readonly BindableProperty PublicationSourceProperty = BindableProperty.Create(
 		nameof(PublicationSource),
@@ -55,6 +90,7 @@ public partial class EpubReaderView : ContentView
 	{
 		InitializeComponent();
 		Loaded += OnLoaded;
+		Unloaded += OnUnloaded;
 		ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
 	}
 
@@ -142,6 +178,10 @@ public partial class EpubReaderView : ContentView
 		}
 
 		cancellationToken.ThrowIfCancellationRequested();
+		// Also attempted from OnLoaded, but Window can still be null that early on some platforms.
+		// Re-attempting here (idempotent) guarantees the subscription exists for as long as there's
+		// an open book to recover, which is the only time it matters.
+		SubscribeToWindowLifecycle();
 		LoadingOverlay.IsVisible = true;
 
 		EpubPublicationInfo publication = await EpubPublicationLoader
@@ -160,25 +200,83 @@ public partial class EpubReaderView : ContentView
 		loadedPublicationOpfPath = opfPath;
 	}
 
+	/// <summary>
+	/// Waits for the reader shell to report <c>shellReady</c>, starting the shell navigation first
+	/// if nothing else has. The shell is navigated to at most once per app session, so on all but
+	/// the first book this returns immediately.
+	/// </summary>
+	/// <remarks>
+	/// The wait is bounded and retried once rather than open-ended. A shell navigation that never
+	/// reports ready is a real, recurring state -- it's what the WebView is left in when the OS
+	/// tears down its web content process (or, on Android, recreates the activity) while the app
+	/// sits in the background, and the shell navigation started before that happened. Waiting on it
+	/// forever wedges the whole control: the finally in <see cref="LoadPublicationAsync"/> never
+	/// runs, so isLoading stays true and every subsequent load -- including the recovery one --
+	/// silently degrades to "queued behind the load that will never finish".
+	/// </remarks>
 	async Task EnsureReaderShellLoadedAsync(CancellationToken cancellationToken)
 	{
-		if (isShellReady)
+		for (int attempt = 1; attempt <= shellReadyAttempts; attempt++)
 		{
-			return;
-		}
-
-		if (shellReadyTcs is null)
-		{
-			shellReadyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-			ReaderWebView.Source = new UrlWebViewSource
+			if (isShellReady)
 			{
-				Url = assetHost.GetShellUri().ToString()
-			};
+				return;
+			}
+
+			Task shellReady = (shellReadyTcs ??= BeginShellNavigation()).Task;
+			try
+			{
+				await shellReady.WaitAsync(shellReadyTimeout, cancellationToken);
+				return;
+			}
+			catch (Exception exception) when (
+				exception is TimeoutException or OperationCanceledException &&
+				!cancellationToken.IsCancellationRequested)
+			{
+				// Either the wait timed out or the pending navigation was abandoned underneath us
+				// (see OnReaderWebViewHandlerChanged). Both mean the same thing: that navigation is
+				// never going to report ready, so drop it and start a fresh one.
+				System.Diagnostics.Debug.WriteLine(
+					$"[EpubReaderView] reader shell did not become ready (attempt {attempt}); restarting shell navigation.");
+				ResetShellState();
+			}
 		}
 
-		await shellReadyTcs.Task.WaitAsync(cancellationToken);
+		throw new TimeoutException("The reader did not finish loading. Try opening the book again.");
 	}
 
+	TaskCompletionSource<bool> BeginShellNavigation()
+	{
+		// Assigned before the navigation starts, never after: shellReady can arrive on the bridge
+		// before the Source setter returns, and the handler for it completes whatever is in this
+		// field at that moment.
+		TaskCompletionSource<bool> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		shellReadyTcs = pending;
+		ReaderWebView.Source = new UrlWebViewSource
+		{
+			Url = assetHost.GetShellUri().ToString()
+		};
+		return pending;
+	}
+
+	/// <summary>
+	/// Forgets everything this control believes about the live WebView, so the next load rebuilds
+	/// it from scratch. Any pending shell wait is cancelled rather than dropped -- dropping it is
+	/// what leaves a waiter (and with it isLoading) stuck forever.
+	/// </summary>
+	void ResetShellState()
+	{
+		isShellReady = false;
+		shellReadyTcs?.TrySetCanceled();
+		shellReadyTcs = null;
+		loadedPublicationSource = null;
+		loadedPublicationOpfPath = null;
+		isReadyForLocationChanges = false;
+		readerReadyReceived = false;
+		pendingStartLocator = null;
+	}
+
+	[SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = generatedXamlFieldJustification)]
 	async Task SendLoadPublicationAsync(EpubPublicationInfo publication, CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
@@ -191,6 +289,7 @@ public partial class EpubReaderView : ContentView
 		await ReaderWebView.EvaluateJavaScriptAsync(script);
 	}
 
+	[SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = generatedXamlFieldJustification)]
 	public async Task SetLocatorAsync(EpubLocator locator, CancellationToken cancellationToken = default)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
@@ -240,15 +339,106 @@ public partial class EpubReaderView : ContentView
 
 	async void OnLoaded(object? sender, EventArgs e)
 	{
+		SubscribeToWindowLifecycle();
 		await TryLoadPublicationAsync();
+	}
+
+	[SuppressMessage("Security", "S1172", Justification = "Unused method parameters should be removed.")]
+	void OnUnloaded(object? sender, EventArgs e)
+	{
+		if (lifecycleWindow is not null)
+		{
+			lifecycleWindow.Resumed -= OnWindowResumed;
+			lifecycleWindow = null;
+		}
+	}
+
+	void SubscribeToWindowLifecycle()
+	{
+		if (Window is not { } window || ReferenceEquals(window, lifecycleWindow))
+		{
+			return;
+		}
+
+		if (lifecycleWindow is not null)
+		{
+			lifecycleWindow.Resumed -= OnWindowResumed;
+		}
+
+		lifecycleWindow = window;
+		window.Resumed += OnWindowResumed;
+	}
+
+	[SuppressMessage("Security", "S1172", Justification = "Unused method parameters should be removed.")]
+	async void OnWindowResumed(object? sender, EventArgs e)
+	{
+		try
+		{
+			await RecoverReaderIfNeededAsync();
+		}
+		catch (Exception exception)
+		{
+			RaiseReaderError(exception.Message);
+		}
+	}
+
+	/// <summary>
+	/// Re-opens the current book if the WebView came back from the background unable to show it.
+	/// </summary>
+	/// <remarks>
+	/// After the app has been backgrounded for a long stretch, the OS is free to reclaim the
+	/// WebView's web content process (WKWebView on iOS/macOS, the renderer on Android) while
+	/// leaving the native WebView object -- and therefore every bit of this control's state --
+	/// looking perfectly healthy. The JS side is gone with it, so the reader shell, the loaded
+	/// publication and window.DisplayBookReader no longer exist, and the calls this control makes
+	/// into JS land nowhere: the book never finishes opening and no error is ever raised. Nothing
+	/// short of restarting the app recovers, which is exactly what this avoids by noticing on
+	/// resume and reloading from scratch. Reload picks up the live StartLocator, which ReaderPage
+	/// keeps bound to the reading position as it changes, so recovery resumes where the reader
+	/// actually was rather than where the book was first opened.
+	/// </remarks>
+	async Task RecoverReaderIfNeededAsync()
+	{
+		if (isLoading || PublicationSource is null)
+		{
+			// An in-flight load bounds its own wait (see EnsureReaderShellLoadedAsync) and picks up
+			// the current binding when it retries, so there's nothing useful to do alongside it.
+			return;
+		}
+
+		if (loadedPublicationSource is not null && await IsReaderAliveAsync())
+		{
+			return;
+		}
+
+		System.Diagnostics.Debug.WriteLine("[EpubReaderView] reader did not survive backgrounding; reloading the publication.");
+		ResetShellState();
+		await TryLoadPublicationAsync();
+	}
+
+	[SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = generatedXamlFieldJustification)]
+	async Task<bool> IsReaderAliveAsync()
+	{
+		try
+		{
+			string? result = await ReaderWebView
+				.EvaluateJavaScriptAsync("window.DisplayBookReader?.isReaderAlive() ? 'alive' : 'gone'")
+				.WaitAsync(readerLivenessProbeTimeout);
+
+			// Platforms disagree about whether a string result comes back quoted, so match on
+			// content rather than equality.
+			return result?.Contains("alive", StringComparison.Ordinal) == true;
+		}
+		catch (Exception exception)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EpubReaderView] reader liveness probe failed: {exception.Message}");
+			return false;
+		}
 	}
 
 	async void OnReaderWebViewHandlerChanged(object? sender, EventArgs e)
 	{
-		loadedPublicationSource = null;
-		loadedPublicationOpfPath = null;
-		isShellReady = false;
-		shellReadyTcs = null;
+		ResetShellState();
 		if (IsLoaded)
 		{
 			await TryLoadPublicationAsync();
@@ -296,6 +486,14 @@ public partial class EpubReaderView : ContentView
 		return HandleNavigationAsync(url, cancelNavigation: null);
 	}
 
+	/// <summary>
+	/// Adapts the async lookup to the void-returning native selection callbacks -- Android's
+	/// ActionMode item click and the WinUI context-menu item's CustomItemSelected -- which are the
+	/// only two callers. Neither has anywhere to return a Task to, so this is the one place the
+	/// lookup can't be awaited; <see cref="HandleDictionaryLookupRequestedAsync"/> therefore handles
+	/// its own exceptions rather than letting them escape onto an unobserved task. Callers that
+	/// <em>can</em> await (the bridge message path) call that method directly instead.
+	/// </summary>
 	void HandleDictionaryLookupRequested(string selection)
 	{
 		_ = HandleDictionaryLookupRequestedAsync(selection);
@@ -353,6 +551,10 @@ public partial class EpubReaderView : ContentView
 		}
 	}
 
+	/// <summary>
+	/// Dispatches one bridge message. Each case that needs more than a single statement lives in its
+	/// own method below, so this stays a flat map from message type to handler.
+	/// </summary>
 	async Task HandleMessageAsync(ReaderBridgeMessage message)
 	{
 		MessageReceived?.Invoke(this, new ReaderMessageEventArgs(message));
@@ -363,43 +565,10 @@ public partial class EpubReaderView : ContentView
 				shellReadyTcs?.TrySetResult(true);
 				break;
 			case ReaderBridgeMessageTypes.ReaderReady:
-				if (readerReadyReceived)
-				{
-					break;
-				}
-
-				readerReadyReceived = true;
-				System.Diagnostics.Debug.WriteLine(
-					$"[EpubReaderView] readerReady received; StartLocator=({StartLocator.ResourceHref}, Page={StartLocator.Page}, CharOffset={StartLocator.CharOffset})");
-				if (string.IsNullOrWhiteSpace(StartLocator.ResourceHref))
-				{
-					CompleteInitialReaderReady();
-				}
-				else
-				{
-					pendingStartLocator = StartLocator;
-					await SetLocatorAsync(StartLocator);
-				}
+				await HandleReaderReadyAsync();
 				break;
 			case ReaderBridgeMessageTypes.LocationChanged:
-				EpubLocator? locator = message.Payload.Deserialize(ReaderJsonContext.Default.EpubLocator);
-				if (locator is not null)
-				{
-					System.Diagnostics.Debug.WriteLine(
-						$"[EpubReaderView] locationChanged -> ResourceHref={locator.ResourceHref}, Page={locator.Page}, PageCount={locator.PageCount}, CharOffset={locator.CharOffset}, isReadyForLocationChanges={isReadyForLocationChanges}, hasPendingStartLocator={pendingStartLocator is not null}");
-					if (!isReadyForLocationChanges)
-					{
-						if (pendingStartLocator is null)
-						{
-							break;
-						}
-
-						pendingStartLocator = null;
-						CompleteInitialReaderReady();
-					}
-
-					LocationChanged?.Invoke(this, locator);
-				}
+				HandleLocationChanged(message);
 				break;
 			case ReaderBridgeMessageTypes.RequestExit:
 				ExitRequested?.Invoke(this, EventArgs.Empty);
@@ -408,35 +577,102 @@ public partial class EpubReaderView : ContentView
 				SettingsRequested?.Invoke(this, EventArgs.Empty);
 				break;
 			case ReaderBridgeMessageTypes.ThemeChanged:
-				if (message.Payload.TryGetProperty("theme", out JsonElement themeElement) &&
-					themeElement.ValueKind == JsonValueKind.String &&
-					!string.IsNullOrWhiteSpace(themeElement.GetString()))
-				{
-					ThemeChanged?.Invoke(this, themeElement.GetString()!);
-				}
+				HandleThemeChanged(message);
 				break;
 			case ReaderBridgeMessageTypes.ChromeVisibilityChanged:
-				if (message.Payload.TryGetProperty("visible", out JsonElement visibleElement) &&
-					visibleElement.ValueKind is JsonValueKind.True or JsonValueKind.False)
-				{
-					ChromeVisibilityChanged?.Invoke(this, visibleElement.GetBoolean());
-				}
+				HandleChromeVisibilityChanged(message);
 				break;
 			case ReaderBridgeMessageTypes.ReaderError:
-				string? error = message.Payload.TryGetProperty("message", out JsonElement messageElement)
-					? messageElement.GetString()
-					: message.Payload.ToString();
-				RaiseReaderError(string.IsNullOrWhiteSpace(error) ? "The reader could not open the publication." : error);
+				HandleReaderErrorMessage(message);
 				break;
 			case ReaderBridgeMessageTypes.DictionaryLookupRequested:
-				if (message.Payload.TryGetProperty("text", out JsonElement selectionElement) &&
-					selectionElement.ValueKind == JsonValueKind.String &&
-					!string.IsNullOrWhiteSpace(selectionElement.GetString()))
-				{
-					HandleDictionaryLookupRequested(selectionElement.GetString()!);
-				}
+				await HandleDictionaryLookupMessageAsync(message);
 				break;
 		}
+	}
+
+	async Task HandleReaderReadyAsync()
+	{
+		if (readerReadyReceived)
+		{
+			return;
+		}
+
+		readerReadyReceived = true;
+		System.Diagnostics.Debug.WriteLine(
+			$"[EpubReaderView] readerReady received; StartLocator=({StartLocator.ResourceHref}, Page={StartLocator.Page}, CharOffset={StartLocator.CharOffset})");
+		if (string.IsNullOrWhiteSpace(StartLocator.ResourceHref))
+		{
+			CompleteInitialReaderReady();
+			return;
+		}
+
+		pendingStartLocator = StartLocator;
+		await SetLocatorAsync(StartLocator);
+	}
+
+	void HandleLocationChanged(ReaderBridgeMessage message)
+	{
+		EpubLocator? locator = message.Payload.Deserialize(ReaderJsonContext.Default.EpubLocator);
+		if (locator is null)
+		{
+			return;
+		}
+
+		System.Diagnostics.Debug.WriteLine(
+			$"[EpubReaderView] locationChanged -> ResourceHref={locator.ResourceHref}, Page={locator.Page}, PageCount={locator.PageCount}, CharOffset={locator.CharOffset}, isReadyForLocationChanges={isReadyForLocationChanges}, hasPendingStartLocator={pendingStartLocator is not null}");
+		if (!isReadyForLocationChanges)
+		{
+			// The handshake completes on the first locationChanged that answers the start locator we
+			// asked for; anything arriving before that belongs to the outgoing book and is dropped.
+			if (pendingStartLocator is null)
+			{
+				return;
+			}
+
+			pendingStartLocator = null;
+			CompleteInitialReaderReady();
+		}
+
+		LocationChanged?.Invoke(this, locator);
+	}
+
+	void HandleThemeChanged(ReaderBridgeMessage message)
+	{
+		if (TryGetNonEmptyString(message.Payload, "theme", out string? theme))
+		{
+			ThemeChanged?.Invoke(this, theme);
+		}
+	}
+
+	void HandleChromeVisibilityChanged(ReaderBridgeMessage message)
+	{
+		if (message.Payload.TryGetProperty("visible", out JsonElement visibleElement) &&
+			visibleElement.ValueKind is JsonValueKind.True or JsonValueKind.False)
+		{
+			ChromeVisibilityChanged?.Invoke(this, visibleElement.GetBoolean());
+		}
+	}
+
+	void HandleReaderErrorMessage(ReaderBridgeMessage message)
+	{
+		string? error = message.Payload.TryGetProperty("message", out JsonElement messageElement)
+			? messageElement.GetString()
+			: message.Payload.ToString();
+		RaiseReaderError(string.IsNullOrWhiteSpace(error) ? "The reader could not open the publication." : error);
+	}
+
+	Task HandleDictionaryLookupMessageAsync(ReaderBridgeMessage message) =>
+		TryGetNonEmptyString(message.Payload, "text", out string? selection)
+			? HandleDictionaryLookupRequestedAsync(selection)
+			: Task.CompletedTask;
+
+	static bool TryGetNonEmptyString(JsonElement payload, string propertyName, [NotNullWhen(true)] out string? value)
+	{
+		value = payload.TryGetProperty(propertyName, out JsonElement element) && element.ValueKind == JsonValueKind.String
+			? element.GetString()
+			: null;
+		return !string.IsNullOrWhiteSpace(value);
 	}
 
 	void RaiseReaderError(string message)
@@ -445,6 +681,7 @@ public partial class EpubReaderView : ContentView
 		ReaderError?.Invoke(this, message);
 	}
 
+	[SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = generatedXamlFieldJustification)]
 	void ShowDefinition(string selection, DictionaryDefinition? result)
 	{
 		DefinitionWordLabel.Text = result?.Word ?? selection.Trim();

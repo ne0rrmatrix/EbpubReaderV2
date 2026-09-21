@@ -1,6 +1,11 @@
 (() => {
     "use strict";
 
+    // The native side calls into these (see EpubReaderView's EvaluateJavaScriptAsync calls), so
+    // the property is genuinely added to window rather than being a stray global.
+    /** @type {Window & { DisplayBookReader?: Record<string, Function> }} */
+    const readerWindow = window;
+
     const query = new URLSearchParams(window.location.search);
     const BRIDGE_URL = query.get("bridge") ?? "displaybook://bridge";
     const FRAME_STYLE_ID = "display-book-pagination-style";
@@ -27,6 +32,7 @@
         fontWeight: "original",
         imageTreatment: "normal"
     });
+    /** @type {Record<string, Set<string>>} */
     const SETTING_CHOICES = {
         theme: new Set(["original", "paper", "sepia", "night"]),
         fontFamily: new Set(["original", "serif", "sans", "humanist", "monospace"]),
@@ -53,33 +59,47 @@
         console.info(`${label} ${JSON.stringify(data)}`);
     }
 
+    // Annotated with the element type each id actually resolves to in index.html, which ships with
+    // this script and is the only document it ever runs in -- so these lookups genuinely can't
+    // miss. Without the annotations every entry is HTMLElement|null to tooling, which can't tell
+    // an <iframe>'s contentDocument or an <input>'s value from a typo.
     const elements = {
-        author: document.getElementById("book-author"),
-        bookTitle: document.getElementById("book-title"),
-        closeContents: document.getElementById("contents-close"),
-        contentsList: document.getElementById("contents-list"),
-        contentsPanel: document.getElementById("contents-panel"),
-        contentsToggle: document.getElementById("contents-toggle"),
-        error: document.getElementById("reader-error"),
-        frame: document.getElementById("page"),
-        loading: document.getElementById("reader-loading"),
-        loadingCover: document.getElementById("reader-loading-cover"),
-        loadingLabel: document.getElementById("reader-loading-label"),
-        location: document.getElementById("reader-location"),
-        lookupButton: document.getElementById("lookup-button"),
-        next: document.getElementById("next-page"),
-        previous: document.getElementById("previous-page"),
-        progress: document.getElementById("progress-value"),
-        progressSlider: document.getElementById("book-progress"),
-        readerBack: document.getElementById("reader-back"),
-        readerShell: document.querySelector(".reader-shell"),
-        settingsClose: document.getElementById("settings-close"),
-        settingsForm: document.getElementById("settings-form"),
-        settingsPanel: document.getElementById("settings-panel"),
-        settingsReset: document.getElementById("settings-reset"),
-        settingsToggle: document.getElementById("settings-toggle"),
-        viewport: document.getElementById("book-viewport")
+        author: /** @type {HTMLElement} */ (document.getElementById("book-author")),
+        bookTitle: /** @type {HTMLElement} */ (document.getElementById("book-title")),
+        closeContents: /** @type {HTMLButtonElement} */ (document.getElementById("contents-close")),
+        contentsList: /** @type {HTMLOListElement} */ (document.getElementById("contents-list")),
+        contentsPanel: /** @type {HTMLElement} */ (document.getElementById("contents-panel")),
+        contentsToggle: /** @type {HTMLButtonElement} */ (document.getElementById("contents-toggle")),
+        error: /** @type {HTMLElement} */ (document.getElementById("reader-error")),
+        frame: /** @type {HTMLIFrameElement} */ (document.getElementById("page")),
+        loading: /** @type {HTMLElement} */ (document.getElementById("reader-loading")),
+        loadingCover: /** @type {HTMLImageElement} */ (document.getElementById("reader-loading-cover")),
+        loadingLabel: /** @type {HTMLElement} */ (document.getElementById("reader-loading-label")),
+        location: /** @type {HTMLElement} */ (document.getElementById("reader-location")),
+        lookupButton: /** @type {HTMLButtonElement} */ (document.getElementById("lookup-button")),
+        next: /** @type {HTMLButtonElement} */ (document.getElementById("next-page")),
+        previous: /** @type {HTMLButtonElement} */ (document.getElementById("previous-page")),
+        progress: /** @type {HTMLElement} */ (document.getElementById("progress-value")),
+        progressSlider: /** @type {HTMLInputElement} */ (document.getElementById("book-progress")),
+        readerBack: /** @type {HTMLButtonElement} */ (document.getElementById("reader-back")),
+        readerShell: /** @type {HTMLElement} */ (document.querySelector(".reader-shell")),
+        settingsClose: /** @type {HTMLButtonElement} */ (document.getElementById("settings-close")),
+        settingsForm: /** @type {HTMLFormElement} */ (document.getElementById("settings-form")),
+        settingsPanel: /** @type {HTMLElement} */ (document.getElementById("settings-panel")),
+        settingsReset: /** @type {HTMLButtonElement} */ (document.getElementById("settings-reset")),
+        settingsToggle: /** @type {HTMLButtonElement} */ (document.getElementById("settings-toggle")),
+        viewport: /** @type {HTMLElement} */ (document.getElementById("book-viewport"))
     };
+
+    /**
+     * Mirrors the payload records the native side sends over the bridge -- EpubSpineItem,
+     * EpubTocEntry and getSelectionInfo()'s result respectively. Kept here as types only: the
+     * shapes themselves are defined in C# (Models/ReaderPublicationPayload.cs) and are duck-typed
+     * across the boundary, so these have to be updated alongside those records.
+     * @typedef {{ href: string, index: number }} SpineItem
+     * @typedef {{ label: string, spineIndex: number, fragment: string }} TocEntry
+     * @typedef {{ text: string, left: number, top: number, right: number, bottom: number }} LookupRect
+     */
 
     const state = {
         currentPage: 0,
@@ -89,20 +109,27 @@
         loadToken: 0,
         readerReadyNotified: false,
         metadata: { author: "", title: "" },
+        /** @type {string | null} */
         coverHref: null,
         pageCount: 1,
+        /** @type {{ resolve: (value?: unknown) => void, reject: (reason?: unknown) => void } | null} */
         pendingFrameLoad: null,
         pendingLookupText: "",
+        /** @type {LookupRect | null} */
         pendingLookupRect: null,
         resizeTimer: 0,
         safeAreaInsets: { top: 0, bottom: 0 },
+        /** @type {SpineItem[]} */
         spine: [],
+        /** @type {TocEntry[]} */
         toc: [],
         viewportWidth: 1,
         settings: loadSettings(),
         progressSeek: {
             isLoading: false,
+            /** @type {number | null} */
             pendingValue: null,
+            /** @type {ScrollBehavior} */
             behavior: "auto"
         }
     };
@@ -126,9 +153,22 @@
         return fallback;
     }
 
+    /**
+     * Every reader setting, keyed exactly as DEFAULT_SETTINGS is. Declared as a type of its own
+     * because the settings object is built by copying keys out of DEFAULT_SETTINGS at runtime:
+     * without this, the value that reaches getEffectiveSettings()/applySettingsToFrame() is
+     * inferred as an empty object and none of the setting names are known to exist on it.
+     * @typedef {{ -readonly [K in keyof typeof DEFAULT_SETTINGS]: string }} ReaderSettings
+     */
+
+    /**
+     * @param {Partial<ReaderSettings>} [settings]
+     * @param {ReaderSettings} [base]
+     * @returns {ReaderSettings}
+     */
     function normalizeSettings(settings, base = DEFAULT_SETTINGS) {
-        const normalized = {};
-        for (const name of Object.keys(DEFAULT_SETTINGS)) {
+        const normalized = /** @type {ReaderSettings} */ ({});
+        for (const name of /** @type {(keyof ReaderSettings)[]} */ (Object.keys(DEFAULT_SETTINGS))) {
             normalized[name] = normalizeSettingValue(name, settings?.[name], base[name]);
         }
         if (normalized.columnMode === "single") {
@@ -905,7 +945,8 @@
     }
 
     function updateTocHighlight() {
-        const links = elements.contentsList.querySelectorAll("a[data-spine-index]");
+        const links = /** @type {NodeListOf<HTMLAnchorElement>} */ (
+            elements.contentsList.querySelectorAll("a[data-spine-index]"));
         for (const link of links) {
             const isCurrent = Number(link.dataset.spineIndex) === state.currentSpineIndex;
             if (isCurrent) {
@@ -952,6 +993,7 @@
         }
     }
 
+    /** @param {ScrollBehavior} [behavior] */
     function scrollToCurrentPage(behavior = "auto") {
         const scroller = getFrameScroller();
         if (!scroller) {
@@ -982,6 +1024,11 @@
     // immediately, a heartbeat before the correct one arrives right behind it. Every other
     // caller (resize, setSettings, setSafeAreaInsets) is the only source of a position update
     // for that change and still wants its notification, so they keep the default.
+    /**
+     * @param {boolean} [preservePosition]
+     * @param {number | null} [preservedScrollRatio]
+     * @param {boolean} [notify]
+     */
     function measurePageLayout(preservePosition = false, preservedScrollRatio = null, notify = true) {
         const oldPageCount = Math.max(1, state.pageCount);
         const oldPosition = state.currentPage / Math.max(1, oldPageCount - 1);
@@ -1310,6 +1357,10 @@
         goToSpineIndex(targetIndex, { fragment });
     }
 
+    /**
+     * @param {number} page
+     * @param {ScrollBehavior} [behavior]
+     */
     function goToPage(page, behavior = "smooth") {
         if (!state.isReady) {
             return;
@@ -1334,6 +1385,10 @@
         };
     }
 
+    /**
+     * @param {{ targetIndex: number, chapterRatio: number }} target
+     * @param {ScrollBehavior} [behavior]
+     */
     function applyProgressTarget(target, behavior = "auto") {
         if (!state.isReady) {
             return;
@@ -1356,6 +1411,10 @@
     // async fetch+parse, so -- unlike the old fetch-backed version of this function -- there's no
     // in-flight load for a later seek to race against; each call runs to completion before the
     // next `input`/`change` event can fire.
+    /**
+     * @param {string | number} value
+     * @param {ScrollBehavior} [behavior]
+     */
     function seekToProgress(value, behavior = "auto") {
         if (!state.isReady || state.spine.length === 0) {
             return;
@@ -1400,7 +1459,8 @@
     // (measurePageLayout/getScrollWidth) naturally scopes to whichever section this shows.
     function showSection(spineIndex) {
         const frameDocument = elements.frame.contentDocument;
-        const sections = frameDocument?.querySelectorAll("section[data-chapter-index]");
+        const sections = /** @type {NodeListOf<HTMLElement> | undefined} */ (
+            frameDocument?.querySelectorAll("section[data-chapter-index]"));
         if (!frameDocument || !sections || sections.length === 0) {
             return false;
         }
@@ -1449,7 +1509,7 @@
             const target = elements.frame.contentDocument?.getElementById(decodeURIComponent(fragmentId));
             if (target) {
                 target.scrollIntoView({ block: "start" });
-                state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round(getFrameScroller().scrollLeft / state.viewportWidth)));
+                state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round((getFrameScroller()?.scrollLeft ?? 0) / state.viewportWidth)));
                 resolution = "fragment";
             }
         } else if (typeof page === "number" && page > 0) {
@@ -1541,12 +1601,12 @@
 
             hideLookupButton();
         });
-        elements.progressSlider.addEventListener("input", (event) => {
-            seekToProgress(event.target.value);
-            previewProgress(event.target.value);
+        elements.progressSlider.addEventListener("input", () => {
+            seekToProgress(elements.progressSlider.value);
+            previewProgress(elements.progressSlider.value);
         });
-        elements.progressSlider.addEventListener("change", (event) => {
-            seekToProgress(event.target.value);
+        elements.progressSlider.addEventListener("change", () => {
+            seekToProgress(elements.progressSlider.value);
         });
         elements.contentsToggle.addEventListener("click", () => {
             if (elements.contentsPanel.hidden) {
@@ -1717,7 +1777,16 @@
         openPublication(payload).catch(setError);
     }
 
-    window.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo, setSafeAreaInsets, loadPublication };
+    // Answers EpubReaderView's post-resume liveness probe (see RecoverReaderIfNeededAsync). The
+    // reader is only usable if this shell is still running AND still holding the book it was given:
+    // when the OS reclaims the WebView's web content process in the background, the native side
+    // can't tell from its own state that any of this is gone, so it asks.
+    function isReaderAlive() {
+        return state.spine.length > 0 &&
+            Boolean(elements.frame.contentDocument?.querySelector("section[data-chapter-index]"));
+    }
+
+    readerWindow.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo, setSafeAreaInsets, loadPublication, isReaderAlive };
 
     // Everything here is per-book; called fresh every time openPublication() runs, including for
     // the second and later books in a session where the reader shell (this whole script/DOM) is
