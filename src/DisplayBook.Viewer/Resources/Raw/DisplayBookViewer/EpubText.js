@@ -4,6 +4,7 @@
     const query = new URLSearchParams(window.location.search);
     const BRIDGE_URL = query.get("bridge") ?? "displaybook://bridge";
     const FRAME_STYLE_ID = "display-book-pagination-style";
+    const VIRTUAL_COLUMN_CLASS = "display-book-virtual-column";
     const MIN_SWIPE_DISTANCE = 42;
     const SETTINGS_STORAGE_KEY = "displaybook.reader.settings.v1";
     const SETTINGS_STORAGE_VERSION = 1;
@@ -570,6 +571,25 @@
                 max-width: 100% !important;
             }
 
+            /* Blank filler columns appended by padColumnsToFullSpread. They exist
+               only to occupy a column box, so every publication style that could
+               give a bare <div> a size or a float has to be neutralised. */
+            .${VIRTUAL_COLUMN_CLASS} {
+                break-before: column;
+                -webkit-column-break-before: always;
+                display: block !important;
+                float: none !important;
+                width: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                font-size: 1px !important;
+                line-height: 0 !important;
+                visibility: hidden !important;
+            }
+
             h1, h2, h3, h4, h5, h6, figure, blockquote, img, svg, video, table {
                 break-inside: avoid;
             }
@@ -630,6 +650,86 @@
             root?.scrollWidth ?? 0,
             body?.scrollWidth ?? 0
         );
+    }
+
+    // How many columns the root multi-column container is actually rendering per viewport
+    // right now -- read back from the computed style rather than taken from the settings,
+    // because a cover page is forced to a single full-width column (:root.cover-page) even
+    // while the two-column setting is on.
+    function getRenderedColumnsPerPage(frameDocument) {
+        const view = frameDocument.defaultView;
+        const root = frameDocument.documentElement;
+        if (!view || !root) {
+            return 1;
+        }
+
+        const computed = view.getComputedStyle(root);
+        const columnWidth = Number.parseFloat(computed.columnWidth);
+        const widthBasedCount = Number.isFinite(columnWidth) && columnWidth > 0
+            ? Math.max(1, Math.floor(state.viewportWidth / columnWidth))
+            : 1;
+        const declaredCount = Number.parseInt(computed.columnCount, 10);
+        // With both column-count and column-width set, the used count is the smaller of the two.
+        return Number.isFinite(declaredCount) && declaredCount > 0
+            ? Math.min(declaredCount, widthBasedCount)
+            : widthBasedCount;
+    }
+
+    function clearVirtualColumns(frameDocument) {
+        for (const stale of frameDocument.body?.querySelectorAll(`.${VIRTUAL_COLUMN_CLASS}`) ?? []) {
+            stale.remove();
+        }
+    }
+
+    // CSS multi-column lays a chapter out into as many columns as its text needs, which in a
+    // two-column spread is often an odd number. The scroller can only ever reach
+    // scrollWidth - viewportWidth, so the final spread gets clamped back by half a page and
+    // re-shows the previous spread's right-hand column next to the real last one -- content
+    // that looks duplicated at the end of the chapter. Pad the flow out to a whole number of
+    // spreads with empty "virtual" columns instead (the same trick Readium's navigator plays
+    // with its readium-virtual-page elements), so the last scroll position is a real page
+    // boundary and the leftover half-spread renders blank.
+    //
+    // Runs before every getScrollWidth()-based measurement, and clears its own previous padding
+    // first: leaving it in would fold the last measurement's padding into this one's width.
+    function padColumnsToFullSpread(frameDocument) {
+        const body = frameDocument.body;
+        if (!body) {
+            return;
+        }
+
+        clearVirtualColumns(frameDocument);
+
+        const columnsPerPage = getRenderedColumnsPerPage(frameDocument);
+        if (columnsPerPage < 2) {
+            return;
+        }
+
+        const columnWidth = state.viewportWidth / columnsPerPage;
+        const totalColumns = Math.round(getScrollWidth() / columnWidth);
+        const orphanColumns = totalColumns % columnsPerPage;
+        if (orphanColumns === 0) {
+            return;
+        }
+
+        // Where a forced column break isn't supported, a full-viewport-height filler is what
+        // pushes the next column instead -- it can't share a column with the text above it.
+        const supportsColumnBreak = typeof CSS?.supports === "function" &&
+            (CSS.supports("break-before", "column") || CSS.supports("-webkit-column-break-before", "always"));
+        const fillerHeight = supportsColumnBreak
+            ? "0px"
+            : `${frameDocument.documentElement.clientHeight}px`;
+
+        for (let i = orphanColumns; i < columnsPerPage; i++) {
+            const filler = frameDocument.createElement("div");
+            filler.className = VIRTUAL_COLUMN_CLASS;
+            filler.setAttribute("aria-hidden", "true");
+            filler.style.height = fillerHeight;
+            // A completely empty element generates no line box and so can't force a column
+            // break of its own; a zero-width space gives it something to break before.
+            filler.textContent = "​";
+            body.appendChild(filler);
+        }
     }
 
     function getActiveSectionElement() {
@@ -895,6 +995,7 @@
         }
 
         if (state.settings.paginationMode === "scroll") {
+            clearVirtualColumns(frameDocument);
             state.pageCount = 1;
             state.currentPage = 0;
             restoreScrollPosition(scrollRatio);
@@ -906,6 +1007,7 @@
 
         const columnCount = Number(getEffectiveSettings().columnCount);
         frameDocument.documentElement.style.setProperty("--reader-column-width", `${state.viewportWidth / columnCount}px`);
+        padColumnsToFullSpread(frameDocument);
         const scrollWidth = getScrollWidth();
         state.pageCount = Math.max(1, Math.ceil((scrollWidth - 1) / state.viewportWidth));
         if (preservePosition && oldPageCount > 1) {
