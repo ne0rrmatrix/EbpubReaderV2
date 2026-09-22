@@ -188,9 +188,9 @@ public sealed partial class DownloadCenterViewModel : ObservableObject, IDisposa
 		prepareCts?.Dispose();
 	}
 
-	internal Task CancelAsync(string itemId) => GuardAsync(() => queue.CancelAsync(itemId));
+	internal Task CancelAsync(string itemId) => GuardAsync(() => queue.CancelAsync(itemId, CancellationToken.None));
 
-	internal Task RetryAsync(string itemId) => GuardAsync(() => queue.ResumeAsync(itemId));
+	internal Task RetryAsync(string itemId) => GuardAsync(() => queue.ResumeAsync(itemId, CancellationToken.None));
 
 	void OnItemUpdated(object? sender, DownloadItemEventArgs e)
 	{
@@ -368,11 +368,15 @@ public sealed partial class DownloadCenterViewModel : ObservableObject, IDisposa
 	[RelayCommand]
 	async Task CancelAllAsync()
 	{
-		prepareCts?.Cancel();
+		if (prepareCts is { } cts)
+		{
+			await cts.CancelAsync();
+		}
+
 		Interlocked.Increment(ref suspendDepth);
 		try
 		{
-			await GuardAsync(() => queue.CancelAllAsync());
+			await GuardAsync(() => queue.CancelAllAsync(CancellationToken.None));
 		}
 		finally
 		{
@@ -384,7 +388,7 @@ public sealed partial class DownloadCenterViewModel : ObservableObject, IDisposa
 	[RelayCommand]
 	async Task ClearFinishedAsync()
 	{
-		await GuardAsync(() => queue.ClearFinishedAsync());
+		await GuardAsync(() => queue.ClearFinishedAsync(CancellationToken.None));
 		RefreshFromQueue();
 	}
 }
