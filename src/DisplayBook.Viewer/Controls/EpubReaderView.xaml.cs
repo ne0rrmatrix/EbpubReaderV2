@@ -101,6 +101,7 @@ public partial class EpubReaderView : ContentView
 		set => SetValue(PublicationSourceProperty, value);
 	}
 	#pragma warning restore CA1822 // Mark members as static
+	
 	public string PublicationOpfPath
 	{
 		get => (string)GetValue(PublicationOpfPathProperty);
