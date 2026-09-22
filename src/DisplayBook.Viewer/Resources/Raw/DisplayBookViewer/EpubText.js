@@ -588,14 +588,32 @@
                 overflow: visible !important;
             }
 
+            /* A cover page is sized to fill its column exactly, so body's reading padding and
+               width constraint have to come off for it. Left on, body's 2.25rem of vertical
+               padding pushes the full-height section past the bottom of its column, and CSS
+               multi-column fragments the overflow into further columns -- measurePageLayout
+               then counts those as real pages, so the first page turn on an image-only chapter
+               scrolls to a phantom page instead of advancing to the next chapter. */
+            :root.cover-page body {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* Sized in percentages rather than vw/vh: viewport units ignore the root's own box,
+               so they overflow the column by the scrollbar gutter and cost another phantom page.
+               Against the reset body above, 100% is the full viewport anyway, so the cover still
+               renders full-bleed at exactly the size it did before. */
             :root.cover-page section[data-chapter-index].cover-page {
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                width: 100vw !important;
+                width: 100% !important;
                 max-width: none !important;
-                height: 100vh !important;
-                min-height: 100vh !important;
+                height: 100% !important;
+                min-height: 0 !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 overflow: hidden !important;
