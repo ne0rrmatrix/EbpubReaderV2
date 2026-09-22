@@ -18,6 +18,50 @@ public static class EpubPublicationParser
 {
 	public static EpubPublicationInfo Parse(EpubArchive archive)
 	{
+		string opfPath = ResolvePackagePath(archive);
+		if (!archive.TryGetEntry(opfPath, out byte[] opfBytes))
+		{
+			throw new InvalidDataException("The EPUB package document could not be found.");
+		}
+
+		XDocument package = LoadXml(opfBytes);
+		string opfDirectory = EpubPathUtilities.GetEntryDirectory(opfPath);
+
+		XElement? metadataElement = package.Descendants().FirstOrDefault(element =>
+			string.Equals(element.Name.LocalName, "metadata", StringComparison.OrdinalIgnoreCase));
+
+		Dictionary<string, EpubManifestItem> manifestById = ParseManifest(package, opfDirectory);
+
+		XElement? spineElement = package.Descendants().FirstOrDefault(element =>
+			string.Equals(element.Name.LocalName, "spine", StringComparison.OrdinalIgnoreCase));
+		if (spineElement is null)
+		{
+			throw new InvalidDataException("The EPUB package does not contain a spine.");
+		}
+
+		List<EpubSpineItem> spine = ParseSpine(spineElement, manifestById);
+		if (spine.Count == 0)
+		{
+			throw new InvalidDataException("The EPUB package does not contain readable spine resources.");
+		}
+
+		Dictionary<string, int> spineIndexByHref = new(StringComparer.OrdinalIgnoreCase);
+		foreach (EpubSpineItem spineItem in spine)
+		{
+			spineIndexByHref.TryAdd(spineItem.Href, spineItem.Index);
+		}
+
+		string title = GetMetadataValue(metadataElement, "title", "Untitled publication");
+		string author = GetMetadataValue(metadataElement, "creator", string.Empty);
+
+		List<EpubTocEntry> toc = ParseToc(archive, manifestById, spineElement, spineIndexByHref);
+		string? coverHref = FindCoverHref(metadataElement, manifestById);
+
+		return new EpubPublicationInfo(title, author, spine, toc, manifestById, coverHref);
+	}
+
+	static string ResolvePackagePath(EpubArchive archive)
+	{
 		if (!archive.TryGetEntry("META-INF/container.xml", out byte[] containerBytes))
 		{
 			throw new InvalidDataException("The EPUB is missing META-INF/container.xml.");
@@ -31,20 +75,20 @@ public static class EpubPublicationParser
 			throw new InvalidDataException("The EPUB container does not declare a package document.");
 		}
 
-		opfPath = EpubPathUtilities.NormalizeEntryPath(opfPath);
-		if (!archive.TryGetEntry(opfPath, out byte[] opfBytes))
-		{
-			throw new InvalidDataException("The EPUB package document could not be found.");
-		}
+		return EpubPathUtilities.NormalizeEntryPath(opfPath);
+	}
 
-		XDocument package = LoadXml(opfBytes);
-		string opfDirectory = EpubPathUtilities.GetEntryDirectory(opfPath);
+	static Dictionary<string, EpubManifestItem> ParseManifest(XDocument package, string opfDirectory)
+	{
+		XElement manifestElement = package.Descendants().FirstOrDefault(element =>
+			string.Equals(element.Name.LocalName, "manifest", StringComparison.OrdinalIgnoreCase))
+			?? throw new InvalidDataException("The EPUB package does not contain a manifest.");
 
-		XElement? metadataElement = package.Descendants().FirstOrDefault(element =>
-			string.Equals(element.Name.LocalName, "metadata", StringComparison.OrdinalIgnoreCase));
-
+		// Scoped to the <manifest>'s own children the way ParseSpine scopes its <itemref> scan:
+		// both EPUB 2 and 3 define <item> as a direct child of <manifest>, and a document-wide
+		// search would pick up any same-named element elsewhere in the package document.
 		Dictionary<string, EpubManifestItem> manifestById = new(StringComparer.Ordinal);
-		foreach (XElement itemElement in package.Descendants().Where(element =>
+		foreach (XElement itemElement in manifestElement.Elements().Where(element =>
 			string.Equals(element.Name.LocalName, "item", StringComparison.OrdinalIgnoreCase)))
 		{
 			string? id = itemElement.Attribute("id")?.Value;
@@ -61,13 +105,11 @@ public static class EpubPublicationParser
 				itemElement.Attribute("properties")?.Value ?? string.Empty);
 		}
 
-		XElement? spineElement = package.Descendants().FirstOrDefault(element =>
-			string.Equals(element.Name.LocalName, "spine", StringComparison.OrdinalIgnoreCase));
-		if (spineElement is null)
-		{
-			throw new InvalidDataException("The EPUB package does not contain a spine.");
-		}
+		return manifestById;
+	}
 
+	static List<EpubSpineItem> ParseSpine(XElement spineElement, IReadOnlyDictionary<string, EpubManifestItem> manifestById)
+	{
 		List<EpubSpineItem> spine = [];
 		foreach (XElement itemRef in spineElement.Elements().Where(element =>
 			string.Equals(element.Name.LocalName, "itemref", StringComparison.OrdinalIgnoreCase)))
@@ -86,39 +128,32 @@ public static class EpubPublicationParser
 			spine.Add(new EpubSpineItem(item.Href, spine.Count));
 		}
 
-		if (spine.Count == 0)
-		{
-			throw new InvalidDataException("The EPUB package does not contain readable spine resources.");
-		}
+		return spine;
+	}
 
-		Dictionary<string, int> spineIndexByHref = new(StringComparer.OrdinalIgnoreCase);
-		foreach (EpubSpineItem spineItem in spine)
-		{
-			spineIndexByHref.TryAdd(spineItem.Href, spineItem.Index);
-		}
-
-		string title = GetMetadataValue(metadataElement, "title", "Untitled publication");
-		string author = GetMetadataValue(metadataElement, "creator", string.Empty);
-
+	static List<EpubTocEntry> ParseToc(
+		EpubArchive archive,
+		IReadOnlyDictionary<string, EpubManifestItem> manifestById,
+		XElement spineElement,
+		IReadOnlyDictionary<string, int> spineIndexByHref)
+	{
 		EpubManifestItem? navXhtmlItem = manifestById.Values.FirstOrDefault(item =>
 			item.Properties.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("nav", StringComparer.OrdinalIgnoreCase));
 		string? tocId = spineElement.Attribute("toc")?.Value;
 		EpubManifestItem? ncxItem = (tocId is not null && manifestById.TryGetValue(tocId, out EpubManifestItem? byId) ? byId : null)
 			?? manifestById.Values.FirstOrDefault(item => string.Equals(item.MediaType, "application/x-dtbncx+xml", StringComparison.OrdinalIgnoreCase));
 
-		List<EpubTocEntry> toc = [];
 		if (navXhtmlItem is not null && archive.TryGetEntry(navXhtmlItem.Href, out byte[] navBytes))
 		{
-			toc = ParseXhtmlToc(navBytes, navXhtmlItem.Href, spineIndexByHref);
+			return ParseXhtmlToc(navBytes, navXhtmlItem.Href, spineIndexByHref);
 		}
-		else if (ncxItem is not null && archive.TryGetEntry(ncxItem.Href, out byte[] ncxBytes))
+
+		if (ncxItem is not null && archive.TryGetEntry(ncxItem.Href, out byte[] ncxBytes))
 		{
-			toc = ParseNcxToc(ncxBytes, ncxItem.Href, spineIndexByHref);
+			return ParseNcxToc(ncxBytes, ncxItem.Href, spineIndexByHref);
 		}
 
-		string? coverHref = FindCoverHref(metadataElement, manifestById);
-
-		return new EpubPublicationInfo(title, author, spine, toc, manifestById, coverHref);
+		return [];
 	}
 
 	static List<EpubTocEntry> ParseXhtmlToc(byte[] navBytes, string navHref, IReadOnlyDictionary<string, int> spineIndexByHref)
@@ -170,8 +205,6 @@ public static class EpubPublicationParser
 
 	static bool TryResolveTocTarget(string href, string baseDirectory, IReadOnlyDictionary<string, int> spineIndexByHref, out int spineIndex, out string fragment)
 	{
-		spineIndex = -1;
-		fragment = string.Empty;
 		int fragmentIndex = href.IndexOf('#');
 		fragment = fragmentIndex >= 0 ? href[fragmentIndex..] : string.Empty;
 		string resolvedHref = EpubPathUtilities.CombinePath(baseDirectory, href);

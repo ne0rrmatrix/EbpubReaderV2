@@ -173,4 +173,65 @@ public class EpubPublicationParserTests
 		Assert.Equal("Chapter One", entry.Label);
 		Assert.Equal(0, entry.SpineIndex);
 	}
+
+	[Fact]
+	public async Task Parse_ItemOutsideManifest_IsIgnored()
+	{
+		// The <item> in the foreign-namespace block reuses "ch1"'s id and sits after the manifest
+		// in document order, so a document-wide <item> scan would overwrite the real entry with
+		// the decoy and point the spine at decoy.xhtml.
+		Dictionary<string, string> entries = new()
+		{
+			["META-INF/container.xml"] = containerXml,
+			["OEBPS/content.opf"] = """
+				<?xml version="1.0"?>
+				<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId">
+				  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+				    <dc:title>Sample</dc:title>
+				  </metadata>
+				  <manifest>
+				    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+				  </manifest>
+				  <extension xmlns="https://example.invalid/vendor">
+				    <item id="ch1" href="decoy.xhtml" media-type="application/xhtml+xml"/>
+				  </extension>
+				  <spine>
+				    <itemref idref="ch1"/>
+				  </spine>
+				</package>
+				""",
+			["OEBPS/ch1.xhtml"] = "<html><body><p>One</p></body></html>",
+			["OEBPS/decoy.xhtml"] = "<html><body><p>Decoy</p></body></html>",
+		};
+
+		EpubArchive archive = await TestEpubFileBuilder.BuildAsync(entries);
+		EpubPublicationInfo publication = EpubPublicationParser.Parse(archive);
+
+		EpubSpineItem spineItem = Assert.Single(publication.Spine);
+		Assert.Equal("OEBPS/ch1.xhtml", spineItem.Href);
+	}
+
+	[Fact]
+	public async Task Parse_PackageWithoutManifest_Throws()
+	{
+		Dictionary<string, string> entries = new()
+		{
+			["META-INF/container.xml"] = containerXml,
+			["OEBPS/content.opf"] = """
+				<?xml version="1.0"?>
+				<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId">
+				  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+				    <dc:title>Sample</dc:title>
+				  </metadata>
+				  <spine>
+				    <itemref idref="ch1"/>
+				  </spine>
+				</package>
+				""",
+		};
+
+		EpubArchive archive = await TestEpubFileBuilder.BuildAsync(entries);
+
+		Assert.Throws<InvalidDataException>(() => EpubPublicationParser.Parse(archive));
+	}
 }

@@ -94,13 +94,12 @@ public partial class EpubReaderView : ContentView
 		ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
 	}
 
-	#pragma warning disable CA1822 // Mark members as static
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = generatedXamlFieldJustification)]
 	public EpubArchive? PublicationSource
 	{
 		get => (EpubArchive?)GetValue(PublicationSourceProperty);
 		set => SetValue(PublicationSourceProperty, value);
 	}
-	#pragma warning restore CA1822 // Mark members as static
 	
 	public string PublicationOpfPath
 	{

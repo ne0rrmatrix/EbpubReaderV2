@@ -30,10 +30,18 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 			debounceCts = new CancellationTokenSource();
 			cts = debounceCts;
 		}
-		if(previousCts is not null)
+		// These sources are deliberately not disposed. Nothing here calls CancelAfter or reads
+		// CancellationToken.WaitHandle, so a source holds no timer or wait handle to release and
+		// costs nothing to leave to the GC. Disposing one is actively unsafe: cts.Token below is
+		// read outside the lock, so a superseding schedule can cancel and dispose that same
+		// source in between, and CancellationTokenSource.Token throws ObjectDisposedException
+		// once disposed -- which escapes the TaskCanceledException catch in RunDebouncedPushAsync
+		// and surfaces as an unobserved exception, since callers discard this task.
+		if (previousCts is not null)
 		{
 			await previousCts.CancelAsync();
 		}
+
 		await RunDebouncedPushAsync(cts.Token);
 	}
 
@@ -101,7 +109,15 @@ public sealed partial class PositionSyncService(HttpClient httpClient, IFirebase
 				logger.LogWarning("Could not push reading position ({Status}) for content hash {ContentHash}.", response.StatusCode, pending1.ContentHash);
 			}
 		}
-		catch (Exception exception) when (exception is not OperationCanceledException)
+		catch (OperationCanceledException)
+		{
+			// A newer position superseded this push while it was in flight. SchedulePush assigns
+			// the newer pending value before cancelling this token, so that push carries the
+			// newer locator -- nothing to log, and nothing to retry. Caught rather than left to
+			// propagate because callers fire this and discard the task (ReaderViewModel), which
+			// would otherwise turn a routine page turn into an unobserved task exception.
+		}
+		catch (Exception exception)
 		{
 			logger.LogWarning(exception, "Could not push reading position for content hash {ContentHash}.", pending1.ContentHash);
 		}
