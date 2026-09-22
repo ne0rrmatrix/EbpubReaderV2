@@ -11,8 +11,19 @@ sealed record IdTokenRequest(string IdToken);
 /// <summary>Body of accounts:sendOobCode (<c>requestType</c> is e.g. <c>VERIFY_EMAIL</c>).</summary>
 sealed record SendOobCodeRequest(string RequestType, string IdToken);
 
-/// <summary>Empty marker object the mfaEnrollment:start body requires to select the TOTP factor.</summary>
-sealed record TotpEnrollmentInfo();
+/// <summary>
+/// Marker object the mfaEnrollment:start body requires to select the TOTP factor.
+/// It carries no state and serializes to <c>{}</c>.
+/// </summary>
+sealed class TotpEnrollmentInfo
+{
+    /// <summary>Value serialized by <see cref="JsonSerializer"/> for this stateless marker.</summary>
+    public static TotpEnrollmentInfo Empty { get; } = new();
+
+    public TotpEnrollmentInfo()
+    {
+    }
+}
 
 sealed record TotpEnrollmentStartRequest(string IdToken, TotpEnrollmentInfo TotpEnrollmentInfo);
 

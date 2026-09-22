@@ -113,7 +113,7 @@ public class OpdsJsonContextTests
 		Assert.Equal("eng", entry.ExtendedMetadata["language"]);
 
 		// The custom converter reads every dictionary value back as string/bool/decimal.
-		Assert.Equal(true, entry.ExtendedMetadata["hasCover"]);
+		Assert.True(Assert.IsType<bool>(entry.ExtendedMetadata["hasCover"]));
 		Assert.Equal(128m, restored.ExtendedFeedMetadata["totalResults"]);
 
 		Link link = Assert.Single(entry.Links);

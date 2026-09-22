@@ -46,7 +46,9 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 	public string ToggleButtonText => IsDiscovering ? "Stop discovery" : "Start discovery";
 
 	[RelayCommand]
+	#pragma warning disable CA1822 // Mark members as static
 	async Task GoBackAsync() => await Shell.Current.GoToAsync("..");
+	#pragma warning restore CA1822 // Mark members as static
 
 	[ObservableProperty]
 	public partial string ManualUrl { get; set; } = string.Empty;
@@ -252,10 +254,14 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 
 	bool CanAddManual() => !IsBusy;
 
+	#pragma warning disable S2325 // Mark members as static
+	#pragma warning disable CA1822 // Mark members as static
 	internal async Task OpenServerAsync(OpdsServerDisplayModel model)
 	{
 		await Shell.Current.GoToAsync($"opds/catalog?feedUrl={Uri.EscapeDataString(model.Url)}&title={Uri.EscapeDataString(model.Name)}");
 	}
+	#pragma warning restore CA1822 // Mark members as static
+	#pragma warning restore S2325 // Mark members as static
 
 	internal async Task SetEnabledAsync(OpdsServerDisplayModel model, bool enabled)
 	{

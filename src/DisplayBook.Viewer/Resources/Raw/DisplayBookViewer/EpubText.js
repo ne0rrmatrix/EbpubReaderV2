@@ -208,9 +208,11 @@
 
     function getEffectiveSettings() {
         const canUseTwoColumns = state.settings.columnMode === "two" && window.innerWidth >= WIDE_VIEWPORT_MINIMUM;
+        const useTwoColumns = !state.chromeVisible && canUseTwoColumns;
+        const columnCount = useTwoColumns ? "2" : "1";
         return {
             ...state.settings,
-            columnCount: state.chromeVisible ? "1" : (canUseTwoColumns ? "2" : "1")
+            columnCount
         };
     }
 
@@ -326,6 +328,27 @@
         }
     }
 
+    function updateSettingsControl(control, name, value, isOriginalLineHeight) {
+        if (control instanceof RadioNodeList) {
+            for (const radio of control) {
+                radio.checked = radio.value === value;
+            }
+        } else if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+            if (name === "fontSize") {
+                control.value = value.replace("%", "");
+            } else {
+                control.value = isOriginalLineHeight ? "1.5" : value;
+            }
+        }
+    }
+
+    function updateSettingsOutput(form, name, value, isOriginalLineHeight) {
+        const output = form.querySelector(`[data-for="${name}"]`);
+        if (output) {
+            output.textContent = isOriginalLineHeight ? "Original" : value;
+        }
+    }
+
     function updateSettingsControls() {
         const form = elements.settingsForm;
         if (!form) {
@@ -334,21 +357,8 @@
         for (const [name, value] of Object.entries(state.settings)) {
             const control = form.elements.namedItem(name);
             const isOriginalLineHeight = name === "lineHeight" && value === "original";
-            if (control instanceof RadioNodeList) {
-                for (const radio of control) {
-                    radio.checked = radio.value === value;
-                }
-            } else if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
-                if (name === "fontSize") {
-                    control.value = value.replace("%", "");
-                } else {
-                    control.value = isOriginalLineHeight ? "1.5" : value;
-                }
-            }
-            const output = form.querySelector(`[data-for="${name}"]`);
-            if (output) {
-                output.textContent = isOriginalLineHeight ? "Original" : value;
-            }
+            updateSettingsControl(control, name, value, isOriginalLineHeight);
+            updateSettingsOutput(form, name, value, isOriginalLineHeight);
         }
     }
 
@@ -1887,8 +1897,9 @@
             createPaginationStyle(frameDocument);
             await waitForNextFrame();
             installFrameInputHandlers(frameDocument);
-            if (frameDocument.fonts?.ready) {
-                await frameDocument.fonts.ready;
+            const frameFonts = frameDocument.fonts;
+            if (frameFonts) {
+                await frameFonts.ready;
             }
             pendingLoad.resolve();
         } catch (error) {

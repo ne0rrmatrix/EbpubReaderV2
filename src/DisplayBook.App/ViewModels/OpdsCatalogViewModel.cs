@@ -77,24 +77,23 @@ public sealed partial class OpdsCatalogViewModel(
 	internal async Task OpenEntryAsync(CatalogEntryModel model)
 	{
 		string? href = GetEntryHref(model.Entry);
-		if (string.IsNullOrEmpty(href))
+		if (!string.IsNullOrEmpty(href))
 		{
-			return;
-		}
-		else if (model.IsBook)
-		{
-			entryStaging.Stage(href, model.Entry);
-			string query = $"entryUrl={Uri.EscapeDataString(href)}";
-			if (!string.IsNullOrWhiteSpace(serverId))
+			if (model.IsBook)
 			{
-				query += $"&serverId={Uri.EscapeDataString(serverId)}";
-			}
+				entryStaging.Stage(href, model.Entry);
+				string query = $"entryUrl={Uri.EscapeDataString(href)}";
+				if (!string.IsNullOrWhiteSpace(serverId))
+				{
+					query += $"&serverId={Uri.EscapeDataString(serverId)}";
+				}
 
-			await Shell.Current.GoToAsync($"opds/book?{query}");
-		}
-		else
-		{
-			await LoadFeedAsync(href, pushCrum: true);
+				await Shell.Current.GoToAsync($"opds/book?{query}");
+			}
+			else
+			{
+				await LoadFeedAsync(href, pushCrum: true);
+			}
 		}
 	}
 

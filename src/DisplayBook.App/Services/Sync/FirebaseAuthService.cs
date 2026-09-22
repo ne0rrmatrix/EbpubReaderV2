@@ -251,7 +251,7 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 		}
 
 		string url = $"{mfaEnrollmentStartUrl}?key={Uri.EscapeDataString(FirebaseOptions.WebApiKey)}";
-		TotpEnrollmentStartRequest payload = new(idToken, new TotpEnrollmentInfo());
+		TotpEnrollmentStartRequest payload = new(idToken, TotpEnrollmentInfo.Empty);
 		using HttpResponseMessage response = await httpClient.PostAsJsonAsync(url, payload, AuthJsonContext.Default.TotpEnrollmentStartRequest, cancellationToken);
 		using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
 		if (!response.IsSuccessStatusCode)
