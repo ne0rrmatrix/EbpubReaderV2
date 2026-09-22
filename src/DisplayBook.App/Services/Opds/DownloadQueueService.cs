@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
@@ -18,13 +19,31 @@ public sealed partial class DownloadQueueService(
 
 	readonly HttpClient http = httpClientFactory.CreateClient(OpdsConstants.HttpClientName);
 
-	readonly SemaphoreSlim slots = new(OpdsConstants.MaxConcurrentDownloads, OpdsConstants.MaxConcurrentDownloads);
+	/// <summary>Ids waiting for a download slot, in the order they were enqueued.</summary>
+	readonly ConcurrentQueue<string> pending = new();
+
+	readonly Lock pumpGate = new();
+
+	int activeWorkers;
 
 	readonly ConcurrentDictionary<string, DownloadProgress> items = new();
 
 	readonly ConcurrentDictionary<string, HashSet<string>> batches = new();
 
+	readonly ConcurrentDictionary<string, DateTime> batchNotifiedAt = new();
+
 	readonly ConcurrentDictionary<string, Task> workers = new();
+
+	/// <summary>
+	/// Created once rather than per download: enqueuing a batch of hundreds would otherwise
+	/// hit the filesystem once per book before anything starts transferring.
+	/// </summary>
+	readonly Lazy<string> downloadsDirectory = new(() =>
+	{
+		string path = Path.Combine(BookStorageService.ContentRoot, "Opds", "Downloads");
+		Directory.CreateDirectory(path);
+		return path;
+	});
 
 	public event EventHandler<DownloadItemEventArgs>? ItemUpdated;
 
@@ -41,7 +60,7 @@ public sealed partial class DownloadQueueService(
 
 		DownloadProgress item = CreateItem(link, bookTitle, server);
 		items[item.Id] = item;
-		StartWorker(item);
+		Enqueue(item);
 
 		return Task.FromResult(CloneProgress(item));
 	}
@@ -62,11 +81,14 @@ public sealed partial class DownloadQueueService(
 			item.BatchId = batchId;
 			items[item.Id] = item;
 			membership.Add(item.Id);
-			StartWorker(item);
+			pending.Enqueue(item.Id);
 		}
 
+		// Pumped once for the whole batch rather than per book: only the first few start now,
+		// and each one starts its successor as it finishes.
+		PumpQueue();
 		batches[batchId] = membership;
-		RaiseBatchUpdated(batchId);
+		RaiseBatchUpdated(batchId, force: true);
 		return Task.FromResult(BuildBatchSnapshot(batchId, membership));
 	}
 
@@ -90,11 +112,7 @@ public sealed partial class DownloadQueueService(
 		{
 			item.Status = DownloadStatus.Paused;
 			RaiseItemUpdated(item);
-			if (item.Cts is not null)
-			{
-				await item.Cts.CancelAsync().ConfigureAwait(false);
-			}
-
+			await CancelSourceAsync(item).ConfigureAwait(false);
 			logger.LogInformation("OPDS download {Item} paused.", item.BookTitle);
 		}
 	}
@@ -108,7 +126,7 @@ public sealed partial class DownloadQueueService(
 			item.Status = DownloadStatus.Queued;
 			item.Error = null;
 			RaiseItemUpdated(item);
-			StartWorker(item);
+			Enqueue(item);
 		}
 
 		return Task.CompletedTask;
@@ -122,25 +140,96 @@ public sealed partial class DownloadQueueService(
 		{
 			item.Status = DownloadStatus.Canceled;
 			RaiseItemUpdated(item);
-			if (item.Cts is not null)
-			{
-				await item.Cts.CancelAsync().ConfigureAwait(false);
-			}
-
+			await CancelSourceAsync(item).ConfigureAwait(false);
 			logger.LogInformation("OPDS download {Item} canceled.", item.BookTitle);
 		}
 	}
 
-	public async Task CancelBatchAsync(string batchId, CancellationToken cancellationToken = default)
+	/// <summary>
+	/// Cancels an item's token if it has one. The status flip is what actually stops an item that
+	/// has not started yet; this only matters for one already transferring.
+	/// </summary>
+	static async Task CancelSourceAsync(DownloadProgress item)
 	{
-		cancellationToken.ThrowIfCancellationRequested();
-		if (batches.TryGetValue(batchId, out HashSet<string>? members))
+		try
 		{
-			foreach (string? memberId in members.ToList())
+			CancellationTokenSource? cts = item.Cts;
+			if (cts is not null)
 			{
-				await CancelAsync(memberId, cancellationToken).ConfigureAwait(false);
+				await cts.CancelAsync().ConfigureAwait(false);
 			}
 		}
+		catch (ObjectDisposedException)
+		{
+			// The worker finished and tore its source down, or the pump is swapping in a fresh
+			// one for a restart. Either way the status flip above is what the worker acts on.
+		}
+	}
+
+	public Task CancelBatchAsync(string batchId, CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		return batches.TryGetValue(batchId, out HashSet<string>? members)
+			? StopAsync(members
+				.Select(memberId => items.TryGetValue(memberId, out DownloadProgress? item) ? item : null)
+				.OfType<DownloadProgress>())
+			: Task.CompletedTask;
+	}
+
+	public Task CancelAllAsync(CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		return StopAsync(items.Values);
+	}
+
+	/// <summary>
+	/// Cancels many items at once. Every status is flipped in a single synchronous pass, which is
+	/// all it takes for an item still waiting in <see cref="pending"/>: the pump skips anything
+	/// that is no longer queued, so it never starts. Only the handful of items actually running
+	/// have a token to cancel, and those are canceled off the caller's thread.
+	/// </summary>
+	/// <remarks>
+	/// Deliberately raises no per-item <see cref="ItemUpdated"/>: cancelling one at a time and
+	/// reporting each is exactly what made cancelling a large batch take the better part of a
+	/// minute. Callers should re-read <see cref="GetItems"/> once this completes.
+	/// </remarks>
+	Task StopAsync(IEnumerable<DownloadProgress> candidates)
+	{
+		List<DownloadProgress> stopping = [];
+		foreach (DownloadProgress item in candidates)
+		{
+			if (item.Status is DownloadStatus.Queued or DownloadStatus.Downloading or DownloadStatus.Paused)
+			{
+				item.Status = DownloadStatus.Canceled;
+				stopping.Add(item);
+			}
+		}
+
+		if (stopping.Count == 0)
+		{
+			return Task.CompletedTask;
+		}
+
+		return Task.Run(() =>
+		{
+			foreach (DownloadProgress item in stopping)
+			{
+				try
+				{
+					item.Cts?.Cancel();
+				}
+				catch (ObjectDisposedException)
+				{
+					// The worker finished and tore its source down between the two passes.
+				}
+			}
+
+			logger.LogInformation("Canceled {Count} OPDS download(s).", stopping.Count);
+			foreach (string batchId in batches.Keys)
+			{
+				RaiseBatchUpdated(batchId, force: true);
+			}
+		}, CancellationToken.None);
 	}
 
 	public Task ClearFinishedAsync(CancellationToken cancellationToken = default)
@@ -179,7 +268,7 @@ public sealed partial class DownloadQueueService(
 			item.Cts?.Cancel();
 		}
 
-		slots.Dispose();
+		pending.Clear();
 	}
 
 	static DownloadProgress CreateItem(DownloadLink link, string bookTitle, OpdsServer? server)
@@ -194,13 +283,69 @@ public sealed partial class DownloadQueueService(
 			StartedAt = DateTime.UtcNow
 		};
 
+	/// <summary>
+	/// Queues an item for download and starts it if a slot is free.
+	/// </summary>
+	void Enqueue(DownloadProgress item)
+	{
+		pending.Enqueue(item.Id);
+		PumpQueue();
+	}
+
+	/// <summary>
+	/// Starts workers until the concurrency limit is reached or nothing is waiting.
+	/// </summary>
+	/// <remarks>
+	/// Only <see cref="OpdsConstants.MaxConcurrentDownloads"/> workers exist at a time; the rest
+	/// of a batch waits here as plain ids. Giving every book its own worker and cancellation
+	/// source up front meant cancelling a large batch had to unwind thousands of tasks, which
+	/// took the better part of a minute.
+	/// </remarks>
+	void PumpQueue()
+	{
+		while (TryTakeNext(out DownloadProgress? item))
+		{
+			StartWorker(item);
+		}
+	}
+
+	bool TryTakeNext([NotNullWhen(true)] out DownloadProgress? next)
+	{
+		lock (pumpGate)
+		{
+			if (activeWorkers < OpdsConstants.MaxConcurrentDownloads)
+			{
+				// Items canceled or paused while waiting are simply skipped over here.
+				while (pending.TryDequeue(out string? itemId))
+				{
+					if (items.TryGetValue(itemId, out DownloadProgress? item) &&
+						item.Status == DownloadStatus.Queued)
+					{
+						// Claimed here rather than in the worker: an item can legitimately sit in
+						// the queue twice (pause then resume), and the worker does not run until
+						// the scheduler gets to it, so a second dequeue would otherwise still see
+						// it as queued and start a duplicate transfer over the same temp file.
+						item.Status = DownloadStatus.Downloading;
+						activeWorkers++;
+						next = item;
+						return true;
+					}
+				}
+			}
+		}
+
+		next = null;
+		return false;
+	}
+
 	void StartWorker(DownloadProgress item)
 	{
 		item.Cts?.Dispose();
 		item.Cts = new CancellationTokenSource();
 		// Queue workers intentionally run in the background; RunWorkerAsync handles
 		// cancellation and reports all non-cancellation failures on the item.
-		Task worker = RunWorkerAsync(item, item.Cts.Token);
+		CancellationToken token = item.Cts.Token;
+		Task worker = Task.Run(() => RunWorkerAsync(item, token), CancellationToken.None);
 		workers[item.Id] = worker;
 		if (worker.IsCompleted)
 		{
@@ -210,28 +355,18 @@ public sealed partial class DownloadQueueService(
 
 	async Task RunWorkerAsync(DownloadProgress item, CancellationToken token)
 	{
-		string downloadsDir = Path.Combine(BookStorageService.ContentRoot, "Opds", "Downloads");
-		string tempPath = Path.Combine(downloadsDir, item.FileName);
-		Directory.CreateDirectory(downloadsDir);
+		string tempPath = Path.Combine(downloadsDirectory.Value, item.FileName);
 		item.TempFilePath = tempPath;
 
 		try
 		{
-			await slots.WaitAsync(token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			return;
-		}
-
-		try
-		{
-			if (item.Status != DownloadStatus.Queued)
+			// TryTakeNext already moved the item to Downloading; anything else means it was
+			// canceled or paused in the window between being claimed and this task running.
+			if (item.Status != DownloadStatus.Downloading)
 			{
 				return;
 			}
 
-			item.Status = DownloadStatus.Downloading;
 			item.StartedAt = DateTime.UtcNow;
 			item.Error = null;
 			RaiseItemUpdated(item);
@@ -275,17 +410,42 @@ public sealed partial class DownloadQueueService(
 		finally
 		{
 			workers.TryRemove(item.Id, out _);
-			slots.Release();
 
-			if (item.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Canceled)
+			// Finished items stay in the queue until ClearFinishedAsync so the UI can show
+			// their outcome, batch snapshots keep counting them, and a failed one can be retried.
+			if (item.Status == DownloadStatus.Canceled)
 			{
-				items.TryRemove(item.Id, out _);
+				DeletePartialFile(item, tempPath);
 			}
 
 			if (item.BatchId is not null)
 			{
 				RaiseBatchUpdated(item.BatchId);
 			}
+
+			lock (pumpGate)
+			{
+				activeWorkers--;
+			}
+
+			PumpQueue();
+		}
+	}
+
+	void DeletePartialFile(DownloadProgress item, string tempPath)
+	{
+		try
+		{
+			if (File.Exists(tempPath))
+			{
+				File.Delete(tempPath);
+			}
+
+			item.TempFilePath = null;
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+		{
+			logger.LogWarning(ex, "Could not delete the partial download for {Item}.", item.BookTitle);
 		}
 	}
 
@@ -507,12 +667,34 @@ public sealed partial class DownloadQueueService(
 		}
 	}
 
-	void RaiseBatchUpdated(string batchId)
+	/// <summary>
+	/// Raises <see cref="BatchUpdated"/>, skipping the work entirely when nothing is listening
+	/// and otherwise throttling to <see cref="progressInterval"/> per batch. Both matter because
+	/// every worker reports on finishing and <see cref="BuildBatchSnapshot"/> walks the whole
+	/// batch: a 2,000-book batch would otherwise cost 2,000 full-batch snapshots.
+	/// </summary>
+	/// <remarks>
+	/// Throttled progress is advisory; a subscriber that needs the settled state should re-read
+	/// <see cref="GetBatch"/>. <paramref name="force"/> bypasses the throttle for the enqueue and
+	/// bulk-cancel snapshots, which must always land.
+	/// </remarks>
+	void RaiseBatchUpdated(string batchId, bool force = false)
 	{
-		if (batches.TryGetValue(batchId, out HashSet<string>? members))
+		if (BatchUpdated is null || !batches.TryGetValue(batchId, out HashSet<string>? members))
 		{
-			BatchUpdated?.Invoke(this, new DownloadBatchEventArgs(BuildBatchSnapshot(batchId, members)));
+			return;
 		}
+
+		DateTime now = DateTime.UtcNow;
+		if (!force &&
+			batchNotifiedAt.TryGetValue(batchId, out DateTime last) &&
+			now - last < progressInterval)
+		{
+			return;
+		}
+
+		batchNotifiedAt[batchId] = now;
+		BatchUpdated.Invoke(this, new DownloadBatchEventArgs(BuildBatchSnapshot(batchId, members)));
 	}
 
 	DownloadBatchProgress BuildBatchSnapshot(string batchId, IReadOnlyCollection<string> memberIds)

@@ -131,13 +131,6 @@
                     </DataTemplate>
                 </BindableLayout.ItemTemplate>
             </VerticalStackLayout>
-            <Button Text="Open downloads"
-                    Command="{Binding GoToDownloadsCommand}"
-                    HorizontalOptions="Center"
-                    Background="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryAccent}}"
-                    TextColor="{StaticResource White}"
-                    MinimumHeightRequest="48"
-                    AutomationId="GoToDownloadsButton" />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

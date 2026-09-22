@@ -9,7 +9,7 @@ DisplayBook can connect to remote [OPDS](https://opds-spec.org/) catalogs, with 
 | Server discovery | mDNS/Bonjour scan for the `_calibre._tcp` service type (Calibre publishes "Books in calibre" with a TXT record of `path=/opds`) |
 | Manual servers | Any OPDS feed URL entered by hand — always works, even when mDNS is unavailable (e.g. Android networks that block mDNS) |
 | Catalog browsing | Parses Atom-based OPDS 1.0 and OPDS 2.0 (RDF) feeds: entries, covers, pagination, search |
-| Downloads | HTTP GET with resume support (HTTP range requests), up to 3 concurrent items, batch enqueue, pause/resume/cancel |
+| Downloads | HTTP GET with resume support (HTTP range requests), up to 3 concurrent items, batch enqueue, cancel/retry, progress shown in a popup |
 | Persistence | Server profiles in `Opds/servers.json`, feed cache in the app data directory |
 
 ## Setting up a Calibre server
@@ -32,8 +32,8 @@ DisplayBook connects to the standard Calibre Content server. To start it:
    - **URL** — the OPDS root feed, e.g. `http://192.168.1.5:8080/opds`
    - **Username / password** — optional, only if the server requires authentication
 4. Browse catalogs: feeds render as book lists with covers, titles, authors, and pagination (`Next`/`Previous`). Navigation links (sub-collections, author/tag facets) open as new catalog pages; search feeds are supported when the server provides a search link.
-5. Open a book's details to see its cover, metadata, and all available formats (EPUB, PDF, MOBI, …). Each format link can be downloaded.
-6. The **Downloads** page shows the queue with per-item progress. You can pause/resume a download (resumable via HTTP range) or cancel it. Finished books are imported into the local library.
+5. Open a book's details to see its cover, metadata, and all available formats (EPUB, PDF, MOBI, …). Each format link can be downloaded. To grab several books at once, tap the select icon in the catalog's top bar, tick the books you want (or **Select all**), then tap **Download**.
+6. A download popup opens over the current page immediately. A large selection takes a moment to queue, so it shows a "Preparing N downloads" indicator first — **Cancel all** works during that phase too. It then shows overall progress plus a row per book that can be canceled individually (or retried if it fails). Dismissing the popup leaves the downloads running. Finished books are imported into the local library.
 
 ## Sample configuration
 

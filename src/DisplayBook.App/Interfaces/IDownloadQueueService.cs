@@ -82,6 +82,13 @@ public interface IDownloadQueueService : IDisposable
 	/// <summary>Cancels every active or queued item in the given batch.</summary>
 	Task CancelBatchAsync(string batchId, CancellationToken cancellationToken = default);
 
+	/// <summary>
+	/// Cancels every active, queued, and paused item in one pass. Unlike <see cref="CancelAsync"/>
+	/// this raises no per-item <see cref="ItemUpdated"/>, so callers should re-read
+	/// <see cref="GetItems"/> once it completes.
+	/// </summary>
+	Task CancelAllAsync(CancellationToken cancellationToken = default);
+
 	/// <summary>Removes items that are no longer active (paused/finished) from tracking.</summary>
 	Task ClearFinishedAsync(CancellationToken cancellationToken = default);
 }

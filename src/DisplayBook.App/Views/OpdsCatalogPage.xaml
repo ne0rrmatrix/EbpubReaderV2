@@ -37,6 +37,13 @@
                                    VerticalOptions="Fill"
                                    IsVisible="{Binding HasCover}"
                                    SemanticProperties.Description="{Binding Title}" />
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      IsVisible="{Binding IsSelectable}"
+                                      Color="{StaticResource LibraryAccent}"
+                                      HorizontalOptions="End"
+                                      VerticalOptions="Start"
+                                      SemanticProperties.Description="{Binding Title}"
+                                      AutomationId="EntrySelectCheckBox" />
                         </Grid>
                     </Border>
                     <Label Grid.Row="1"
@@ -92,13 +99,23 @@
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto,*,Auto" Padding="{OnIdiom Phone='10,6,10,10', Default='16,10,16,16'}">
         <VerticalStackLayout Grid.Row="0" Spacing="8">
-            <ImageButton Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
-                         Command="{Binding NavigateBackCommand}"
-                         HorizontalOptions="Start"
-                         Style="{StaticResource TopBarIconButton}"
-                         SemanticProperties.Description="Back to servers"
-                         ToolTipProperties.Text="Back to servers"
-                         AutomationId="CatalogBackButton" />
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <ImageButton Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
+                             Command="{Binding NavigateBackCommand}"
+                             HorizontalOptions="Start"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Back to servers"
+                             ToolTipProperties.Text="Back to servers"
+                             AutomationId="CatalogBackButton" />
+                <ImageButton Grid.Column="2"
+                             Source="{AppThemeBinding Light=icon_checklist_light.png, Dark=icon_checklist_dark.png}"
+                             Command="{Binding ToggleSelectionModeCommand}"
+                             IsVisible="{Binding HasBooks}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Select books to download"
+                             ToolTipProperties.Text="Select books to download"
+                             AutomationId="SelectModeButton" />
+            </Grid>
             <VerticalStackLayout Spacing="2">
                 <Label Text="{Binding Title}"
                        FontSize="18"
@@ -130,6 +147,40 @@
                         Background="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryAccent}}"
                         TextColor="{StaticResource White}"
                         AutomationId="SearchButton" />
+            </Grid>
+            <Grid IsVisible="{Binding IsSelectionMode}"
+                  ColumnDefinitions="Auto,Auto,*,Auto"
+                  ColumnSpacing="8"
+                  AutomationId="SelectionBar">
+                <ImageButton Source="{AppThemeBinding Light=icon_select_all_light.png, Dark=icon_select_all_dark.png}"
+                             Command="{Binding SelectAllCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Select all books on this page"
+                             ToolTipProperties.Text="Select all"
+                             AutomationId="SelectAllButton" />
+                <ImageButton Grid.Column="1"
+                             Source="{AppThemeBinding Light=icon_deselect_light.png, Dark=icon_deselect_dark.png}"
+                             Command="{Binding ClearSelectionCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Clear the selection"
+                             ToolTipProperties.Text="Clear selection"
+                             AutomationId="ClearSelectionButton" />
+                <Label Grid.Column="2"
+                       Text="{Binding SelectionSummary}"
+                       FontSize="12"
+                       VerticalOptions="Center"
+                       LineBreakMode="TailTruncation"
+                       TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                       AutomationId="SelectionSummaryLabel" />
+                <Button Grid.Column="3"
+                        Text="Download"
+                        Command="{Binding DownloadSelectedCommand}"
+                        IsEnabled="{Binding HasSelection}"
+                        Background="{StaticResource LibraryAccent}"
+                        TextColor="{StaticResource White}"
+                        FontSize="13"
+                        MinimumHeightRequest="44"
+                        AutomationId="DownloadSelectedButton" />
             </Grid>
             <ActivityIndicator IsRunning="{Binding IsLoading}"
                                 IsVisible="{Binding IsLoading}"

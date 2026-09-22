@@ -18,9 +18,11 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 	readonly IDownloadQueueService queue;
 	readonly IBookCatalogService catalog;
 	readonly IOpdsEntryStagingCache entryStaging;
+	readonly DownloadCenterViewModel downloads;
 	readonly ILogger<OpdsBookViewModel> logger;
 	CancellationTokenSource? loadCts;
 	bool isInLibrary;
+	bool isSubscribed;
 	bool disposed;
 
 	public OpdsBookViewModel(
@@ -28,14 +30,15 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		IDownloadQueueService queue,
 		IBookCatalogService catalog,
 		IOpdsEntryStagingCache entryStaging,
+		DownloadCenterViewModel downloads,
 		ILogger<OpdsBookViewModel> logger)
 	{
 		this.parser = parser;
 		this.queue = queue;
 		this.catalog = catalog;
 		this.entryStaging = entryStaging;
+		this.downloads = downloads;
 		this.logger = logger;
-		this.queue.ItemUpdated += OnItemUpdated;
 	}
 
 	public ObservableCollection<DownloadLink> DownloadLinks { get; } = [];
@@ -108,7 +111,44 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		return LoadAsync(entryUrl, cts.Token);
 	}
 
-	public void OnPageDisappearing() => loadCts?.Cancel();
+	/// <summary>
+	/// Starts listening for downloads finishing, so the page can flip to "in library".
+	/// Paired with <see cref="OnPageDisappearing"/> rather than done in the constructor:
+	/// this view model is transient and nothing disposes it, so a constructor subscription
+	/// leaks one live listener per book page ever visited.
+	/// </summary>
+	public void OnPageAppearing()
+	{
+		Subscribe(true);
+
+		// The download popup is hosted in a modal page, so this page is "disappeared" while it
+		// is up and misses any completion that lands in the meantime. Re-check on the way back.
+		_ = RefreshMembershipSafeAsync();
+	}
+
+	public void OnPageDisappearing()
+	{
+		loadCts?.Cancel();
+		Subscribe(false);
+	}
+
+	void Subscribe(bool listening)
+	{
+		if (listening == isSubscribed)
+		{
+			return;
+		}
+
+		isSubscribed = listening;
+		if (listening)
+		{
+			queue.ItemUpdated += OnItemUpdated;
+		}
+		else
+		{
+			queue.ItemUpdated -= OnItemUpdated;
+		}
+	}
 
 	async Task LoadAsync(string entryUrl, CancellationToken ct)
 	{
@@ -216,14 +256,22 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 
 	async void OnItemUpdated(object? sender, DownloadItemEventArgs e)
 	{
-		if (e.Progress.Status != DownloadStatus.Completed)
+		// Only this page's book matters. Without the title check a batch download runs a full
+		// library query on the UI thread once per completed book, which stalls the whole app.
+		if (e.Progress.Status != DownloadStatus.Completed ||
+			!string.Equals(e.Progress.BookTitle, Title, StringComparison.Ordinal))
 		{
 			return;
 		}
 
+		await MainThread.InvokeOnMainThreadAsync(RefreshMembershipSafeAsync);
+	}
+
+	async Task RefreshMembershipSafeAsync()
+	{
 		try
 		{
-			await MainThread.InvokeOnMainThreadAsync(() => RefreshMembershipAsync(CancellationToken.None));
+			await RefreshMembershipAsync(CancellationToken.None);
 		}
 		catch (OperationCanceledException)
 		{
@@ -252,10 +300,6 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		try
 		{
 			await queue.EnqueueAsync(link, bookTitle, server: null, cancellationToken: CancellationToken.None);
-			if (!disposed)
-			{
-				StatusMessage = $"Started downloading {link.FormatName}.";
-			}
 		}
 		catch (Exception ex)
 		{
@@ -264,11 +308,12 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 			{
 				StatusMessage = "Could not start the download: " + ex.Message;
 			}
-		}
-	}
 
-	[RelayCommand]
-	async Task GoToDownloadsAsync() => await Shell.Current.GoToAsync("opds/downloads");
+			return;
+		}
+
+		await downloads.ShowAsync();
+	}
 
 	[RelayCommand]
 	async Task GoBackAsync() => await Shell.Current.GoToAsync("..");
@@ -282,6 +327,6 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 
 		disposed = true;
 		loadCts?.Cancel();
-		queue.ItemUpdated -= OnItemUpdated;
+		Subscribe(false);
 	}
 }

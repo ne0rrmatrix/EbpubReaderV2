@@ -42,6 +42,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IOpdsServerRepository, OpdsServerRepository>();
 		builder.Services.AddSingleton<IOpdsCatalogCache, OpdsCatalogCache>();
 		builder.Services.AddSingleton<IDownloadQueueService, DownloadQueueService>();
+		// The download popup's view model is a singleton so the popup can be dismissed and
+		// reopened from any page without losing the running queue; the popup itself is transient.
+		builder.Services.AddSingleton<DownloadCenterViewModel>();
+		builder.Services.AddTransientPopup<DownloadProgressPopup>();
 		builder.Services.AddSingleton<IBookDatabase, BookDatabase>();
 		builder.Services.AddSingleton<IBookPickerService, BookPickerService>();
 		builder.Services.AddSingleton<IBookImportService, BookImportService>();
@@ -77,11 +81,15 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<OpdsServersPage, OpdsServersViewModel>("opds/servers");
 		builder.Services.AddTransientWithShellRoute<OpdsCatalogPage, OpdsCatalogViewModel>("opds/catalog");
 		builder.Services.AddTransientWithShellRoute<OpdsBookPage, OpdsBookViewModel>("opds/book");
-		builder.Services.AddTransientWithShellRoute<DownloadsPage, DownloadsViewModel>("opds/downloads");
 		builder.Services.AddTransientWithShellRoute<SettingsPage, SettingsViewModel>("settings");
 
 #if DEBUG
 		builder.Logging.AddDebug();
+
+		// HttpClient logs four Information lines per request. A batch download issues one request
+		// per book, and writing to the debug output is synchronous, so at a couple of thousand
+		// books the logging alone becomes a throughput problem — and it buries our own lines.
+		builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
 #endif
 
 		return builder.Build();

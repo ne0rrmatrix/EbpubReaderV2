@@ -83,6 +83,18 @@ public sealed partial class CatalogEntryModel(OpdsEntry entry, bool isBook, Opds
 
 	public bool HasCover => !string.IsNullOrWhiteSpace(CoverUrl);
 
+	/// <summary>
+	/// True while the catalog is in selection mode and this entry is a book, which is what
+	/// puts the checkbox on the card. Sub-catalog folders are never selectable.
+	/// </summary>
+	[ObservableProperty]
+	public partial bool IsSelectable { get; set; }
+
+	[ObservableProperty]
+	public partial bool IsSelected { get; set; }
+
+	partial void OnIsSelectedChanged(bool value) => parent.OnEntrySelectionChanged();
+
 	[RelayCommand]
 	Task OpenAsync() => parent.OpenEntryAsync(this);
 
@@ -97,9 +109,10 @@ public sealed partial class CatalogEntryModel(OpdsEntry entry, bool isBook, Opds
 }
 
 /// <summary>
-/// View model for a single item in the download queue.
+/// View model for a single row in the download popup: one queued, running, or
+/// finished OPDS download.
 /// </summary>
-public sealed partial class DownloadItemModel(DownloadProgress progress, DownloadsViewModel parent) : ObservableObject
+public sealed partial class DownloadItemModel(DownloadProgress progress, DownloadCenterViewModel parent) : ObservableObject
 {
 	public string Id { get; } = progress.Id;
 
@@ -109,10 +122,11 @@ public sealed partial class DownloadItemModel(DownloadProgress progress, Downloa
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(StatusText))]
-	[NotifyPropertyChangedFor(nameof(PauseResumeButtonText))]
 	[NotifyPropertyChangedFor(nameof(IsCancellable))]
-	[NotifyCanExecuteChangedFor(nameof(PauseResumeCommand))]
+	[NotifyPropertyChangedFor(nameof(IsFinished))]
+	[NotifyPropertyChangedFor(nameof(CanRetry))]
 	[NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+	[NotifyCanExecuteChangedFor(nameof(RetryCommand))]
 	public partial DownloadStatus Status { get; set; } = progress.Status;
 
 	[ObservableProperty]
@@ -136,26 +150,24 @@ public sealed partial class DownloadItemModel(DownloadProgress progress, Downloa
 		_ => Status.ToString()
 	};
 
-	public bool IsPausedOrFailed => Status is DownloadStatus.Paused or DownloadStatus.Failed;
-
 	public bool IsCancellable => Status is DownloadStatus.Queued or DownloadStatus.Downloading or DownloadStatus.Paused;
 
-	public string PauseResumeButtonText => IsPausedOrFailed ? "Resume" : "Pause";
+	public bool CanRetry => Status is DownloadStatus.Failed or DownloadStatus.Canceled or DownloadStatus.Paused;
 
 	public bool IsFinished => Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Canceled;
 
-	[RelayCommand(CanExecute = nameof(CanPauseResume))]
-	Task PauseResumeAsync()
+	/// <summary>Copies the latest queue snapshot for this download onto the bound row.</summary>
+	internal void Apply(DownloadProgress snapshot)
 	{
-		return Status is DownloadStatus.Paused or DownloadStatus.Failed
-			? parent.ResumeAsync(Id)
-			: parent.PauseAsync(Id);
+		Status = snapshot.Status;
+		Percentage = snapshot.Percentage;
+		Error = snapshot.Error;
+		BytesLabel = $"{ByteSizeConverter.FormatSize(snapshot.BytesDownloaded)} / {ByteSizeConverter.FormatSize(snapshot.TotalBytes)}";
 	}
 
-	bool CanPauseResume() => IsCancellable || IsPausedOrFailed;
-
-	[RelayCommand(CanExecute = nameof(CanCancel))]
+	[RelayCommand(CanExecute = nameof(IsCancellable))]
 	Task CancelAsync() => parent.CancelAsync(Id);
 
-	bool CanCancel() => IsCancellable;
+	[RelayCommand(CanExecute = nameof(CanRetry))]
+	Task RetryAsync() => parent.RetryAsync(Id);
 }

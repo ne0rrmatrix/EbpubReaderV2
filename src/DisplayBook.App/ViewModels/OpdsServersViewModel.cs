@@ -290,9 +290,6 @@ public sealed partial class OpdsServersViewModel : ObservableObject, IDisposable
 		StatusMessage = $"Removed {model.Name}.";
 	}
 
-	[RelayCommand]
-	async Task GoToDownloadsAsync() => await Shell.Current.GoToAsync("opds/downloads");
-
 	static bool IsValidHttpUrl(string url)
 	{
 		return Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&

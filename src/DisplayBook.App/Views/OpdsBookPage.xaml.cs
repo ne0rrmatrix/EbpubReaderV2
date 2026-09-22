@@ -16,6 +16,12 @@ public partial class OpdsBookPage : ContentPage, IQueryAttributable
 
 	internal OpdsBookViewModel ViewModel => viewModel;
 
+	protected override void OnAppearing()
+	{
+		base.OnAppearing();
+		viewModel.OnPageAppearing();
+	}
+
 	protected override void OnDisappearing()
 	{
 		base.OnDisappearing();

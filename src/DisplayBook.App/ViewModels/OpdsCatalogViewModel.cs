@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using DisplayBook.App.Interfaces;
 using DisplayBook.App.Models;
 using DisplayBook.App.Services;
+using DisplayBook.App.Services.Opds;
 using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.ViewModels;
@@ -11,16 +12,22 @@ namespace DisplayBook.App.ViewModels;
 /// <summary>
 /// Drives the OPDS catalog page: renders one feed at a time with breadcrumbs,
 /// pagination, optional search, and drills down into sub-catalogs or book details.
+/// Books can also be picked one at a time, in bulk, or all at once and queued for
+/// download straight from the feed, which reports progress in the download popup.
 /// </summary>
 public sealed partial class OpdsCatalogViewModel(
 	IOpdsParserService parser,
 	IOpdsCatalogCache cache,
 	IOpdsEntryStagingCache entryStaging,
+	IDownloadQueueService queue,
+	DownloadCenterViewModel downloads,
 	ILogger<OpdsCatalogViewModel> logger) : ObservableObject, IDisposable
 {
 	readonly IOpdsParserService parser = parser;
 	readonly IOpdsCatalogCache cache = cache;
 	readonly IOpdsEntryStagingCache entryStaging = entryStaging;
+	readonly IDownloadQueueService queue = queue;
+	readonly DownloadCenterViewModel downloads = downloads;
 	readonly ILogger<OpdsCatalogViewModel> logger = logger;
 	readonly List<Crumb> crumbs = [];
 	string? serverId;
@@ -61,6 +68,25 @@ public sealed partial class OpdsCatalogViewModel(
 	[ObservableProperty]
 	public partial string SearchText { get; set; } = string.Empty;
 
+	/// <summary>True when the current feed holds at least one book, i.e. there is something to select.</summary>
+	[ObservableProperty]
+	public partial bool HasBooks { get; set; }
+
+	[ObservableProperty]
+	public partial bool IsSelectionMode { get; set; }
+
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(SelectionSummary))]
+	[NotifyPropertyChangedFor(nameof(HasSelection))]
+	[NotifyCanExecuteChangedFor(nameof(DownloadSelectedCommand))]
+	public partial int SelectedCount { get; set; }
+
+	public bool HasSelection => SelectedCount > 0;
+
+	public string SelectionSummary => SelectedCount == 0
+		? "Select books to download"
+		: $"Download {SelectedCount} selected";
+
 	public sealed record Crumb(string Title, string Url);
 
 	public Task InitializeAsync(string feedUrl, string? title = null)
@@ -76,6 +102,12 @@ public sealed partial class OpdsCatalogViewModel(
 
 	internal async Task OpenEntryAsync(CatalogEntryModel model)
 	{
+		if (IsSelectionMode && model.IsBook)
+		{
+			model.IsSelected = !model.IsSelected;
+			return;
+		}
+
 		string? href = GetEntryHref(model.Entry);
 		if (!string.IsNullOrEmpty(href))
 		{
@@ -95,6 +127,139 @@ public sealed partial class OpdsCatalogViewModel(
 				await LoadFeedAsync(href, pushCrum: true);
 			}
 		}
+	}
+
+	/// <summary>Called by a card whenever its checkbox changes, to keep the selection count live.</summary>
+	internal void OnEntrySelectionChanged()
+		=> SelectedCount = Entries.Count(entry => entry.IsSelected);
+
+	[RelayCommand]
+	void ToggleSelectionMode() => IsSelectionMode = !IsSelectionMode;
+
+	[RelayCommand]
+	void SelectAll()
+	{
+		IsSelectionMode = true;
+		foreach (CatalogEntryModel entry in Entries.Where(entry => entry.IsBook))
+		{
+			entry.IsSelected = true;
+		}
+	}
+
+	[RelayCommand]
+	void ClearSelection()
+	{
+		foreach (CatalogEntryModel entry in Entries)
+		{
+			entry.IsSelected = false;
+		}
+	}
+
+	[RelayCommand(CanExecute = nameof(HasSelection))]
+	Task DownloadSelectedAsync()
+		=> DownloadAsync([.. Entries.Where(entry => entry.IsSelected)]);
+
+	/// <summary>
+	/// Queues the EPUB acquisition link of every given entry and opens the download popup.
+	/// Entries the server offers in no readable format are skipped and reported rather than
+	/// queued, since the importer only understands EPUB.
+	/// </summary>
+	/// <remarks>
+	/// The popup is shown before any work happens and the work itself runs off the UI thread:
+	/// picking links and handing hundreds of books to the queue takes long enough to look like
+	/// a hang otherwise. Cancel all in the popup stops it part way through.
+	/// </remarks>
+	async Task DownloadAsync(IReadOnlyList<CatalogEntryModel> models)
+	{
+		if (models.Count == 0)
+		{
+			StatusMessage = "Select at least one book to download.";
+			return;
+		}
+
+		// Snapshot off the bound models first: nothing after this point runs on the UI thread.
+		(string Title, OpdsEntry Entry)[] snapshot = [.. models.Select(model => (model.Title, model.Entry))];
+		IsSelectionMode = false;
+		StatusMessage = null;
+
+		CancellationToken token = downloads.BeginPreparing(snapshot.Length);
+		Progress<int> prepared = new(downloads.ReportPreparing);
+
+		// Deliberately not awaited: this task only completes when the popup is dismissed,
+		// and the whole point is that it paints before the queuing starts.
+		_ = downloads.ShowAsync();
+
+		try
+		{
+			(int queued, int skipped) = await Task.Run(() => PrepareAndEnqueueAsync(snapshot, prepared, token), token);
+			StatusMessage = queued == 0
+				? "None of the selected books are offered as EPUB."
+				: skipped == 0 ? null : $"Skipped {skipped} book(s) not offered as EPUB.";
+		}
+		catch (OperationCanceledException)
+		{
+			StatusMessage = "Downloads canceled.";
+		}
+		catch (Exception ex)
+		{
+			logger.LogWarning(ex, "Could not queue {Count} OPDS downloads.", snapshot.Length);
+			StatusMessage = "Could not start the downloads: " + ex.Message;
+		}
+		finally
+		{
+			downloads.EndPreparing();
+		}
+	}
+
+	async Task<(int Queued, int Skipped)> PrepareAndEnqueueAsync(
+		(string Title, OpdsEntry Entry)[] snapshot,
+		IProgress<int> prepared,
+		CancellationToken token)
+	{
+		List<(string BookTitle, DownloadLink Link)> jobs = [];
+		int skipped = 0;
+		for (int index = 0; index < snapshot.Length; index++)
+		{
+			token.ThrowIfCancellationRequested();
+			DownloadLink? link = PickEpubLink(snapshot[index].Entry);
+			if (link is null)
+			{
+				skipped++;
+			}
+			else
+			{
+				jobs.Add((snapshot[index].Title, link));
+			}
+
+			// Reported in chunks: one UI post per book would undo the point of this thread hop.
+			if ((index + 1) % 10 == 0)
+			{
+				prepared.Report(index + 1);
+			}
+		}
+
+		prepared.Report(snapshot.Length);
+		if (jobs.Count > 0)
+		{
+			DownloadBatchProgress batch = await queue.EnqueueBatchAsync(jobs, server: null, token);
+			if (token.IsCancellationRequested)
+			{
+				// Cancel all swept the queue while this batch was still being handed over,
+				// so it would have missed these items entirely.
+				await queue.CancelBatchAsync(batch.BatchId, CancellationToken.None);
+				throw new OperationCanceledException(token);
+			}
+		}
+
+		return (jobs.Count, skipped);
+	}
+
+	static DownloadLink? PickEpubLink(OpdsEntry entry)
+	{
+		// BuildDetailsFromEntry is network-free: the acquisition links are already in the feed.
+		List<DownloadLink> links = OpdsParserService.BuildDetailsFromEntry(entry).DownloadLinks;
+		return links.FirstOrDefault(link =>
+			link.FormatName.Equals("EPUB", StringComparison.OrdinalIgnoreCase));
 	}
 
 	[RelayCommand]
@@ -245,7 +410,27 @@ public sealed partial class OpdsCatalogViewModel(
 		foreach (OpdsEntry entry in feed.Entries)
 		{
 			bool isBook = isBookFeed || EntryHasBookContent(entry);
-			Entries.Add(new CatalogEntryModel(entry, isBook, this));
+			Entries.Add(new CatalogEntryModel(entry, isBook, this) { IsSelectable = isBook && IsSelectionMode });
+		}
+
+		HasBooks = Entries.Any(model => model.IsBook);
+		if (!HasBooks)
+		{
+			IsSelectionMode = false;
+		}
+
+		SelectedCount = 0;
+	}
+
+	partial void OnIsSelectionModeChanged(bool value)
+	{
+		foreach (CatalogEntryModel entry in Entries)
+		{
+			entry.IsSelectable = value && entry.IsBook;
+			if (!value)
+			{
+				entry.IsSelected = false;
+			}
 		}
 	}
 
