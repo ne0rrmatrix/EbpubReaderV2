@@ -36,34 +36,33 @@
                                    Spacing="{OnIdiom Phone=4, Default=6}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding IsNotSelectionMode}">
-                <Button Text="Select"
-                        Command="{Binding EnterSelectionModeCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderWidth="1" />
-                <Button Text="Add EPUB"
-                        Command="{Binding ImportFileCommand}"
-                        Background="{StaticResource LibraryAccent}"
-                        TextColor="White" />
-                <Button Text="Add folder"
-                        Command="{Binding ImportFolderCommand}"
-                        Background="{StaticResource LibraryAccentLightSurface}"
-                        TextColor="{StaticResource LibraryAccent}" />
-                <Button Text="Browse OPDS"
-                        Command="{Binding BrowseOpdsCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderWidth="1"
-                        AutomationId="BrowseOpdsButton" />
-                <Button Text="Settings"
-                        Command="{Binding OpenSettingsCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        BorderWidth="1"
-                        AutomationId="SettingsButton" />
+                <ImageButton Source="{AppThemeBinding Light=icon_checklist_light.png, Dark=icon_checklist_dark.png}"
+                             Command="{Binding EnterSelectionModeCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Select books"
+                             ToolTipProperties.Text="Select books" />
+                <ImageButton Source="{AppThemeBinding Light=icon_note_add_light.png, Dark=icon_note_add_dark.png}"
+                             Command="{Binding ImportFileCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Add EPUB"
+                             ToolTipProperties.Text="Add EPUB" />
+                <ImageButton Source="{AppThemeBinding Light=icon_create_new_folder_light.png, Dark=icon_create_new_folder_dark.png}"
+                             Command="{Binding ImportFolderCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Add folder"
+                             ToolTipProperties.Text="Add folder" />
+                <ImageButton Source="{AppThemeBinding Light=icon_travel_explore_light.png, Dark=icon_travel_explore_dark.png}"
+                             Command="{Binding BrowseOpdsCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Browse OPDS catalogs"
+                             ToolTipProperties.Text="Browse OPDS"
+                             AutomationId="BrowseOpdsButton" />
+                <ImageButton Source="{AppThemeBinding Light=icon_settings_light.png, Dark=icon_settings_dark.png}"
+                             Command="{Binding OpenSettingsCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Settings"
+                             ToolTipProperties.Text="Settings"
+                             AutomationId="SettingsButton" />
             </HorizontalStackLayout>
             <HorizontalStackLayout Grid.Column="{OnIdiom Phone=0, Default=1}"
                                    Grid.Row="{OnIdiom Phone=1, Default=0}"
@@ -74,24 +73,26 @@
                        VerticalOptions="Center"
                        FontSize="12"
                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
-                <Button Text="Select all"
-                        Command="{Binding SelectAllCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        Padding="6,0" />
-                <Button Text="Clear"
-                        Command="{Binding ClearSelectionCommand}"
-                        Background="Transparent"
-                        TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"
-                        Padding="6,0" />
-                <Button Text="Delete"
-                        Command="{Binding DeleteSelectedCommand}"
-                        Background="#A83A3A"
-                        TextColor="White" />
-                <Button Text="Cancel"
-                        Command="{Binding ExitSelectionModeCommand}"
-                        Background="{StaticResource LibraryAccentLightSurface}"
-                        TextColor="{StaticResource LibraryAccent}" />
+                <ImageButton Source="{AppThemeBinding Light=icon_select_all_light.png, Dark=icon_select_all_dark.png}"
+                             Command="{Binding SelectAllCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Select all books"
+                             ToolTipProperties.Text="Select all" />
+                <ImageButton Source="{AppThemeBinding Light=icon_deselect_light.png, Dark=icon_deselect_dark.png}"
+                             Command="{Binding ClearSelectionCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Clear selection"
+                             ToolTipProperties.Text="Clear selection" />
+                <ImageButton Source="{AppThemeBinding Light=icon_delete_light.png, Dark=icon_delete_dark.png}"
+                             Command="{Binding DeleteSelectedCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Delete selected books"
+                             ToolTipProperties.Text="Delete" />
+                <ImageButton Source="{AppThemeBinding Light=icon_close_light.png, Dark=icon_close_dark.png}"
+                             Command="{Binding ExitSelectionModeCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Cancel selection"
+                             ToolTipProperties.Text="Cancel" />
             </HorizontalStackLayout>
         </Grid>
 

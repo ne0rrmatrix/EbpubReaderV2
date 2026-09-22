@@ -15,13 +15,13 @@
     </ContentPage.Resources>
     <ScrollView Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
         <VerticalStackLayout Spacing="16">
-            <Button Text="‹  Catalog"
-                    Command="{Binding GoBackCommand}"
-                    HorizontalOptions="Start"
-                    Background="Transparent"
-                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
-                    Padding="0"
-                    AutomationId="BookBackButton" />
+            <ImageButton Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
+                         Command="{Binding GoBackCommand}"
+                         HorizontalOptions="Start"
+                         Style="{StaticResource TopBarIconButton}"
+                         SemanticProperties.Description="Back to catalog"
+                         ToolTipProperties.Text="Back to catalog"
+                         AutomationId="BookBackButton" />
             <VerticalStackLayout HorizontalOptions="Center" Spacing="12">
                 <Border WidthRequest="120"
                         HeightRequest="160"

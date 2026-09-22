@@ -92,13 +92,13 @@
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto,*,Auto" Padding="{OnIdiom Phone='10,6,10,10', Default='16,10,16,16'}">
         <VerticalStackLayout Grid.Row="0" Spacing="8">
-            <Button Text="‹  Servers"
-                    Command="{Binding NavigateBackCommand}"
-                    HorizontalOptions="Start"
-                    Background="Transparent"
-                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
-                    Padding="0"
-                    AutomationId="CatalogBackButton" />
+            <ImageButton Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
+                         Command="{Binding NavigateBackCommand}"
+                         HorizontalOptions="Start"
+                         Style="{StaticResource TopBarIconButton}"
+                         SemanticProperties.Description="Back to servers"
+                         ToolTipProperties.Text="Back to servers"
+                         AutomationId="CatalogBackButton" />
             <VerticalStackLayout Spacing="2">
                 <Label Text="{Binding Title}"
                        FontSize="18"

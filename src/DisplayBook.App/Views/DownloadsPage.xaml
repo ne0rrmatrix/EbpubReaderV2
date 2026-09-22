@@ -66,13 +66,13 @@
     </ContentPage.Resources>
     <ScrollView Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
         <VerticalStackLayout Spacing="16">
-            <Button Text="‹  Back"
-                    Command="{Binding GoBackCommand}"
-                    HorizontalOptions="Start"
-                    Background="Transparent"
-                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
-                    Padding="0"
-                    AutomationId="DownloadsBackButton" />
+            <ImageButton Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
+                         Command="{Binding GoBackCommand}"
+                         HorizontalOptions="Start"
+                         Style="{StaticResource TopBarIconButton}"
+                         SemanticProperties.Description="Back"
+                         ToolTipProperties.Text="Back"
+                         AutomationId="DownloadsBackButton" />
             <VerticalStackLayout Spacing="4">
                 <Label Text="Downloads"
                        FontSize="28"
@@ -83,26 +83,26 @@
                        TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
             </VerticalStackLayout>
             <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
-                <Button Text="Pause all"
-                        Command="{Binding PauseAllCommand}"
-                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
-                        Background="Transparent"
-                        Padding="0"
-                        AutomationId="PauseAllButton" />
-                <Button Grid.Column="1"
-                        Text="Resume all"
-                        Command="{Binding ResumeAllCommand}"
-                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
-                        Background="Transparent"
-                        Padding="0"
-                        AutomationId="ResumeAllButton" />
-                <Button Grid.Column="2"
-                        Text="Clear finished"
-                        Command="{Binding ClearFinishedCommand}"
-                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
-                        Background="Transparent"
-                        Padding="0"
-                        AutomationId="ClearFinishedButton" />
+                <ImageButton Source="{AppThemeBinding Light=icon_pause_light.png, Dark=icon_pause_dark.png}"
+                             Command="{Binding PauseAllCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Pause all downloads"
+                             ToolTipProperties.Text="Pause all"
+                             AutomationId="PauseAllButton" />
+                <ImageButton Grid.Column="1"
+                             Source="{AppThemeBinding Light=icon_play_arrow_light.png, Dark=icon_play_arrow_dark.png}"
+                             Command="{Binding ResumeAllCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Resume all downloads"
+                             ToolTipProperties.Text="Resume all"
+                             AutomationId="ResumeAllButton" />
+                <ImageButton Grid.Column="2"
+                             Source="{AppThemeBinding Light=icon_clear_all_light.png, Dark=icon_clear_all_dark.png}"
+                             Command="{Binding ClearFinishedCommand}"
+                             Style="{StaticResource TopBarIconButton}"
+                             SemanticProperties.Description="Clear finished downloads"
+                             ToolTipProperties.Text="Clear finished"
+                             AutomationId="ClearFinishedButton" />
             </Grid>
             <CollectionView x:Name="ItemsCollection"
                             ItemsSource="{Binding Items}"

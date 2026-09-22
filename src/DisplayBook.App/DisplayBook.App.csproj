@@ -65,6 +65,43 @@
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
 		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
+
+		<!--
+			Top-bar action icons (Material Symbols, outlined 24dp).
+
+			Each icon ships as one uncoloured source SVG under Resources\Images\icons\ and is built
+			twice, tinted for each theme; XAML picks between the two with AppThemeBinding. The
+			Resources\Images\* glob above is a single-star wildcard, so it does not pick the sources
+			up a second time, and Link controls the generated image name (icon_<name>_<theme>.png).
+			Tints match the LibraryBackLight/LibraryBackDark pair in Colors.xaml, except the
+			destructive delete icon, which keeps the red used by the Delete button it replaced.
+		-->
+		<MauiImage Include="Resources\Images\icons\ic_arrow_back.svg" Link="Resources\Images\icon_arrow_back_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_arrow_back.svg" Link="Resources\Images\icon_arrow_back_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_checklist.svg" Link="Resources\Images\icon_checklist_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_checklist.svg" Link="Resources\Images\icon_checklist_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_note_add.svg" Link="Resources\Images\icon_note_add_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_note_add.svg" Link="Resources\Images\icon_note_add_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_create_new_folder.svg" Link="Resources\Images\icon_create_new_folder_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_create_new_folder.svg" Link="Resources\Images\icon_create_new_folder_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_travel_explore.svg" Link="Resources\Images\icon_travel_explore_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_travel_explore.svg" Link="Resources\Images\icon_travel_explore_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_settings.svg" Link="Resources\Images\icon_settings_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_settings.svg" Link="Resources\Images\icon_settings_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_select_all.svg" Link="Resources\Images\icon_select_all_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_select_all.svg" Link="Resources\Images\icon_select_all_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_deselect.svg" Link="Resources\Images\icon_deselect_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_deselect.svg" Link="Resources\Images\icon_deselect_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_close.svg" Link="Resources\Images\icon_close_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_close.svg" Link="Resources\Images\icon_close_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_pause.svg" Link="Resources\Images\icon_pause_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_pause.svg" Link="Resources\Images\icon_pause_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_play_arrow.svg" Link="Resources\Images\icon_play_arrow_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_play_arrow.svg" Link="Resources\Images\icon_play_arrow_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_clear_all.svg" Link="Resources\Images\icon_clear_all_light.svg" TintColor="#236B5A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_clear_all.svg" Link="Resources\Images\icon_clear_all_dark.svg" TintColor="#66E0C1" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_delete.svg" Link="Resources\Images\icon_delete_light.svg" TintColor="#A83A3A" BaseSize="24,24" />
+		<MauiImage Include="Resources\Images\icons\ic_delete.svg" Link="Resources\Images\icon_delete_dark.svg" TintColor="#FF8A8A" BaseSize="24,24" />
 		
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />

@@ -16,13 +16,13 @@
               RowSpacing="16"
               Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}">
 
-            <Button Grid.Row="0"
-                    Text="‹  Library"
-                    Command="{Binding GoBackCommand}"
-                    HorizontalOptions="Start"
-                    Background="Transparent"
-                    TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
-                    Padding="0" />
+            <ImageButton Grid.Row="0"
+                         Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
+                         Command="{Binding GoBackCommand}"
+                         HorizontalOptions="Start"
+                         Style="{StaticResource TopBarIconButton}"
+                         SemanticProperties.Description="Back to library"
+                         ToolTipProperties.Text="Back to library" />
 
             <VerticalStackLayout Grid.Row="1" Spacing="6">
                 <Label Text="Settings"
