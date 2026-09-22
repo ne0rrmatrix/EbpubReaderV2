@@ -59,6 +59,15 @@ public partial class EpubReaderView : ContentView
 	const string generatedXamlFieldJustification =
 		"Accesses x:Name fields generated from EpubReaderView.xaml; the method cannot be static.";
 
+	/// <summary>
+	/// A bindable property's CLR accessor wraps the inherited instance methods
+	/// <c>BindableObject.GetValue</c>/<c>BindableObject.SetValue</c>, and XAML and
+	/// data binding both require it to stay an instance property. Analyzers that don't resolve the
+	/// MAUI base type see no instance state here and suggest making it static, which wouldn't compile.
+	/// </summary>
+	const string bindablePropertyAccessorJustification =
+		"Bindable property accessor; wraps the inherited instance GetValue/SetValue and cannot be static.";
+
 	public static readonly BindableProperty PublicationSourceProperty = BindableProperty.Create(
 		nameof(PublicationSource),
 		typeof(EpubArchive),
@@ -94,7 +103,8 @@ public partial class EpubReaderView : ContentView
 		ReaderWebView.HandlerChanged += OnReaderWebViewHandlerChanged;
 	}
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = generatedXamlFieldJustification)]
+	[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = bindablePropertyAccessorJustification)]
+	[SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = bindablePropertyAccessorJustification)]
 	public EpubArchive? PublicationSource
 	{
 		get => (EpubArchive?)GetValue(PublicationSourceProperty);

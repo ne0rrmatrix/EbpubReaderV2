@@ -15,5 +15,5 @@ public sealed partial class BookPickerService : IBookPickerService
 		return result;
 	}
 
-	public partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress = null, CancellationToken cancellationToken = default);
+	public partial Task<string?> PickFolderAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken);
 }
