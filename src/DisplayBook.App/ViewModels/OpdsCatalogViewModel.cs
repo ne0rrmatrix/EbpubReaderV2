@@ -192,9 +192,18 @@ public sealed partial class OpdsCatalogViewModel(
 		try
 		{
 			(int queued, int skipped) = await Task.Run(() => PrepareAndEnqueueAsync(snapshot, prepared, token), token);
-			StatusMessage = queued == 0
-				? "None of the selected books are offered as EPUB."
-				: skipped == 0 ? null : $"Skipped {skipped} book(s) not offered as EPUB.";
+			if (queued == 0)
+			{
+				StatusMessage = "None of the selected books are offered as EPUB.";
+			}
+			else if (skipped > 0)
+			{
+				StatusMessage = $"Skipped {skipped} book(s) not offered as EPUB.";
+			}
+			else
+			{
+				StatusMessage = null;
+			}
 		}
 		catch (OperationCanceledException)
 		{

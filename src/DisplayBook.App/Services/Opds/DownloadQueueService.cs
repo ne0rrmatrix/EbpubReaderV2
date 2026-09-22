@@ -196,13 +196,10 @@ public sealed partial class DownloadQueueService(
 	Task StopAsync(IEnumerable<DownloadProgress> candidates)
 	{
 		List<DownloadProgress> stopping = [];
-		foreach (DownloadProgress item in candidates)
+		foreach (DownloadProgress item in candidates.Where(static item => item.Status is DownloadStatus.Queued or DownloadStatus.Downloading or DownloadStatus.Paused))
 		{
-			if (item.Status is DownloadStatus.Queued or DownloadStatus.Downloading or DownloadStatus.Paused)
-			{
-				item.Status = DownloadStatus.Canceled;
-				stopping.Add(item);
-			}
+			item.Status = DownloadStatus.Canceled;
+			stopping.Add(item);
 		}
 
 		if (stopping.Count == 0)
