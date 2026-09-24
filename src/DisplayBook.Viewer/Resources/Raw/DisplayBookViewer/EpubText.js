@@ -107,6 +107,7 @@
         chromeVisible: false,
         isReady: false,
         loadToken: 0,
+        locationReportToken: 0,
         readerReadyNotified: false,
         metadata: { author: "", title: "" },
         /** @type {string | null} */
@@ -876,11 +877,8 @@
         while (node) {
             const length = node.textContent.length;
             if (targetOffset <= offset + length) {
-                const range = frameDocument.createRange();
                 const localOffset = Math.max(0, Math.min(length, targetOffset - offset));
-                range.setStart(node, localOffset);
-                range.collapse(true);
-                return range;
+                return getRenderedCharacterRange(frameDocument, walker, node, localOffset);
             }
             offset += length;
             lastNode = node;
@@ -893,6 +891,38 @@
             return range;
         }
         return null;
+    }
+
+    // A saved offset often points into whitespace rather than at a glyph -- typically the "\n"
+    // text nodes sitting directly between a chapter's block elements, which is exactly where
+    // getCharOffsetAtViewportStart's caret sample lands when the top of a page falls between two
+    // paragraphs. That whitespace isn't rendered, so a Range there has no client rects, and
+    // scrollRangeIntoView's element fallback then measures the enclosing <section> -- whose box
+    // starts at the chapter's first column -- sending the reader back to page 0. Skip forward to
+    // the first non-whitespace character at or after the offset (the text that was actually at
+    // the top of the page) and span it, since a non-collapsed Range over a real glyph always
+    // has a rect.
+    function getRenderedCharacterRange(frameDocument, walker, node, localOffset) {
+        let current = node;
+        let index = localOffset;
+        while (current) {
+            const match = /\S/u.exec(current.textContent.slice(index));
+            if (match) {
+                const start = index + match.index;
+                const range = frameDocument.createRange();
+                range.setStart(current, start);
+                range.setEnd(current, start + 1);
+                return range;
+            }
+            current = walker.nextNode();
+            index = 0;
+        }
+
+        // Only whitespace from here to the end of the chapter: keep the original position.
+        const range = frameDocument.createRange();
+        range.setStart(node, localOffset);
+        range.collapse(true);
+        return range;
     }
 
     function scrollRangeIntoView(range) {
@@ -1012,13 +1042,50 @@
             elements.frame.setAttribute("aria-label", frameAriaLabel);
         }
         if (state.isReady && item) {
+            reportLocationWhenScrollSettles();
+        }
+    }
+
+    // The charOffset is sampled from whatever text is under the viewport, so it has to wait for
+    // the page to actually be on screen. A page turn scrolls smoothly, and sampling straight away
+    // read the page being LEFT -- every saved position lagged a page (a whole spread, in
+    // two-column mode) behind where the reader really was. Instant scrolls (setLocator, resize,
+    // chapter changes) are already in place, so they still report synchronously. Only the newest
+    // request reports: a page turn made mid-animation supersedes the one before it.
+    const SCROLL_SETTLE_TIMEOUT_MS = 1000;
+
+    function reportLocationWhenScrollSettles() {
+        const token = ++state.locationReportToken;
+        const startedAt = performance.now();
+        const report = () => {
+            if (token !== state.locationReportToken) {
+                return;
+            }
+            const scroller = getFrameScroller();
+            const isSettled = !scroller ||
+                state.settings.paginationMode === "scroll" ||
+                Math.abs(scroller.scrollLeft - getCurrentPageScrollLeft()) <= 1;
+            if (!isSettled && performance.now() - startedAt < SCROLL_SETTLE_TIMEOUT_MS) {
+                window.requestAnimationFrame(report);
+                return;
+            }
+            const item = state.spine[state.currentSpineIndex];
+            if (!state.isReady || !item) {
+                return;
+            }
             notifyNative("locationChanged", {
                 resourceHref: item.href,
                 page: state.currentPage,
                 pageCount: state.pageCount,
                 charOffset: getCharOffsetAtViewportStart() ?? -1
             });
-        }
+        };
+        report();
+    }
+
+    function getCurrentPageScrollLeft() {
+        const maxScroll = Math.max(0, getScrollWidth() - state.viewportWidth);
+        return Math.min(maxScroll, state.currentPage * state.viewportWidth);
     }
 
     /** @param {ScrollBehavior} [behavior] */
@@ -1033,8 +1100,7 @@
             return;
         }
 
-        const maxScroll = Math.max(0, getScrollWidth() - state.viewportWidth);
-        const left = Math.min(maxScroll, state.currentPage * state.viewportWidth);
+        const left = getCurrentPageScrollLeft();
         if (typeof scroller.scrollTo === "function") {
             scroller.scrollTo({ left, top: 0, behavior });
         } else {
