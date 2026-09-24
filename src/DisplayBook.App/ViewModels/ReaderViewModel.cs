@@ -16,6 +16,21 @@ public partial class ReaderViewModel(
 {
 	static readonly TimeSpan remotePositionLookupTimeout = TimeSpan.FromSeconds(3);
 
+	/// <summary>
+	/// The newest reading-position timestamp this device has already accounted for: its own
+	/// last saved position, or a synced one the user has already been asked about. A synced
+	/// position is only worth prompting about on refocus if it's newer than this -- otherwise
+	/// it's either this device's own push echoing back, or one the user already declined.
+	/// </summary>
+	DateTimeOffset latestKnownPositionAt = DateTimeOffset.MinValue;
+
+	/// <summary>
+	/// Set while a synced position is being looked up or offered, so a refocus arriving during
+	/// book open (whose own prompt is in flight) or during another refocus check can't stack a
+	/// second prompt on top of the first.
+	/// </summary>
+	bool isResolvingRemotePosition;
+
 	[ObservableProperty]
 	public partial BookSummary? Book { get; set; }
 
@@ -53,9 +68,18 @@ public partial class ReaderViewModel(
 			? EpubLocator.Empty
 			: new EpubLocator(book.LocatorResourceHref, book.LocatorPage, book.LocatorPageCount, book.LocatorCharOffset);
 
+		latestKnownPositionAt = book.LastOpenedAt ?? DateTimeOffset.MinValue;
 		Task<EpubLocator> resolvedLocatorTask = ResolveRemoteLocatorAsync(book, locator);
 		Task<EpubArchive> publicationSourceTask = EpubArchivePrefetchCache.TakeOrOpenAsync(book.Id, BookStorageService.GetAbsolutePath(book.EpubRelativePath));
-		await Task.WhenAll(resolvedLocatorTask, publicationSourceTask);
+		isResolvingRemotePosition = true;
+		try
+		{
+			await Task.WhenAll(resolvedLocatorTask, publicationSourceTask);
+		}
+		finally
+		{
+			isResolvingRemotePosition = false;
+		}
 
 		Locator = resolvedLocatorTask.Result;
 		PublicationSource = publicationSourceTask.Result;
@@ -99,6 +123,7 @@ public partial class ReaderViewModel(
 		logger.LogInformation(
 			"Remote locator for {ContentHash}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}, UpdatedAt={UpdatedAt}.",
 			book.ContentHash, remoteLocator.ResourceHref, remoteLocator.Page, remoteLocator.PageCount, remoteLocator.CharOffset, remote.UpdatedAt);
+		NoteKnownPosition(remote.UpdatedAt);
 
 		// Nothing to choose between if this device has never read the book, or the two
 		// positions already agree -- only ask when accepting the remote position would
@@ -116,6 +141,78 @@ public partial class ReaderViewModel(
 			"User {Choice} the {Direction} synced position for {ContentHash}.",
 			acceptRemote ? "accepted" : "declined", remoteIsNewer ? "newer" : "older", book.ContentHash);
 		return acceptRemote ? remoteLocator : localLocator;
+	}
+
+	/// <summary>
+	/// Called when the app comes back to the foreground with a book open: checks whether
+	/// another device has synced a newer position for this book since this device last saved
+	/// or was asked about one, and if so offers to jump to it. Returns the locator to move the
+	/// already-open reader to, or null to stay put (nothing newer, positions already agree,
+	/// signed out, offline, or the user declined).
+	/// </summary>
+	public async Task<EpubLocator?> CheckForNewerRemotePositionAsync()
+	{
+		if (Book is not { } book || string.IsNullOrEmpty(book.ContentHash) || isResolvingRemotePosition)
+		{
+			return null;
+		}
+
+		isResolvingRemotePosition = true;
+		try
+		{
+			RemoteReadingPosition? remote;
+			using (CancellationTokenSource timeoutCts = new(remotePositionLookupTimeout))
+			{
+				try
+				{
+					remote = await syncService.TryPullPositionAsync(book.ContentHash, timeoutCts.Token);
+				}
+				catch (OperationCanceledException)
+				{
+					logger.LogWarning("Remote position lookup on refocus for {ContentHash} timed out.", book.ContentHash);
+					return null;
+				}
+			}
+
+			// The user may have opened a different book while the lookup was in flight.
+			if (!ReferenceEquals(Book, book) || remote is null || string.IsNullOrWhiteSpace(remote.ResourceHref) || remote.UpdatedAt <= latestKnownPositionAt)
+			{
+				return null;
+			}
+
+			NoteKnownPosition(remote.UpdatedAt);
+			EpubLocator remoteLocator = new(remote.ResourceHref, remote.Page, remote.PageCount, remote.CharOffset);
+			if (IsSamePosition(Locator, remoteLocator))
+			{
+				return null;
+			}
+
+			bool acceptRemote = await PromptToAdoptRemotePositionAsync(remoteIsNewer: true, remote.UpdatedAt);
+			logger.LogInformation(
+				"User {Choice} the newer synced position for {ContentHash} on refocus.",
+				acceptRemote ? "accepted" : "declined", book.ContentHash);
+			if (!acceptRemote || !ReferenceEquals(Book, book))
+			{
+				return null;
+			}
+
+			// Also keeps the reader's bound StartLocator current, so a WebView recovery reload
+			// (EpubReaderView.RecoverReaderIfNeededAsync) resumes at the adopted position too.
+			Locator = remoteLocator;
+			return remoteLocator;
+		}
+		finally
+		{
+			isResolvingRemotePosition = false;
+		}
+	}
+
+	void NoteKnownPosition(DateTimeOffset updatedAt)
+	{
+		if (updatedAt > latestKnownPositionAt)
+		{
+			latestKnownPositionAt = updatedAt;
+		}
 	}
 
 	static bool IsSamePosition(EpubLocator a, EpubLocator b) =>
@@ -150,6 +247,7 @@ public partial class ReaderViewModel(
 
 	public async Task UpdateLocatorAsync(EpubLocator locator)
 	{
+		EpubLocator previousLocator = Locator;
 		Locator = locator;
 		if (Book is null || string.IsNullOrWhiteSpace(locator.ResourceHref))
 		{
@@ -161,6 +259,18 @@ public partial class ReaderViewModel(
 			"Reader reported locator for book {BookId}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}.",
 			Book.Id, locator.ResourceHref, locator.Page, locator.PageCount, locator.CharOffset);
 		await catalogService.SaveLocatorAsync(Book.Id, locator.ResourceHref, locator.Page, locator.PageCount, locator.CharOffset);
+
+		// The reader also re-reports the unchanged position whenever it re-paginates -- e.g. the
+		// relayout when the app returns to the foreground. Only an actual move counts as a new
+		// reading position: stamping a relayout as "now" would both mask a newer position synced
+		// from another device (see CheckForNewerRemotePositionAsync) and push this device's stale
+		// position over it.
+		if (IsSamePosition(previousLocator, locator))
+		{
+			return;
+		}
+
+		NoteKnownPosition(updatedAt);
 		if (!string.IsNullOrWhiteSpace(Book.ContentHash))
 		{
 			_ = syncService.SchedulePush(Book.ContentHash, locator.ResourceHref, locator.CharOffset, locator.Page, locator.PageCount, updatedAt);

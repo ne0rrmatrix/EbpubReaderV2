@@ -13,6 +13,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 {
 	readonly ReaderViewModel viewModel;
 	readonly ILogger<ReaderPage> logger;
+	Window? lifecycleWindow;
 #if ANDROID
 	WindowInsetsControllerCompat? readerInsetsController;
 	bool readerSystemUiConfigured;
@@ -52,6 +53,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 #if ANDROID
 		Reader.ThemeChanged += OnReaderThemeChanged;
 #endif
+		SubscribeToWindowLifecycle();
 	}
 
 	protected override void OnDisappearing()
@@ -59,6 +61,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 		Reader.LocationChanged -= OnLocationChanged;
 		Reader.ExitRequested -= OnExitRequested;
 		Reader.ChromeVisibilityChanged -= OnReaderChromeVisibilityChanged;
+		UnsubscribeFromWindowLifecycle();
 		this.On<iOS>().SetPrefersStatusBarHidden(StatusBarHiddenMode.Default);
 #if ANDROID
 		Reader.ThemeChanged -= OnReaderThemeChanged;
@@ -77,6 +80,59 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 #if ANDROID
 		SetReaderSystemBarsVisible(isChromeVisible);
 #endif
+	}
+
+	void SubscribeToWindowLifecycle()
+	{
+		UnsubscribeFromWindowLifecycle();
+		if (Window is not { } window)
+		{
+			return;
+		}
+
+		lifecycleWindow = window;
+		window.Activated += OnWindowActivated;
+		window.Deactivated += OnWindowDeactivated;
+	}
+
+	void UnsubscribeFromWindowLifecycle()
+	{
+		if (lifecycleWindow is null)
+		{
+			return;
+		}
+
+		lifecycleWindow.Activated -= OnWindowActivated;
+		lifecycleWindow.Deactivated -= OnWindowDeactivated;
+		lifecycleWindow = null;
+	}
+
+	/// <summary>
+	/// The app is losing focus -- quite possibly because the user is about to pick the book up
+	/// on another device -- so send the debounced position now rather than up to a few seconds
+	/// later, when the OS may already have suspended the app.
+	/// </summary>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S1172:Unused method parameters should be removed", Justification = "It is an event handler")]
+	async void OnWindowDeactivated(object? sender, EventArgs e) => await FlushPendingSyncAsync();
+
+	/// <summary>
+	/// The app is back in the foreground: if the book was read further on another device in
+	/// the meantime, offer to jump there (see ReaderViewModel.CheckForNewerRemotePositionAsync).
+	/// </summary>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S1172:Unused method parameters should be removed", Justification = "It is an event handler")]
+	async void OnWindowActivated(object? sender, EventArgs e)
+	{
+		try
+		{
+			if (await viewModel.CheckForNewerRemotePositionAsync() is { } locator)
+			{
+				await Reader.SetLocatorAsync(locator);
+			}
+		}
+		catch (Exception exception)
+		{
+			logger.LogError(exception, "Could not check for a newer synced reading position.");
+		}
 	}
 
 	async Task FlushPendingSyncAsync()
