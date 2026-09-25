@@ -13,12 +13,12 @@
         <conv:InverseBoolConverter x:Key="Not" />
     </ContentPage.Resources>
         <Grid RowDefinitions="Auto,*" Padding="{OnIdiom Phone='16,8,16,16', Default='24,16,24,24'}" RowSpacing="16">
-        <Button Text="‹  Library"
-                Command="{Binding BackCommand}"
-                HorizontalOptions="Start"
-                Background="Transparent"
-                 TextColor="{AppThemeBinding Light={StaticResource LibraryBackLight}, Dark={StaticResource LibraryBackDark}}"
-                Padding="0" />
+        <ImageButton Source="{AppThemeBinding Light=icon_arrow_back_light.png, Dark=icon_arrow_back_dark.png}"
+                     Command="{Binding BackCommand}"
+                     HorizontalOptions="Start"
+                     Style="{StaticResource TopBarIconButton}"
+                     SemanticProperties.Description="Back to library"
+                     ToolTipProperties.Text="Back to library" />
         <ScrollView Grid.Row="1"
                     VerticalScrollBarVisibility="Never">
             <Grid RowDefinitions="{OnIdiom Phone='Auto,Auto', Default='*'}"

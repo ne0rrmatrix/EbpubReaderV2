@@ -4,26 +4,26 @@ namespace DisplayBook.App.Views;
 
 public partial class OpdsServersPage : ContentPage
 {
-    private readonly OpdsServersViewModel _viewModel;
+	readonly OpdsServersViewModel viewModel;
 
-    public OpdsServersPage(OpdsServersViewModel viewModel)
-    {
-        _viewModel = viewModel;
-        BindingContext = viewModel;
-        InitializeComponent();
-    }
+	public OpdsServersPage(OpdsServersViewModel viewModel)
+	{
+		this.viewModel = viewModel;
+		BindingContext = viewModel;
+		InitializeComponent();
+	}
 
-    internal OpdsServersViewModel ViewModel => _viewModel;
+	internal OpdsServersViewModel ViewModel => viewModel;
 
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        await _viewModel.OnPageAppearingAsync();
-    }
+	protected override async void OnAppearing()
+	{
+		base.OnAppearing();
+		await viewModel.OnPageAppearingAsync();
+	}
 
-    protected override void OnDisappearing()
-    {
-        base.OnDisappearing();
-        _viewModel.OnPageDisappearing();
-    }
+	protected override void OnDisappearing()
+	{
+		base.OnDisappearing();
+		viewModel.OnPageDisappearing();
+	}
 }

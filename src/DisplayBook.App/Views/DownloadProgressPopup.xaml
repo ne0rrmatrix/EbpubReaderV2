@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:DisplayBook.App.ViewModels"
+               xmlns:conv="clr-namespace:DisplayBook.App.Views"
+               x:Class="DisplayBook.App.Views.DownloadProgressPopup"
+               x:DataType="vm:DownloadCenterViewModel"
+               CanBeDismissedByTappingOutsideOfPopup="True"
+               Padding="0">
+    <toolkit:Popup.Resources>
+        <conv:DownloadStatusColorConverter x:Key="StatusColor" />
+        <conv:StringNotNullConverter x:Key="StringNotNull" />
+        <DataTemplate x:Key="DownloadRowTemplate" x:DataType="vm:DownloadItemModel">
+            <Border Background="{AppThemeBinding Light={StaticResource LibraryCardLight}, Dark={StaticResource LibraryCardDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+                    StrokeShape="RoundRectangle 10"
+                    Padding="10"
+                    Margin="0,3">
+                <VerticalStackLayout Spacing="5">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Text="{Binding BookTitle}"
+                               FontAttributes="Bold"
+                               FontSize="13"
+                               LineBreakMode="TailTruncation"
+                               VerticalOptions="Center" />
+                        <ImageButton Grid.Column="1"
+                                     Source="{AppThemeBinding Light=icon_close_light.png, Dark=icon_close_dark.png}"
+                                     Command="{Binding CancelCommand}"
+                                     IsVisible="{Binding IsCancellable}"
+                                     Style="{StaticResource TopBarIconButton}"
+                                     SemanticProperties.Description="Cancel this download"
+                                     ToolTipProperties.Text="Cancel"
+                                     AutomationId="DownloadCancelButton" />
+                    </Grid>
+                    <ProgressBar Progress="{Binding Percentage}"
+                                 ProgressColor="{Binding Status, Converter={StaticResource StatusColor}}"
+                                 HeightRequest="6" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Label Text="{Binding StatusText}"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
+                        <Label Grid.Column="2"
+                               Text="{Binding BytesLabel}"
+                               FontSize="11"
+                               TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}" />
+                    </Grid>
+                    <Label Text="{Binding Error}"
+                           FontSize="11"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding Error, Converter={StaticResource StringNotNull}}"
+                           TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}" />
+                    <Button Text="Retry"
+                            Command="{Binding RetryCommand}"
+                            IsVisible="{Binding CanRetry}"
+                            HorizontalOptions="Start"
+                            Background="Transparent"
+                            Padding="0"
+                            FontSize="12"
+                            MinimumHeightRequest="32"
+                            TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
+                            AutomationId="DownloadRetryButton" />
+                </VerticalStackLayout>
+            </Border>
+        </DataTemplate>
+    </toolkit:Popup.Resources>
+
+    <Border Background="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource LibraryCardDark}}"
+            Stroke="{AppThemeBinding Light={StaticResource LibraryCardStrokeLight}, Dark={StaticResource LibraryCardStrokeDark}}"
+            StrokeShape="RoundRectangle 16"
+            Padding="16"
+            WidthRequest="{OnIdiom Phone=320, Default=420}">
+        <VerticalStackLayout Spacing="10">
+            <Label Text="{Binding HeaderText}"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   AutomationId="DownloadPopupHeader" />
+            <Label Text="{Binding SummaryText}"
+                   FontSize="12"
+                   TextColor="{AppThemeBinding Light={StaticResource LibraryMutedTextLight}, Dark={StaticResource LibraryMutedTextDark}}"
+                   AutomationId="DownloadPopupSummary" />
+            <ProgressBar Progress="{Binding OverallProgress}"
+                         HeightRequest="8"
+                         ProgressColor="{StaticResource LibraryAccent}"
+                         IsVisible="{Binding HasItems}"
+                         AutomationId="DownloadPopupOverallProgress" />
+            <!-- Queuing a large selection takes a moment; this keeps the popup alive and
+                 cancellable while the books are being handed to the download queue. -->
+            <HorizontalStackLayout Spacing="10"
+                                   Padding="0,6"
+                                   IsVisible="{Binding IsPreparing}"
+                                   AutomationId="DownloadPopupPreparing">
+                <ActivityIndicator IsRunning="{Binding IsPreparing}"
+                                   WidthRequest="20"
+                                   HeightRequest="20"
+                                   VerticalOptions="Center"
+                                   Color="{StaticResource LibraryAccent}" />
+                <Label Text="{Binding PreparingText}"
+                       FontSize="13"
+                       VerticalOptions="Center"
+                       AutomationId="DownloadPopupPreparingLabel" />
+            </HorizontalStackLayout>
+            <!-- Virtualized on purpose: a batch can be hundreds of books, and a
+                 BindableLayout would build every row up front. -->
+            <CollectionView ItemsSource="{Binding Items}"
+                            ItemTemplate="{StaticResource DownloadRowTemplate}"
+                            ItemSizingStrategy="MeasureAllItems"
+                            HeightRequest="{Binding ItemsAreaHeight}"
+                            IsVisible="{Binding HasItems}"
+                            AutomationId="DownloadPopupItems" />
+            <Label Text="{Binding StatusMessage}"
+                   FontSize="12"
+                   LineBreakMode="WordWrap"
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringNotNull}}"
+                   TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                   AutomationId="DownloadPopupStatus" />
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                <Button Text="Cancel all"
+                        Command="{Binding CancelAllCommand}"
+                        IsVisible="{Binding HasActiveDownloads}"
+                        Background="Transparent"
+                        FontSize="13"
+                        MinimumHeightRequest="44"
+                        TextColor="{AppThemeBinding Light={StaticResource LibraryErrorLight}, Dark={StaticResource LibraryErrorDark}}"
+                        AutomationId="DownloadPopupCancelAllButton" />
+                <Button Grid.Column="1"
+                        Text="Clear finished"
+                        Command="{Binding ClearFinishedCommand}"
+                        IsVisible="{Binding HasFinishedDownloads}"
+                        Background="Transparent"
+                        FontSize="13"
+                        MinimumHeightRequest="44"
+                        TextColor="{AppThemeBinding Light={StaticResource LibraryAccent}, Dark={StaticResource LibraryBackDark}}"
+                        AutomationId="DownloadPopupClearFinishedButton" />
+                <Button Grid.Column="2"
+                        Text="{Binding DismissButtonText}"
+                        Command="{Binding DismissCommand}"
+                        HorizontalOptions="End"
+                        Background="{StaticResource LibraryAccent}"
+                        TextColor="{StaticResource White}"
+                        FontSize="13"
+                        MinimumWidthRequest="88"
+                        MinimumHeightRequest="44"
+                        AutomationId="DownloadPopupDismissButton" />
+            </Grid>
+        </VerticalStackLayout>
+    </Border>
+</toolkit:Popup>

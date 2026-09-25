@@ -11,74 +11,74 @@ namespace DisplayBook.Tests;
 /// </summary>
 public sealed class DownloadFileNamingTests
 {
-    private static DownloadLink Link(string url, string format, string? title = null) =>
-        new() { Url = url, Format = format, Title = title };
+	static DownloadLink Link(string url, string format, string? title = null) =>
+		new() { Url = url, Format = format, Title = title };
 
-    [Fact]
-    public void GetFileName_VeryLongTitleTruncatesTheSlug()
-    {
-        const int MaxSlugLength = 72;
-        var title = string.Concat(Enumerable.Repeat("ab", 60)); // 120 chars, all alphanumerics.
+	[Fact]
+	public void GetFileName_VeryLongTitleTruncatesTheSlug()
+	{
+		const int MaxSlugLength = 72;
+		string title = string.Concat(Enumerable.Repeat("ab", 60)); // 120 chars, all alphanumerics.
 
-        var name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/1/Lib", "application/epub+zip"), title);
+		string name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/1/Lib", "application/epub+zip"), title);
 
-        // The slug sits before the first dash and must be bounded to the maximum length.
-        var slug = name[..name.IndexOf('-')];
-        Assert.Equal(MaxSlugLength, slug.Length);
-        Assert.EndsWith(".epub", name);
-    }
+		// The slug sits before the first dash and must be bounded to the maximum length.
+		string slug = name[..name.IndexOf('-')];
+		Assert.Equal(MaxSlugLength, slug.Length);
+		Assert.EndsWith(".epub", name);
+	}
 
-    [Fact]
-    public void GetFileName_TitleWithoutLetters_FallsBackToDownload()
-    {
-        var name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/1/Lib", "application/epub+zip", "###"), "###");
+	[Fact]
+	public void GetFileName_TitleWithoutLetters_FallsBackToDownload()
+	{
+		string name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/1/Lib", "application/epub+zip", "###"), "###");
 
-        Assert.StartsWith("download-", name);
-    }
+		Assert.StartsWith("download-", name);
+	}
 
-    [Fact]
-    public void GetFileName_EmptyBookTitleUsesLinkTitle()
-    {
-        var name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/1/Lib", "application/epub+zip", "Dune"), "   ");
+	[Fact]
+	public void GetFileName_EmptyBookTitleUsesLinkTitle()
+	{
+		string name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/1/Lib", "application/epub+zip", "Dune"), "   ");
 
-        Assert.StartsWith("dune-", name);
-    }
+		Assert.StartsWith("dune-", name);
+	}
 
-    [Theory]
-    [InlineData("application/pdf", ".pdf")]
-    [InlineData("application/x-mobipocket-ebook", ".mobi")]
-    [InlineData("application/kindle+azw3", ".azw3")]
-    [InlineData("application/rtf", ".rtf")]
-    [InlineData("text/plain", ".txt")]
-    public void GetFileName_KnownMimeMapsToExtension(string mime, string expected)
-    {
-        var name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/1", mime), "Book");
+	[Theory]
+	[InlineData("application/pdf", ".pdf")]
+	[InlineData("application/x-mobipocket-ebook", ".mobi")]
+	[InlineData("application/kindle+azw3", ".azw3")]
+	[InlineData("application/rtf", ".rtf")]
+	[InlineData("text/plain", ".txt")]
+	public void GetFileName_KnownMimeMapsToExtension(string mime, string expected)
+	{
+		string name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/1", mime), "Book");
 
-        Assert.EndsWith(expected, name);
-    }
+		Assert.EndsWith(expected, name);
+	}
 
-    [Fact]
-    public void GetFileName_UnknownMimeUsesUrlExtension()
-    {
-        var name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/files/Story.epub", "application/octet-stream"), "Story");
+	[Fact]
+	public void GetFileName_UnknownMimeUsesUrlExtension()
+	{
+		string name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/files/Story.epub", "application/octet-stream"), "Story");
 
-        Assert.EndsWith(".epub", name);
-    }
+		Assert.EndsWith(".epub", name);
+	}
 
-    [Fact]
-    public void GetFileName_UnknownMimeAndNoUrlExtensionFallsBackToBin()
-    {
-        var name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/1", "application/unknown-type"), "Book");
+	[Fact]
+	public void GetFileName_UnknownMimeAndNoUrlExtensionFallsBackToBin()
+	{
+		string name = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/1", "application/unknown-type"), "Book");
 
-        Assert.EndsWith(".bin", name);
-    }
+		Assert.EndsWith(".bin", name);
+	}
 
-    [Fact]
-    public void GetFileName_SameUrlAndTitleIsStable()
-    {
-        var first = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/9/Lib", "application/epub+zip"), "Same");
-        var second = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/9/Lib", "application/epub+zip"), "Same");
+	[Fact]
+	public void GetFileName_SameUrlAndTitleIsStable()
+	{
+		string first = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/9/Lib", "application/epub+zip"), "Same");
+		string second = DownloadFileNaming.GetFileName(Link("http://calibre.local:8012/get/epub/9/Lib", "application/epub+zip"), "Same");
 
-        Assert.Equal(first, second);
-    }
+		Assert.Equal(first, second);
+	}
 }

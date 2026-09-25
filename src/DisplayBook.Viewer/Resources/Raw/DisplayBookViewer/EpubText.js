@@ -1,15 +1,15 @@
 (() => {
     "use strict";
 
+    // The native side calls into these (see EpubReaderView's EvaluateJavaScriptAsync calls), so
+    // the property is genuinely added to window rather than being a stray global.
+    /** @type {Window & { DisplayBookReader?: Record<string, Function> }} */
+    const readerWindow = window;
+
     const query = new URLSearchParams(window.location.search);
-    const OPF_PATH = query.get("opf");
     const BRIDGE_URL = query.get("bridge") ?? "displaybook://bridge";
-    const READER_STYLESHEETS = [
-        "ReadiumCSS-before.css",
-        "ReadiumCSS-default.css",
-        "ReadiumCSS-after.css"
-    ];
     const FRAME_STYLE_ID = "display-book-pagination-style";
+    const VIRTUAL_COLUMN_CLASS = "display-book-virtual-column";
     const MIN_SWIPE_DISTANCE = 42;
     const SETTINGS_STORAGE_KEY = "displaybook.reader.settings.v1";
     const SETTINGS_STORAGE_VERSION = 1;
@@ -32,6 +32,7 @@
         fontWeight: "original",
         imageTreatment: "normal"
     });
+    /** @type {Record<string, Set<string>>} */
     const SETTING_CHOICES = {
         theme: new Set(["original", "paper", "sepia", "night"]),
         fontFamily: new Set(["original", "serif", "sans", "humanist", "monospace"]),
@@ -48,63 +49,88 @@
         imageTreatment: new Set(["normal", "dim", "invert", "dim-invert"])
     };
 
+    // console.info(label, dataObject) reaches Chrome DevTools (chrome://inspect / Safari Web
+    // Inspector / WebView2 DevTools) with the object fully expandable, but Android's
+    // WebChromeClient.OnConsoleMessage bridge (used to forward these into logcat/Debug Output
+    // for on-device diagnosis without attaching a remote debugger) only sees Chromium's
+    // flattened single-string rendering of the console call, which reduces any object argument
+    // to "[object Object]". Stringifying it ourselves keeps the data readable everywhere.
+    function logDiagnostic(label, data) {
+        console.info(`${label} ${JSON.stringify(data)}`);
+    }
+
+    // Annotated with the element type each id actually resolves to in index.html, which ships with
+    // this script and is the only document it ever runs in -- so these lookups genuinely can't
+    // miss. Without the annotations every entry is HTMLElement|null to tooling, which can't tell
+    // an <iframe>'s contentDocument or an <input>'s value from a typo.
     const elements = {
-        author: document.getElementById("book-author"),
-        bookTitle: document.getElementById("book-title"),
-        closeContents: document.getElementById("contents-close"),
-        contentsList: document.getElementById("contents-list"),
-        contentsPanel: document.getElementById("contents-panel"),
-        contentsToggle: document.getElementById("contents-toggle"),
-        error: document.getElementById("reader-error"),
-        frame: document.getElementById("page"),
-        loading: document.getElementById("reader-loading"),
-        loadingCover: document.getElementById("reader-loading-cover"),
-        loadingLabel: document.getElementById("reader-loading-label"),
-        location: document.getElementById("reader-location"),
-        lookupButton: document.getElementById("lookup-button"),
-        next: document.getElementById("next-page"),
-        previous: document.getElementById("previous-page"),
-        progress: document.getElementById("progress-value"),
-        progressSlider: document.getElementById("book-progress"),
-        readerBack: document.getElementById("reader-back"),
-        readerShell: document.querySelector(".reader-shell"),
-        settingsClose: document.getElementById("settings-close"),
-        settingsForm: document.getElementById("settings-form"),
-        settingsPanel: document.getElementById("settings-panel"),
-        settingsReset: document.getElementById("settings-reset"),
-        settingsToggle: document.getElementById("settings-toggle"),
-        viewport: document.getElementById("book-viewport")
+        author: /** @type {HTMLElement} */ (document.getElementById("book-author")),
+        bookTitle: /** @type {HTMLElement} */ (document.getElementById("book-title")),
+        closeContents: /** @type {HTMLButtonElement} */ (document.getElementById("contents-close")),
+        contentsList: /** @type {HTMLOListElement} */ (document.getElementById("contents-list")),
+        contentsPanel: /** @type {HTMLElement} */ (document.getElementById("contents-panel")),
+        contentsToggle: /** @type {HTMLButtonElement} */ (document.getElementById("contents-toggle")),
+        error: /** @type {HTMLElement} */ (document.getElementById("reader-error")),
+        frame: /** @type {HTMLIFrameElement} */ (document.getElementById("page")),
+        loading: /** @type {HTMLElement} */ (document.getElementById("reader-loading")),
+        loadingCover: /** @type {HTMLImageElement} */ (document.getElementById("reader-loading-cover")),
+        loadingLabel: /** @type {HTMLElement} */ (document.getElementById("reader-loading-label")),
+        location: /** @type {HTMLElement} */ (document.getElementById("reader-location")),
+        lookupButton: /** @type {HTMLButtonElement} */ (document.getElementById("lookup-button")),
+        next: /** @type {HTMLButtonElement} */ (document.getElementById("next-page")),
+        previous: /** @type {HTMLButtonElement} */ (document.getElementById("previous-page")),
+        progress: /** @type {HTMLElement} */ (document.getElementById("progress-value")),
+        progressSlider: /** @type {HTMLInputElement} */ (document.getElementById("book-progress")),
+        readerBack: /** @type {HTMLButtonElement} */ (document.getElementById("reader-back")),
+        readerShell: /** @type {HTMLElement} */ (document.querySelector(".reader-shell")),
+        settingsClose: /** @type {HTMLButtonElement} */ (document.getElementById("settings-close")),
+        settingsForm: /** @type {HTMLFormElement} */ (document.getElementById("settings-form")),
+        settingsPanel: /** @type {HTMLElement} */ (document.getElementById("settings-panel")),
+        settingsReset: /** @type {HTMLButtonElement} */ (document.getElementById("settings-reset")),
+        settingsToggle: /** @type {HTMLButtonElement} */ (document.getElementById("settings-toggle")),
+        viewport: /** @type {HTMLElement} */ (document.getElementById("book-viewport"))
     };
+
+    /**
+     * Mirrors the payload records the native side sends over the bridge -- EpubSpineItem,
+     * EpubTocEntry and getSelectionInfo()'s result respectively. Kept here as types only: the
+     * shapes themselves are defined in C# (Models/ReaderPublicationPayload.cs) and are duck-typed
+     * across the boundary, so these have to be updated alongside those records.
+     * @typedef {{ href: string, index: number }} SpineItem
+     * @typedef {{ label: string, spineIndex: number, fragment: string }} TocEntry
+     * @typedef {{ text: string, left: number, top: number, right: number, bottom: number }} LookupRect
+     */
 
     const state = {
         currentPage: 0,
         currentSpineIndex: 0,
         chromeVisible: false,
-        contentsPromise: null,
-        contentsLoader: null,
-        documentUrl: "",
         isReady: false,
         loadToken: 0,
-        manifest: new Map(),
+        locationReportToken: 0,
+        readerReadyNotified: false,
         metadata: { author: "", title: "" },
-        opfUrl: "",
+        /** @type {string | null} */
+        coverHref: null,
         pageCount: 1,
-        pendingLoad: null,
+        /** @type {{ resolve: (value?: unknown) => void, reject: (reason?: unknown) => void } | null} */
+        pendingFrameLoad: null,
         pendingLookupText: "",
+        /** @type {LookupRect | null} */
         pendingLookupRect: null,
-        publicationStyles: new Map(),
-        readerStyles: new Map(),
-        resourceCache: new Map(),
-        textCache: new Map(),
         resizeTimer: 0,
+        safeAreaInsets: { top: 0, bottom: 0 },
+        /** @type {SpineItem[]} */
         spine: [],
+        /** @type {TocEntry[]} */
         toc: [],
         viewportWidth: 1,
-        preloadPromise: null,
         settings: loadSettings(),
         progressSeek: {
             isLoading: false,
+            /** @type {number | null} */
             pendingValue: null,
+            /** @type {ScrollBehavior} */
             behavior: "auto"
         }
     };
@@ -128,9 +154,22 @@
         return fallback;
     }
 
+    /**
+     * Every reader setting, keyed exactly as DEFAULT_SETTINGS is. Declared as a type of its own
+     * because the settings object is built by copying keys out of DEFAULT_SETTINGS at runtime:
+     * without this, the value that reaches getEffectiveSettings()/applySettingsToFrame() is
+     * inferred as an empty object and none of the setting names are known to exist on it.
+     * @typedef {{ -readonly [K in keyof typeof DEFAULT_SETTINGS]: string }} ReaderSettings
+     */
+
+    /**
+     * @param {Partial<ReaderSettings>} [settings]
+     * @param {ReaderSettings} [base]
+     * @returns {ReaderSettings}
+     */
     function normalizeSettings(settings, base = DEFAULT_SETTINGS) {
-        const normalized = {};
-        for (const name of Object.keys(DEFAULT_SETTINGS)) {
+        const normalized = /** @type {ReaderSettings} */ ({});
+        for (const name of /** @type {(keyof ReaderSettings)[]} */ (Object.keys(DEFAULT_SETTINGS))) {
             normalized[name] = normalizeSettingValue(name, settings?.[name], base[name]);
         }
         if (normalized.columnMode === "single") {
@@ -170,9 +209,11 @@
 
     function getEffectiveSettings() {
         const canUseTwoColumns = state.settings.columnMode === "two" && window.innerWidth >= WIDE_VIEWPORT_MINIMUM;
+        const useTwoColumns = !state.chromeVisible && canUseTwoColumns;
+        const columnCount = useTwoColumns ? "2" : "1";
         return {
             ...state.settings,
-            columnCount: state.chromeVisible ? "1" : (canUseTwoColumns ? "2" : "1")
+            columnCount
         };
     }
 
@@ -255,7 +296,9 @@
             "--USER__letterSpacing": settings.letterSpacing,
             "--USER__fontWeight": settings.fontWeight === "original" ? undefined : settings.fontWeight,
             "--USER__darkenImages": imageTreatment.darken,
-            "--USER__invertImages": imageTreatment.invert
+            "--USER__invertImages": imageTreatment.invert,
+            "--reader-safe-area-inset-top": `${state.safeAreaInsets.top}px`,
+            "--reader-safe-area-inset-bottom": `${state.safeAreaInsets.bottom}px`
         };
         for (const [name, value] of Object.entries(variables)) {
             if (value === undefined) {
@@ -275,7 +318,7 @@
         }
 
         if (settings.columnMode === "two") {
-            console.info("DisplayBook reader columns", {
+            logDiagnostic("DisplayBook reader columns", {
                 viewportWidth: window.innerWidth,
                 minimumViewportWidth: WIDE_VIEWPORT_MINIMUM,
                 requestedColumnCount: state.settings.columnCount,
@@ -283,6 +326,27 @@
                 renderedColumnCount: getComputedStyle(root).columnCount,
                 renderedColumnWidth: getComputedStyle(root).columnWidth
             });
+        }
+    }
+
+    function updateSettingsControl(control, name, value, isOriginalLineHeight) {
+        if (control instanceof RadioNodeList) {
+            for (const radio of control) {
+                radio.checked = radio.value === value;
+            }
+        } else if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+            if (name === "fontSize") {
+                control.value = value.replace("%", "");
+            } else {
+                control.value = isOriginalLineHeight ? "1.5" : value;
+            }
+        }
+    }
+
+    function updateSettingsOutput(form, name, value, isOriginalLineHeight) {
+        const output = form.querySelector(`[data-for="${name}"]`);
+        if (output) {
+            output.textContent = isOriginalLineHeight ? "Original" : value;
         }
     }
 
@@ -294,21 +358,8 @@
         for (const [name, value] of Object.entries(state.settings)) {
             const control = form.elements.namedItem(name);
             const isOriginalLineHeight = name === "lineHeight" && value === "original";
-            if (control instanceof RadioNodeList) {
-                for (const radio of control) {
-                    radio.checked = radio.value === value;
-                }
-            } else if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
-                if (name === "fontSize") {
-                    control.value = value.replace("%", "");
-                } else {
-                    control.value = isOriginalLineHeight ? "1.5" : value;
-                }
-            }
-            const output = form.querySelector(`[data-for="${name}"]`);
-            if (output) {
-                output.textContent = isOriginalLineHeight ? "Original" : value;
-            }
+            updateSettingsControl(control, name, value, isOriginalLineHeight);
+            updateSettingsOutput(form, name, value, isOriginalLineHeight);
         }
     }
 
@@ -336,256 +387,53 @@
         window.location.href = `${BRIDGE_URL}?message=${encodeURIComponent(message)}`;
     }
 
-    function getLocalNameNodes(root, localName) {
-        return Array.from(root.getElementsByTagNameNS("*", localName));
-    }
-
-    function stripFragment(url) {
-        const parsedUrl = new URL(url, window.location.href);
-        parsedUrl.hash = "";
-        return parsedUrl.href;
-    }
-
     function getAbsoluteUrl(href, baseUrl) {
         return new URL(href, baseUrl).href;
     }
 
-    async function fetchText(url) {
-        const cacheKey = stripFragment(url);
-        const cachedText = state.textCache.get(cacheKey);
-        if (cachedText !== undefined) {
-            return cachedText;
-        }
-
-        const response = await fetch(url, { cache: "no-store" });
-        if (!response.ok) {
-            throw new Error(`Unable to load ${url} (${response.status})`);
-        }
-        const text = await response.text();
-        state.textCache.set(cacheKey, text);
-        return text;
-    }
-
-    function rewriteStylesheetUrls(cssText, stylesheetUrl) {
-        return cssText.replace(/url\(([^)]*)\)/giu, (match, rawValue) => {
-            let normalizedValue = rawValue.trim();
-            const firstCharacter = normalizedValue[0];
-            const lastCharacter = normalizedValue.at(-1);
-            if ((firstCharacter === "\"" || firstCharacter === "'") && firstCharacter === lastCharacter) {
-                normalizedValue = normalizedValue.slice(1, -1).trim();
-            }
-
-            if (/^(?:data:|blob:|https?:|\/\/|#)/iu.test(normalizedValue)) {
-                return match;
-            }
-
-            return `url("${getAbsoluteUrl(normalizedValue, stylesheetUrl)}")`;
-        });
-    }
-
-    async function preloadReaderStyles() {
-        await Promise.all(READER_STYLESHEETS.map(async (stylesheet) => {
-            const stylesheetUrl = getAbsoluteUrl(stylesheet, window.location.href);
-            const cssText = await fetchText(stylesheetUrl);
-            state.readerStyles.set(stripFragment(stylesheetUrl), cssText);
-        }));
-    }
-
-    async function preloadPublicationStyles(manifest) {
-        const stylesheetItems = Array.from(manifest.values()).filter((item) => item.mediaType === "text/css");
-        await Promise.all(stylesheetItems.map(async (item) => {
-            try {
-                const cssText = await fetchText(item.href);
-                state.publicationStyles.set(stripFragment(item.href), cssText);
-            } catch (error) {
-                console.warn(`Unable to preload publication stylesheet ${item.href}.`, error);
-            }
-        }));
-    }
-
-    function createCachedResource(htmlText, resourceUrl) {
-        const resourceDocument = new DOMParser().parseFromString(htmlText, "text/html");
-        const base = resourceDocument.createElement("base");
-        base.href = resourceUrl;
-        resourceDocument.head.insertBefore(base, resourceDocument.head.firstChild);
-
-        for (const image of resourceDocument.querySelectorAll("img[src], svg image")) {
-            const attributeName = image.localName === "image"
-                ? (image.getAttribute("href") !== null ? "href" : "xlink:href")
-                : "src";
-            const imageUrl = image.getAttribute(attributeName);
-            if (!imageUrl || /^(?:data:|blob:|https?:|\/\/|#)/iu.test(imageUrl)) {
-                continue;
-            }
-
-            const absoluteImageUrl = getAbsoluteUrl(imageUrl, resourceUrl);
-            image.setAttribute(attributeName, absoluteImageUrl);
-            if (image.localName === "image") {
-                image.setAttribute("href", absoluteImageUrl);
-                image.setAttribute("xlink:href", absoluteImageUrl);
-            }
-        }
-
-        const stylesheetLinks = Array.from(resourceDocument.querySelectorAll("link[href]"));
-        for (const link of stylesheetLinks) {
-            const rel = (link.getAttribute("rel") ?? "").split(/\s+/u);
-            if (!rel.includes("stylesheet")) {
-                continue;
-            }
-
-            const stylesheetUrl = getAbsoluteUrl(link.getAttribute("href"), resourceUrl);
-            const cssText = state.publicationStyles.get(stripFragment(stylesheetUrl));
-            if (cssText === undefined) {
-                continue;
-            }
-
-            const style = resourceDocument.createElement("style");
-            style.textContent = rewriteStylesheetUrls(cssText, stylesheetUrl);
-            link.replaceWith(style);
-        }
-
-        return `<!DOCTYPE html>${resourceDocument.documentElement.outerHTML}`;
-    }
-
-    async function preloadResource(item) {
-        const resourceUrl = stripFragment(item.href);
-        if (state.resourceCache.has(resourceUrl)) {
-            return;
-        }
-
-        const htmlText = await fetchText(item.href);
-        state.resourceCache.set(resourceUrl, htmlText);
-    }
-
-    async function preloadResourceStyles(item) {
-        const resourceUrl = stripFragment(item.href);
-        const htmlText = state.resourceCache.get(resourceUrl);
-        if (htmlText === undefined) {
-            return;
-        }
-
-        const resourceDocument = new DOMParser().parseFromString(htmlText, "text/html");
-        const stylesheetLinks = Array.from(resourceDocument.querySelectorAll("link[rel~='stylesheet'][href]"));
-        await Promise.all(stylesheetLinks.map(async (link) => {
-            const stylesheetUrl = getAbsoluteUrl(link.getAttribute("href"), resourceUrl);
-            const cssText = await fetchText(stylesheetUrl);
-            state.publicationStyles.set(stripFragment(stylesheetUrl), cssText);
-        }));
-    }
-
-    async function preloadRemainingResources() {
-        const pendingItems = state.spine.slice(1);
-        let nextIndex = 0;
-        const workerCount = Math.min(4, pendingItems.length);
-        const workers = Array.from({ length: workerCount }, async () => {
-            while (nextIndex < pendingItems.length) {
-                const item = pendingItems[nextIndex++];
-                try {
-                    await preloadResource(item);
-                } catch (error) {
-                    console.warn(`Unable to preload publication resource ${item.href}.`, error);
-                }
-            }
-        });
-
-        await Promise.all(workers);
-    }
-
-    function parsePackage(packageText, opfUrl) {
-        const packageDocument = new DOMParser().parseFromString(packageText, "application/xml");
-        if (packageDocument.querySelector("parsererror")) {
-            throw new Error("The EPUB package document is not valid XML.");
-        }
-
-        const manifest = new Map();
-        for (const item of getLocalNameNodes(packageDocument, "item")) {
-            const id = item.getAttribute("id");
-            const href = item.getAttribute("href");
-            if (!id || !href) {
-                continue;
-            }
-
-            manifest.set(id, {
-                href: getAbsoluteUrl(href, opfUrl),
-                // The raw, un-absolutized href from the OPF (e.g. "OEBPS/chapter1.xhtml").
-                // Unlike `href`, this doesn't embed this device's local hosting path (which
-                // includes a per-device-random book folder id), so it's the only form of a
-                // resource's identity that's safe to persist for cross-device sync.
-                relativeHref: href,
-                id,
-                mediaType: item.getAttribute("media-type") ?? "",
-                properties: item.getAttribute("properties") ?? ""
-            });
-        }
-
-        const spineElement = getLocalNameNodes(packageDocument, "spine")[0];
-        if (!spineElement) {
-            throw new Error("The EPUB package does not contain a spine.");
-        }
-
-        const spine = [];
-        for (const itemReference of getLocalNameNodes(spineElement, "itemref")) {
-            if (itemReference.getAttribute("linear") === "no") {
-                continue;
-            }
-
-            const item = manifest.get(itemReference.getAttribute("idref"));
-            if (item) {
-                spine.push({
-                    ...item,
-                    index: spine.length,
-                    pageCount: 1,
-                    label: ""
-                });
-            }
-        }
-
-        if (spine.length === 0) {
-            throw new Error("The EPUB package does not contain readable spine resources.");
-        }
-
-        const title = getLocalNameNodes(packageDocument, "title")[0]?.textContent?.trim() ?? "Untitled publication";
-        const author = getLocalNameNodes(packageDocument, "creator")[0]?.textContent?.trim() ?? "";
-
-        const navXhtmlItem = Array.from(manifest.values()).find((item) => item.properties.split(/\s+/u).includes("nav"));
-        const tocId = spineElement.getAttribute("toc");
-        const ncxItem = (tocId && manifest.get(tocId)) ||
-            Array.from(manifest.values()).find((item) => item.mediaType === "application/x-dtbncx+xml");
-        const nav = navXhtmlItem
-            ? { ...navXhtmlItem, navType: "xhtml" }
-            : (ncxItem ? { ...ncxItem, navType: "ncx" } : undefined);
-
-        return {
-            manifest,
-            metadata: { author, title },
-            spine,
-            nav
-        };
-    }
-
-    function getSpineIndex(url) {
-        const resourceUrl = stripFragment(url);
-        return state.spine.findIndex((item) => stripFragment(item.href) === resourceUrl);
-    }
-
     // Only for locators coming from native (setLocator): those carry the portable
-    // OPF-relative href (see relativeHref in parsePackage), not an absolute URL, since an
+    // OPF-relative href every current build reports and syncs, not an absolute URL, since an
     // absolute URL embeds this device's own local hosting path and would never match a
-    // locator synced from a different device. Internal navigation (links, TOC) always
-    // resolves and matches absolute URLs via getSpineIndex above -- that's unrelated to sync
-    // and unaffected by this.
+    // locator synced from a different device.
     function getSpineIndexByRelativeHref(relativeHref) {
         const normalized = relativeHref.replace(/^\.\//u, "").split("#")[0];
-        return state.spine.findIndex((item) => item.relativeHref.replace(/^\.\//u, "") === normalized);
+        return state.spine.findIndex((item) => item.href.replace(/^\.\//u, "") === normalized);
     }
 
-    function getSpineLabel(spineIndex) {
-        const item = state.spine[spineIndex];
-        const tocItem = state.toc.find((entry) => entry.spineIndex === spineIndex);
-        if (tocItem) {
-            return tocItem.label;
+    // Compatibility fallback for locators saved to this device's own database before the
+    // reader switched to the portable relative-href format above -- those stored the
+    // device-local absolute resource URL instead. Matched by comparing the URL's path tail
+    // against a spine href rather than an exact absolute-URL match, since this device's local
+    // hosting path (and now the reserved combined-document path) has no fixed relationship to
+    // the value a much older build would have saved.
+    function getSpineIndexByLegacyAbsoluteHref(resourceHref) {
+        let pathname;
+        try {
+            pathname = new URL(resourceHref).pathname;
+        } catch {
+            return -1;
         }
-        return item?.href.split("/").pop() ?? "Publication";
+        const normalized = decodeURIComponent(pathname).replace(/^\/+/u, "");
+        return state.spine.findIndex((item) => normalized === item.href || normalized.endsWith(`/${item.href}`));
+    }
+
+    // Resolves an <a href> as authored in its ORIGINAL chapter (the combined document
+    // deliberately leaves these unrewritten -- see CombinedDocumentBuilder -- so they're still
+    // relative to that chapter's own directory, not the combined document's location) against a
+    // synthetic base standing in for that chapter's location, then strips back down to a plain
+    // epub-relative path to match against state.spine.
+    function resolveSpineIndexForHref(rawHref, baseChapterHref) {
+        let resolved;
+        try {
+            resolved = new URL(rawHref, getAbsoluteUrl(baseChapterHref, "https://displaybook-epub.invalid/"));
+        } catch {
+            return { spineIndex: -1, fragment: "" };
+        }
+        const relativePath = decodeURIComponent(resolved.pathname.replace(/^\/+/u, ""));
+        return {
+            spineIndex: state.spine.findIndex((item) => item.href === relativePath),
+            fragment: resolved.hash
+        };
     }
 
     function getChapterTitle(spineIndex) {
@@ -593,23 +441,12 @@
         return tocItem?.label?.trim() ?? "";
     }
 
-    function getCoverImageHref() {
-        const items = Array.from(state.manifest.values());
-        const cover = items.find((item) => item.properties.split(/\s+/u).includes("cover-image"));
-        if (cover?.href) {
-            return cover.href;
-        }
-        const firstImage = items.find((item) => item.mediaType.startsWith("image/"));
-        return firstImage?.href;
-    }
-
     function applyLoadingCover() {
         const cover = elements.loadingCover;
         if (!cover) {
             return;
         }
-        const coverHref = getCoverImageHref();
-        if (!coverHref) {
+        if (!state.coverHref) {
             cover.hidden = true;
             return;
         }
@@ -620,7 +457,7 @@
         cover.onerror = () => {
             cover.hidden = true;
         };
-        cover.src = coverHref;
+        cover.src = state.coverHref;
     }
 
     function setError(error) {
@@ -636,17 +473,6 @@
     function setLoading(isLoading, message = "Loading publication…") {
         elements.loadingLabel.textContent = message;
         elements.loading.hidden = !isLoading;
-    }
-
-    function addStylesheet(documentElement, href, insertBefore) {
-        return new Promise((resolve) => {
-            const link = documentElement.createElement("link");
-            link.rel = "stylesheet";
-            link.href = getAbsoluteUrl(href, window.location.href);
-            link.onload = resolve;
-            link.onerror = resolve;
-            insertBefore(link, documentElement.head.firstChild);
-        });
     }
 
     function createPaginationStyle(documentElement) {
@@ -671,6 +497,17 @@
                 scrollbar-width: none;
                 margin: 0 !important;
                 padding-inline: 0 !important;
+                /* Reserves space for the status bar/notch (top) and navigation bar
+                   (bottom) on every column, not just the first/last: the reader
+                   window draws edge-to-edge (see ReaderPage's SafeAreaEdges="None"),
+                   and Android WebView has no native env(safe-area-inset-*) support,
+                   so the native side pushes real inset values in via
+                   setSafeAreaInsets(). Without this, a line of text can lay out
+                   underneath an opaque system bar -- invisible, but already
+                   consumed by pagination's page-count math, so it never reappears
+                   on the next page either. */
+                padding-top: var(--reader-safe-area-inset-top, env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: var(--reader-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) !important;
                 box-sizing: border-box !important;
                 background: var(--USER__backgroundColor, transparent) !important;
             }
@@ -685,6 +522,8 @@
                 width: 100vw !important;
                 min-width: 100vw !important;
                 max-width: 100vw !important;
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
                 overflow: hidden !important;
             }
 
@@ -714,12 +553,15 @@
                 background: transparent !important;
             }
 
-            /* EPUB chapters sometimes add asymmetric margins to a direct wrapper.
-               Re-center that wrapper without changing paragraph indentation. Left
-               unimportant so a publication's own margin/alignment rules (e.g. a
-               class deliberately left- or right-aligning a block) still win by
-               specificity instead of being forced back to center. */
-            body > * {
+            /* Every chapter is a <section> directly under body (see
+               CombinedDocumentBuilder); only one is ever visible at a time. EPUB
+               chapters sometimes add asymmetric margins to a direct wrapper --
+               re-center that wrapper (now one level deeper than body itself)
+               without changing paragraph indentation. Left unimportant so a
+               publication's own margin/alignment rules (e.g. a class deliberately
+               left- or right-aligning a block) still win by specificity instead of
+               being forced back to center. */
+            body > section[data-chapter-index] > * {
                 max-width: 100% !important;
                 margin-left: auto;
                 margin-right: auto;
@@ -747,21 +589,39 @@
                 overflow: visible !important;
             }
 
-            :root.cover-page body.cover-page {
+            /* A cover page is sized to fill its column exactly, so body's reading padding and
+               width constraint have to come off for it. Left on, body's 2.25rem of vertical
+               padding pushes the full-height section past the bottom of its column, and CSS
+               multi-column fragments the overflow into further columns -- measurePageLayout
+               then counts those as real pages, so the first page turn on an image-only chapter
+               scrolls to a phantom page instead of advancing to the next chapter. */
+            :root.cover-page body {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* Sized in percentages rather than vw/vh: viewport units ignore the root's own box,
+               so they overflow the column by the scrollbar gutter and cost another phantom page.
+               Against the reset body above, 100% is the full viewport anyway, so the cover still
+               renders full-bleed at exactly the size it did before. */
+            :root.cover-page section[data-chapter-index].cover-page {
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                width: 100vw !important;
+                width: 100% !important;
                 max-width: none !important;
-                height: 100vh !important;
-                min-height: 100vh !important;
+                height: 100% !important;
+                min-height: 0 !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 overflow: hidden !important;
             }
 
-            :root.cover-page body.cover-page img,
-            :root.cover-page body.cover-page svg {
+            :root.cover-page section[data-chapter-index].cover-page img,
+            :root.cover-page section[data-chapter-index].cover-page svg {
                 display: block !important;
                 width: auto !important;
                 height: auto !important;
@@ -771,13 +631,32 @@
                 object-fit: contain !important;
             }
 
-            :root.cover-page body.cover-page svg {
+            :root.cover-page section[data-chapter-index].cover-page svg {
                 width: 100vw !important;
                 height: 100vh !important;
             }
 
             img, svg, video, canvas, iframe {
                 max-width: 100% !important;
+            }
+
+            /* Blank filler columns appended by padColumnsToFullSpread. They exist
+               only to occupy a column box, so every publication style that could
+               give a bare <div> a size or a float has to be neutralised. */
+            .${VIRTUAL_COLUMN_CLASS} {
+                break-before: column;
+                -webkit-column-break-before: always;
+                display: block !important;
+                float: none !important;
+                width: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                font-size: 1px !important;
+                line-height: 0 !important;
+                visibility: hidden !important;
             }
 
             h1, h2, h3, h4, h5, h6, figure, blockquote, img, svg, video, table {
@@ -792,55 +671,33 @@
         documentElement.head.appendChild(style);
     }
 
+    // Re-run every time the visible chapter changes (see showSection), not just once: each
+    // chapter is its own <section> sharing the one combined document, so "is the current
+    // chapter a cover page" has to be re-evaluated per section instead of once per (previously
+    // separate) chapter document.
     function applyCoverPageLayout(frameDocument) {
-        const body = frameDocument.body;
         const root = frameDocument.documentElement;
-        if (!body || !root) {
+        const section = getActiveSectionElement();
+        if (!root || !section) {
             return;
         }
 
-        const media = body.querySelectorAll("img, svg");
-        const text = (body.textContent ?? "").replace(/\s+/gu, "").trim();
+        const media = section.querySelectorAll("img, svg");
+        const text = (section.textContent ?? "").replace(/\s+/gu, "").trim();
         const hasOnlyCoverMedia = media.length === 1 &&
-            !body.querySelector("video, audio, canvas, table, form") &&
+            !section.querySelector("video, audio, canvas, table, form") &&
             text.length === 0;
-        const isCoverPage = body.classList.contains("cover-page") || hasOnlyCoverMedia;
+        const isCoverPage = section.classList.contains("cover-page") || hasOnlyCoverMedia;
 
         if (isCoverPage) {
-            for (const svg of body.querySelectorAll("svg")) {
+            for (const svg of section.querySelectorAll("svg")) {
                 svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
             }
         }
 
         root.classList.toggle("cover-page", isCoverPage);
-        body.classList.toggle("cover-page", isCoverPage);
-    }
-
-    async function prepareFrame(frameDocument) {
-        if (!frameDocument.head || !frameDocument.documentElement) {
-            throw new Error("The EPUB resource does not contain a usable HTML document.");
-        }
-
-        const stylesheetPromises = [];
-        for (const stylesheet of [...READER_STYLESHEETS].reverse()) {
-            const stylesheetUrl = getAbsoluteUrl(stylesheet, window.location.href);
-            const cssText = state.readerStyles.get(stripFragment(stylesheetUrl));
-            if (cssText === undefined) {
-                stylesheetPromises.push(addStylesheet(frameDocument, stylesheet, frameDocument.head.insertBefore.bind(frameDocument.head)));
-                continue;
-            }
-
-            const style = frameDocument.createElement("style");
-            style.textContent = cssText;
-            frameDocument.head.insertBefore(style, frameDocument.head.firstChild);
-        }
-        createPaginationStyle(frameDocument);
-        applyCoverPageLayout(frameDocument);
-        await Promise.all(stylesheetPromises);
-        applySettingsToFrame(frameDocument);
-
-        if (frameDocument.fonts?.ready) {
-            await frameDocument.fonts.ready;
+        for (const candidate of frameDocument.querySelectorAll("section[data-chapter-index]")) {
+            candidate.classList.toggle("cover-page", candidate === section && isCoverPage);
         }
     }
 
@@ -864,12 +721,95 @@
         );
     }
 
-    // Device-independent reading position: a character offset into the
-    // chapter's text (counted across all SHOW_TEXT nodes under <body> in
-    // document order), independent of how the current device paginates the
-    // chapter into columns/pages. Sampled/resolved via the same Range API
-    // getSelectionInfo() already uses, just driven by caretRangeFromPoint
-    // instead of a user selection.
+    // How many columns the root multi-column container is actually rendering per viewport
+    // right now -- read back from the computed style rather than taken from the settings,
+    // because a cover page is forced to a single full-width column (:root.cover-page) even
+    // while the two-column setting is on.
+    function getRenderedColumnsPerPage(frameDocument) {
+        const view = frameDocument.defaultView;
+        const root = frameDocument.documentElement;
+        if (!view || !root) {
+            return 1;
+        }
+
+        const computed = view.getComputedStyle(root);
+        const columnWidth = Number.parseFloat(computed.columnWidth);
+        const widthBasedCount = Number.isFinite(columnWidth) && columnWidth > 0
+            ? Math.max(1, Math.floor(state.viewportWidth / columnWidth))
+            : 1;
+        const declaredCount = Number.parseInt(computed.columnCount, 10);
+        // With both column-count and column-width set, the used count is the smaller of the two.
+        return Number.isFinite(declaredCount) && declaredCount > 0
+            ? Math.min(declaredCount, widthBasedCount)
+            : widthBasedCount;
+    }
+
+    function clearVirtualColumns(frameDocument) {
+        for (const stale of frameDocument.body?.querySelectorAll(`.${VIRTUAL_COLUMN_CLASS}`) ?? []) {
+            stale.remove();
+        }
+    }
+
+    // CSS multi-column lays a chapter out into as many columns as its text needs, which in a
+    // two-column spread is often an odd number. The scroller can only ever reach
+    // scrollWidth - viewportWidth, so the final spread gets clamped back by half a page and
+    // re-shows the previous spread's right-hand column next to the real last one -- content
+    // that looks duplicated at the end of the chapter. Pad the flow out to a whole number of
+    // spreads with empty "virtual" columns instead (the same trick Readium's navigator plays
+    // with its readium-virtual-page elements), so the last scroll position is a real page
+    // boundary and the leftover half-spread renders blank.
+    //
+    // Runs before every getScrollWidth()-based measurement, and clears its own previous padding
+    // first: leaving it in would fold the last measurement's padding into this one's width.
+    function padColumnsToFullSpread(frameDocument) {
+        const body = frameDocument.body;
+        if (!body) {
+            return;
+        }
+
+        clearVirtualColumns(frameDocument);
+
+        const columnsPerPage = getRenderedColumnsPerPage(frameDocument);
+        if (columnsPerPage < 2) {
+            return;
+        }
+
+        const columnWidth = state.viewportWidth / columnsPerPage;
+        const totalColumns = Math.round(getScrollWidth() / columnWidth);
+        const orphanColumns = totalColumns % columnsPerPage;
+        if (orphanColumns === 0) {
+            return;
+        }
+
+        // Where a forced column break isn't supported, a full-viewport-height filler is what
+        // pushes the next column instead -- it can't share a column with the text above it.
+        const supportsColumnBreak = typeof CSS?.supports === "function" &&
+            (CSS.supports("break-before", "column") || CSS.supports("-webkit-column-break-before", "always"));
+        const fillerHeight = supportsColumnBreak
+            ? "0px"
+            : `${frameDocument.documentElement.clientHeight}px`;
+
+        for (let i = orphanColumns; i < columnsPerPage; i++) {
+            const filler = frameDocument.createElement("div");
+            filler.className = VIRTUAL_COLUMN_CLASS;
+            filler.setAttribute("aria-hidden", "true");
+            filler.style.height = fillerHeight;
+            // A completely empty element generates no line box and so can't force a column
+            // break of its own; a zero-width space gives it something to break before.
+            filler.textContent = "​";
+            body.appendChild(filler);
+        }
+    }
+
+    function getActiveSectionElement() {
+        return elements.frame.contentDocument?.getElementById(`chapter-${state.currentSpineIndex}`) ?? null;
+    }
+
+    // Device-independent reading position: a character offset into the CURRENT CHAPTER's text
+    // (counted across all SHOW_TEXT nodes under its <section> in document order), independent of
+    // how the current device paginates the chapter into columns/pages. Sampled/resolved via the
+    // same Range API getSelectionInfo() already uses, just driven by caretRangeFromPoint instead
+    // of a user selection.
     const CHAR_OFFSET_SAMPLE_INSET_X = 6;
     const CHAR_OFFSET_SAMPLE_Y_FRACTIONS = [0.15, 0.35, 0.5, 0.65, 0.85];
 
@@ -891,10 +831,11 @@
     }
 
     function textOffsetOfRange(frameDocument, range) {
-        if (!range?.startContainer) {
+        const root = getActiveSectionElement();
+        if (!range?.startContainer || !root) {
             return null;
         }
-        const walker = frameDocument.createTreeWalker(frameDocument.body, NodeFilter.SHOW_TEXT);
+        const walker = frameDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         let offset = 0;
         let node = walker.nextNode();
         while (node) {
@@ -925,18 +866,19 @@
     }
 
     function findRangeAtTextOffset(frameDocument, targetOffset) {
-        const walker = frameDocument.createTreeWalker(frameDocument.body, NodeFilter.SHOW_TEXT);
+        const root = getActiveSectionElement();
+        if (!root) {
+            return null;
+        }
+        const walker = frameDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         let offset = 0;
         let node = walker.nextNode();
         let lastNode = null;
         while (node) {
             const length = node.textContent.length;
             if (targetOffset <= offset + length) {
-                const range = frameDocument.createRange();
                 const localOffset = Math.max(0, Math.min(length, targetOffset - offset));
-                range.setStart(node, localOffset);
-                range.collapse(true);
-                return range;
+                return getRenderedCharacterRange(frameDocument, walker, node, localOffset);
             }
             offset += length;
             lastNode = node;
@@ -949,6 +891,38 @@
             return range;
         }
         return null;
+    }
+
+    // A saved offset often points into whitespace rather than at a glyph -- typically the "\n"
+    // text nodes sitting directly between a chapter's block elements, which is exactly where
+    // getCharOffsetAtViewportStart's caret sample lands when the top of a page falls between two
+    // paragraphs. That whitespace isn't rendered, so a Range there has no client rects, and
+    // scrollRangeIntoView's element fallback then measures the enclosing <section> -- whose box
+    // starts at the chapter's first column -- sending the reader back to page 0. Skip forward to
+    // the first non-whitespace character at or after the offset (the text that was actually at
+    // the top of the page) and span it, since a non-collapsed Range over a real glyph always
+    // has a rect.
+    function getRenderedCharacterRange(frameDocument, walker, node, localOffset) {
+        let current = node;
+        let index = localOffset;
+        while (current) {
+            const match = /\S/u.exec(current.textContent.slice(index));
+            if (match) {
+                const start = index + match.index;
+                const range = frameDocument.createRange();
+                range.setStart(current, start);
+                range.setEnd(current, start + 1);
+                return range;
+            }
+            current = walker.nextNode();
+            index = 0;
+        }
+
+        // Only whitespace from here to the end of the chapter: keep the original position.
+        const range = frameDocument.createRange();
+        range.setStart(node, localOffset);
+        range.collapse(true);
+        return range;
     }
 
     function scrollRangeIntoView(range) {
@@ -969,14 +943,21 @@
             return true;
         }
 
-        const rect = range.getClientRects()[0];
+        // Prefer the Range's own rect (most precise -- it's the exact character position, not
+        // just its containing element); fall back to the containing element's rect when the
+        // Range one is empty, which happens on some Chromium builds (observed on Android's
+        // WebView, not WebView2) for a collapsed Range positioned exactly at a text-node
+        // boundary. Either way, compute and apply the target page ourselves via the same
+        // scrollToCurrentPage() every other navigation path uses, rather than calling the
+        // element's scrollIntoView() and immediately reading scrollLeft back: scrollIntoView's
+        // effect on scrollLeft is not guaranteed synchronous, and reading it back on the very
+        // next line raced a still-in-flight scroll on Android, reporting page 0 (wherever the
+        // scroller happened to already be) before correcting itself moments later once a
+        // "scroll" event caught up -- which looked, from the native side, like an accepted
+        // synced position silently failing to apply.
+        const rect = range.getClientRects()[0] ?? target?.getBoundingClientRect();
         if (!rect) {
-            if (!target) {
-                return false;
-            }
-            target.scrollIntoView({ block: "start" });
-            state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round(scroller.scrollLeft / state.viewportWidth)));
-            return true;
+            return false;
         }
 
         const targetLeft = scroller.scrollLeft + rect.left;
@@ -993,7 +974,18 @@
         if (!frameDocument?.body) {
             return false;
         }
-        return scrollRangeIntoView(findRangeAtTextOffset(frameDocument, offset));
+        const range = findRangeAtTextOffset(frameDocument, offset);
+        const applied = scrollRangeIntoView(range);
+        logDiagnostic("DisplayBook reader resolveCharOffset", {
+            offset,
+            spineIndex: state.currentSpineIndex,
+            rangeFound: range !== null,
+            applied,
+            resultingPage: state.currentPage,
+            pageCount: state.pageCount,
+            viewportWidth: state.viewportWidth
+        });
+        return applied;
     }
 
     function updateProgress() {
@@ -1011,7 +1003,8 @@
     }
 
     function updateTocHighlight() {
-        const links = elements.contentsList.querySelectorAll("a[data-spine-index]");
+        const links = /** @type {NodeListOf<HTMLAnchorElement>} */ (
+            elements.contentsList.querySelectorAll("a[data-spine-index]"));
         for (const link of links) {
             const isCurrent = Number(link.dataset.spineIndex) === state.currentSpineIndex;
             if (isCurrent) {
@@ -1049,15 +1042,53 @@
             elements.frame.setAttribute("aria-label", frameAriaLabel);
         }
         if (state.isReady && item) {
+            reportLocationWhenScrollSettles();
+        }
+    }
+
+    // The charOffset is sampled from whatever text is under the viewport, so it has to wait for
+    // the page to actually be on screen. A page turn scrolls smoothly, and sampling straight away
+    // read the page being LEFT -- every saved position lagged a page (a whole spread, in
+    // two-column mode) behind where the reader really was. Instant scrolls (setLocator, resize,
+    // chapter changes) are already in place, so they still report synchronously. Only the newest
+    // request reports: a page turn made mid-animation supersedes the one before it.
+    const SCROLL_SETTLE_TIMEOUT_MS = 1000;
+
+    function reportLocationWhenScrollSettles() {
+        const token = ++state.locationReportToken;
+        const startedAt = performance.now();
+        const report = () => {
+            if (token !== state.locationReportToken) {
+                return;
+            }
+            const scroller = getFrameScroller();
+            const isSettled = !scroller ||
+                state.settings.paginationMode === "scroll" ||
+                Math.abs(scroller.scrollLeft - getCurrentPageScrollLeft()) <= 1;
+            if (!isSettled && performance.now() - startedAt < SCROLL_SETTLE_TIMEOUT_MS) {
+                window.requestAnimationFrame(report);
+                return;
+            }
+            const item = state.spine[state.currentSpineIndex];
+            if (!state.isReady || !item) {
+                return;
+            }
             notifyNative("locationChanged", {
-                resourceHref: item.relativeHref,
+                resourceHref: item.href,
                 page: state.currentPage,
                 pageCount: state.pageCount,
                 charOffset: getCharOffsetAtViewportStart() ?? -1
             });
-        }
+        };
+        report();
     }
 
+    function getCurrentPageScrollLeft() {
+        const maxScroll = Math.max(0, getScrollWidth() - state.viewportWidth);
+        return Math.min(maxScroll, state.currentPage * state.viewportWidth);
+    }
+
+    /** @param {ScrollBehavior} [behavior] */
     function scrollToCurrentPage(behavior = "auto") {
         const scroller = getFrameScroller();
         if (!scroller) {
@@ -1069,8 +1100,7 @@
             return;
         }
 
-        const maxScroll = Math.max(0, getScrollWidth() - state.viewportWidth);
-        const left = Math.min(maxScroll, state.currentPage * state.viewportWidth);
+        const left = getCurrentPageScrollLeft();
         if (typeof scroller.scrollTo === "function") {
             scroller.scrollTo({ left, top: 0, behavior });
         } else {
@@ -1079,7 +1109,21 @@
         }
     }
 
-    function measurePageLayout(preservePosition = false, preservedScrollRatio = null) {
+    // notify=false lets a caller that is about to resolve and report the REAL target position
+    // itself (goToSpineIndex, right after switching chapters) skip the notifyNative this would
+    // otherwise send for the merely provisional page-0-of-the-new-chapter position that
+    // showSection() just reset state.currentPage to -- without it, that transient position was
+    // getting reported as a locationChanged, which the native side treats as the definitive
+    // "reader ready" locator (see EpubReaderView's pendingStartLocator handling) and saves/syncs
+    // immediately, a heartbeat before the correct one arrives right behind it. Every other
+    // caller (resize, setSettings, setSafeAreaInsets) is the only source of a position update
+    // for that change and still wants its notification, so they keep the default.
+    /**
+     * @param {boolean} [preservePosition]
+     * @param {number | null} [preservedScrollRatio]
+     * @param {boolean} [notify]
+     */
+    function measurePageLayout(preservePosition = false, preservedScrollRatio = null, notify = true) {
         const oldPageCount = Math.max(1, state.pageCount);
         const oldPosition = state.currentPage / Math.max(1, oldPageCount - 1);
         const scrollRatio = preservePosition && state.settings.paginationMode === "scroll"
@@ -1092,16 +1136,19 @@
         }
 
         if (state.settings.paginationMode === "scroll") {
+            clearVirtualColumns(frameDocument);
             state.pageCount = 1;
             state.currentPage = 0;
-            state.spine[state.currentSpineIndex].pageCount = 1;
             restoreScrollPosition(scrollRatio);
-            updateUi();
+            if (notify) {
+                updateUi();
+            }
             return;
         }
 
         const columnCount = Number(getEffectiveSettings().columnCount);
         frameDocument.documentElement.style.setProperty("--reader-column-width", `${state.viewportWidth / columnCount}px`);
+        padColumnsToFullSpread(frameDocument);
         const scrollWidth = getScrollWidth();
         state.pageCount = Math.max(1, Math.ceil((scrollWidth - 1) / state.viewportWidth));
         if (preservePosition && oldPageCount > 1) {
@@ -1109,9 +1156,10 @@
         } else {
             state.currentPage = Math.min(state.currentPage, state.pageCount - 1);
         }
-        state.spine[state.currentSpineIndex].pageCount = state.pageCount;
         scrollToCurrentPage();
-        updateUi();
+        if (notify) {
+            updateUi();
+        }
     }
 
     function waitForNextFrame() {
@@ -1260,6 +1308,7 @@
             closeContents();
             closeSettings();
         }
+        notifyNative("chromeVisibilityChanged", { visible: isVisible });
         window.requestAnimationFrame(() => {
             if (state.isReady) {
                 elements.frame.contentDocument?.documentElement.style.setProperty(
@@ -1335,6 +1384,12 @@
             }
             const page = Math.round(scroller.scrollLeft / state.viewportWidth);
             if (page !== state.currentPage && page >= 0 && page < state.pageCount) {
+                logDiagnostic("DisplayBook reader scroll listener correcting page", {
+                    priorPage: state.currentPage,
+                    correctedPage: page,
+                    scrollLeft: scroller.scrollLeft,
+                    viewportWidth: state.viewportWidth
+                });
                 state.currentPage = page;
                 updateUi();
             }
@@ -1377,16 +1432,29 @@
         // resource outside the spine) must never be allowed to navigate the
         // frame for real, or the reader loses control of it entirely.
         event.preventDefault();
-        const targetUrl = getAbsoluteUrl(link.getAttribute("href"), state.documentUrl);
-        const targetIndex = getSpineIndex(targetUrl);
+        const rawHref = link.getAttribute("href");
+        if (!rawHref) {
+            return;
+        }
+
+        const sourceSection = link.closest("section[data-chapter-index]");
+        const baseHref = sourceSection?.dataset.chapterHref ?? state.spine[state.currentSpineIndex]?.href;
+        if (!baseHref) {
+            return;
+        }
+
+        const { spineIndex: targetIndex, fragment } = resolveSpineIndexForHref(rawHref, baseHref);
         if (targetIndex < 0) {
             return;
         }
 
-        const target = new URL(targetUrl);
-        loadResource(targetIndex, target.hash).catch(setError);
+        goToSpineIndex(targetIndex, { fragment });
     }
 
+    /**
+     * @param {number} page
+     * @param {ScrollBehavior} [behavior]
+     */
     function goToPage(page, behavior = "smooth") {
         if (!state.isReady) {
             return;
@@ -1411,6 +1479,10 @@
         };
     }
 
+    /**
+     * @param {{ targetIndex: number, chapterRatio: number }} target
+     * @param {ScrollBehavior} [behavior]
+     */
     function applyProgressTarget(target, behavior = "auto") {
         if (!state.isReady) {
             return;
@@ -1429,42 +1501,24 @@
         goToPage(page, behavior);
     }
 
-    function processPendingProgressSeek() {
-        if (state.progressSeek.isLoading || state.progressSeek.pendingValue === null || state.spine.length === 0) {
-            return;
-        }
-
-        const requestedValue = state.progressSeek.pendingValue;
-        const behavior = state.progressSeek.behavior;
-        state.progressSeek.pendingValue = null;
-        const target = getProgressTarget(requestedValue);
-        if (target.targetIndex === state.currentSpineIndex && state.isReady) {
-            applyProgressTarget(target, behavior);
-            return;
-        }
-
-        state.progressSeek.isLoading = true;
-        loadResource(target.targetIndex)
-            .then(() => {
-                if (state.progressSeek.pendingValue === null) {
-                    applyProgressTarget(target, "auto");
-                }
-            })
-            .catch(setError)
-            .finally(() => {
-                state.progressSeek.isLoading = false;
-                processPendingProgressSeek();
-            });
-    }
-
+    // Switching chapters is now a synchronous DOM show/hide (see goToSpineIndex) rather than an
+    // async fetch+parse, so -- unlike the old fetch-backed version of this function -- there's no
+    // in-flight load for a later seek to race against; each call runs to completion before the
+    // next `input`/`change` event can fire.
+    /**
+     * @param {string | number} value
+     * @param {ScrollBehavior} [behavior]
+     */
     function seekToProgress(value, behavior = "auto") {
-        if (state.spine.length === 0) {
+        if (!state.isReady || state.spine.length === 0) {
             return;
         }
 
-        state.progressSeek.pendingValue = value;
-        state.progressSeek.behavior = behavior;
-        processPendingProgressSeek();
+        const target = getProgressTarget(value);
+        if (target.targetIndex !== state.currentSpineIndex) {
+            goToSpineIndex(target.targetIndex);
+        }
+        applyProgressTarget(target, behavior);
     }
 
     function goNext() {
@@ -1476,7 +1530,7 @@
             return;
         }
         if (state.currentSpineIndex < state.spine.length - 1) {
-            loadResource(state.currentSpineIndex + 1).catch(setError);
+            goToSpineIndex(state.currentSpineIndex + 1);
         }
     }
 
@@ -1489,149 +1543,94 @@
             return;
         }
         if (state.currentSpineIndex > 0) {
-            loadResource(state.currentSpineIndex - 1, "", true).catch(setError);
+            goToSpineIndex(state.currentSpineIndex - 1, { openAtEnd: true });
         }
     }
 
-    async function loadResource(spineIndex, fragment = "", openAtEnd = false, charOffset = null) {
-        const item = state.spine[spineIndex];
-        if (!item) {
-            return;
+    // Toggles which chapter <section> is visible within the one already-loaded combined
+    // document (see CombinedDocumentBuilder) -- replaces the old per-chapter fetch+srcdoc
+    // navigation entirely. display:none siblings contribute no layout width, so pagination
+    // (measurePageLayout/getScrollWidth) naturally scopes to whichever section this shows.
+    function showSection(spineIndex) {
+        const frameDocument = elements.frame.contentDocument;
+        const sections = /** @type {NodeListOf<HTMLElement> | undefined} */ (
+            frameDocument?.querySelectorAll("section[data-chapter-index]"));
+        if (!frameDocument || !sections || sections.length === 0) {
+            return false;
         }
 
-        state.isReady = false;
+        const target = String(spineIndex);
+        let found = false;
+        for (const section of sections) {
+            const isTarget = section.dataset.chapterIndex === target;
+            section.style.display = isTarget ? "block" : "none";
+            if (isTarget) {
+                found = true;
+            }
+        }
+        if (!found) {
+            return false;
+        }
+
         state.currentSpineIndex = spineIndex;
         state.currentPage = 0;
-        state.pageCount = 1;
-        state.documentUrl = stripFragment(item.href);
-        setLoading(true, "Loading…");
-        updateUi();
+        applyCoverPageLayout(frameDocument);
+        return true;
+    }
 
-        const token = ++state.loadToken;
-        await new Promise((resolve, reject) => {
-            state.pendingLoad = { fragment, openAtEnd, charOffset, reject, resolve, token };
-            const cachedHtml = state.resourceCache.get(stripFragment(item.href));
-            if (cachedHtml !== undefined) {
-                elements.frame.removeAttribute("src");
-                elements.frame.srcdoc = createCachedResource(cachedHtml, stripFragment(item.href));
-            } else {
-                elements.frame.removeAttribute("srcdoc");
-                elements.frame.src = fragment ? `${item.href}${fragment}` : item.href;
+    // The single entry point for "navigate to this chapter", used by page turns, TOC clicks,
+    // in-book links, and setLocator alike -- mirrors the old loadResource/handleFrameLoad
+    // structure (including its exact position-resolution precedence: charOffset, then
+    // openAtEnd, then a fragment, then an explicit page, then plain page 0) but synchronous,
+    // since there's no longer any I/O to await between "chapter selected" and "chapter visible".
+    function goToSpineIndex(spineIndex, options = {}) {
+        if (!showSection(spineIndex)) {
+            return false;
+        }
+
+        measurePageLayout(false, null, false);
+        const { fragment = "", openAtEnd = false, charOffset = null, page = null } = options;
+        let resolution = "none";
+        if (typeof charOffset === "number" && charOffset >= 0 && resolveCharOffset(charOffset)) {
+            // Position already applied by resolveCharOffset.
+            resolution = "charOffset";
+        } else if (openAtEnd) {
+            state.currentPage = state.pageCount - 1;
+            scrollToCurrentPage();
+            resolution = "openAtEnd";
+        } else if (fragment) {
+            const fragmentId = fragment.slice(1);
+            const target = elements.frame.contentDocument?.getElementById(decodeURIComponent(fragmentId));
+            if (target) {
+                target.scrollIntoView({ block: "start" });
+                state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round((getFrameScroller()?.scrollLeft ?? 0) / state.viewportWidth)));
+                resolution = "fragment";
             }
+        } else if (typeof page === "number" && page > 0) {
+            // Falls back to the caller's page number (e.g. setLocator's normalizedPage) when
+            // there's no charOffset to resolve -- without this, a locator that couldn't resolve
+            // a charOffset (a legacy locator, or one whose text wasn't found) would silently
+            // land on page 0 of the target chapter instead of anywhere close to the right spot.
+            state.currentPage = Math.min(state.pageCount - 1, Math.max(0, page));
+            scrollToCurrentPage();
+            resolution = "page";
+        }
+        logDiagnostic("DisplayBook reader goToSpineIndex", {
+            spineIndex,
+            options,
+            resolution,
+            resultingPage: state.currentPage,
+            pageCount: state.pageCount,
+            viewportWidth: state.viewportWidth
         });
+        updateUi();
+        updateTocHighlight();
+        return true;
     }
 
-    async function handleFrameLoad() {
-        const pendingLoad = state.pendingLoad;
-        if (!pendingLoad?.token || pendingLoad.token !== state.loadToken) {
-            return;
-        }
-
-        try {
-            await prepareFrame(elements.frame.contentDocument);
-            if (pendingLoad.token !== state.loadToken) {
-                return;
-            }
-            await waitForNextFrame();
-            installFrameInputHandlers(elements.frame.contentDocument);
-            state.isReady = true;
-            measurePageLayout();
-            if (typeof pendingLoad.charOffset === "number" && pendingLoad.charOffset >= 0 && resolveCharOffset(pendingLoad.charOffset)) {
-                // Position already applied by resolveCharOffset.
-            } else if (pendingLoad.openAtEnd) {
-                state.currentPage = state.pageCount - 1;
-                scrollToCurrentPage();
-            } else if (pendingLoad.fragment) {
-                const fragmentId = pendingLoad.fragment.slice(1);
-                const target = elements.frame.contentDocument.getElementById(decodeURIComponent(fragmentId));
-                if (target) {
-                    target.scrollIntoView({ block: "start" });
-                    state.currentPage = Math.min(state.pageCount - 1, Math.max(0, Math.round(getFrameScroller().scrollLeft / state.viewportWidth)));
-                }
-            }
-            updateUi();
-            updateTocHighlight();
-            setLoading(false);
-            elements.error.hidden = true;
-            notifyNative("readerReady", {
-                resourceHref: state.spine[state.currentSpineIndex].relativeHref,
-                page: state.currentPage,
-                pageCount: state.pageCount
-            });
-            pendingLoad.resolve();
-        } catch (error) {
-            pendingLoad.reject(error);
-        } finally {
-            if (state.pendingLoad === pendingLoad) {
-                state.pendingLoad = null;
-            }
-        }
-    }
-
-    function parseXhtmlToc(navText, navUrl) {
-        const navDocument = new DOMParser().parseFromString(navText, "application/xhtml+xml");
-        const links = Array.from(navDocument.querySelectorAll("nav a[href], a[href]"));
-        const toc = [];
-        for (const link of links) {
-            const href = link.getAttribute("href");
-            if (!href) {
-                continue;
-            }
-            const targetUrl = getAbsoluteUrl(href, navUrl);
-            const target = new URL(targetUrl);
-            const spineIndex = getSpineIndex(target.href);
-            if (spineIndex < 0) {
-                continue;
-            }
-            toc.push({
-                fragment: target.hash,
-                label: link.textContent.trim() || getSpineLabel(spineIndex),
-                spineIndex
-            });
-        }
-        return toc;
-    }
-
-    function parseNcxToc(navText, navUrl) {
-        const navDocument = new DOMParser().parseFromString(navText, "application/xml");
-        if (navDocument.querySelector("parsererror")) {
-            throw new Error("The EPUB NCX navigation document is not valid XML.");
-        }
-
-        const toc = [];
-        for (const navPoint of getLocalNameNodes(navDocument, "navPoint")) {
-            const href = getLocalNameNodes(navPoint, "content")[0]?.getAttribute("src");
-            if (!href) {
-                continue;
-            }
-            const targetUrl = getAbsoluteUrl(href, navUrl);
-            const target = new URL(targetUrl);
-            const spineIndex = getSpineIndex(target.href);
-            if (spineIndex < 0) {
-                continue;
-            }
-            const label = getLocalNameNodes(navPoint, "text")[0]?.textContent?.trim();
-            toc.push({
-                fragment: target.hash,
-                label: label || getSpineLabel(spineIndex),
-                spineIndex
-            });
-        }
-        return toc;
-    }
-
-    async function loadContents(navItem) {
-        if (!navItem) {
-            return;
-        }
-
-        const navUrl = navItem.href;
-        const navText = await fetchText(navUrl);
-        const toc = navItem.navType === "ncx" ? parseNcxToc(navText, navUrl) : parseXhtmlToc(navText, navUrl);
-
-        state.toc = toc;
+    function renderContents() {
         elements.contentsList.replaceChildren();
-        for (const entry of toc) {
+        for (const entry of state.toc) {
             const listItem = document.createElement("li");
             const link = document.createElement("a");
             link.href = "#";
@@ -1639,20 +1638,17 @@
             link.textContent = entry.label;
             link.addEventListener("click", (event) => {
                 event.preventDefault();
-                loadResource(entry.spineIndex, entry.fragment).then(closeContents).catch(setError);
+                goToSpineIndex(entry.spineIndex, { fragment: entry.fragment });
+                closeContents();
             });
             listItem.appendChild(link);
             elements.contentsList.appendChild(listItem);
         }
     }
 
-    async function openContents() {
+    function openContents() {
         elements.contentsPanel.hidden = false;
         elements.contentsToggle.setAttribute("aria-expanded", "true");
-        if (!state.contentsPromise) {
-            state.contentsPromise = state.contentsLoader?.() ?? Promise.resolve();
-        }
-        await state.contentsPromise;
     }
 
     function closeContents() {
@@ -1678,7 +1674,7 @@
     }
 
     function bindHostEvents() {
-        elements.frame.addEventListener("load", () => handleFrameLoad().catch(setError));
+        elements.frame.addEventListener("load", () => handleCombinedDocumentLoad().catch(setError));
         elements.readerBack.addEventListener("click", () => notifyNative("requestExit"));
         elements.previous.addEventListener("click", goPrevious);
         elements.next.addEventListener("click", goNext);
@@ -1699,16 +1695,16 @@
 
             hideLookupButton();
         });
-        elements.progressSlider.addEventListener("input", (event) => {
-            seekToProgress(event.target.value);
-            previewProgress(event.target.value);
+        elements.progressSlider.addEventListener("input", () => {
+            seekToProgress(elements.progressSlider.value);
+            previewProgress(elements.progressSlider.value);
         });
-        elements.progressSlider.addEventListener("change", (event) => {
-            seekToProgress(event.target.value);
+        elements.progressSlider.addEventListener("change", () => {
+            seekToProgress(elements.progressSlider.value);
         });
         elements.contentsToggle.addEventListener("click", () => {
             if (elements.contentsPanel.hidden) {
-                openContents().catch(setError);
+                openContents();
             } else {
                 closeContents();
             }
@@ -1745,6 +1741,12 @@
             window.clearTimeout(state.resizeTimer);
             state.resizeTimer = window.setTimeout(() => {
                 if (state.isReady) {
+                    logDiagnostic("DisplayBook reader resize->measurePageLayout", {
+                        priorPage: state.currentPage,
+                        priorPageCount: state.pageCount,
+                        priorViewportWidth: state.viewportWidth,
+                        newFrameClientWidth: elements.frame.clientWidth
+                    });
                     applySettingsToFrame(elements.frame.contentDocument);
                     measurePageLayout(true);
                 }
@@ -1767,9 +1769,9 @@
         // locationChanged to know the reader finished loading, and it must always get one
         // or the loading screen hangs forever.
         const byRelativeHref = getSpineIndexByRelativeHref(resourceHref);
-        const byAbsoluteUrl = byRelativeHref >= 0 ? -1 : getSpineIndex(resourceHref);
-        const isGenuineMatch = byRelativeHref >= 0 || byAbsoluteUrl >= 0;
-        const targetIndex = isGenuineMatch ? Math.max(byRelativeHref, byAbsoluteUrl) : state.currentSpineIndex;
+        const byLegacyAbsoluteHref = byRelativeHref >= 0 ? -1 : getSpineIndexByLegacyAbsoluteHref(resourceHref);
+        const isGenuineMatch = byRelativeHref >= 0 || byLegacyAbsoluteHref >= 0;
+        const targetIndex = isGenuineMatch ? Math.max(byRelativeHref, byLegacyAbsoluteHref) : state.currentSpineIndex;
 
         // page/charOffset only mean anything relative to the chapter they were captured
         // in. If we couldn't actually find that chapter, applying them to whatever
@@ -1779,21 +1781,29 @@
         const normalizedPage = isGenuineMatch ? page : 0;
         const normalizedCharOffset = isGenuineMatch && typeof charOffset === "number" && charOffset >= 0 ? charOffset : null;
 
+        logDiagnostic("DisplayBook reader setLocator", {
+            requestedResourceHref: resourceHref,
+            requestedPage: page,
+            requestedCharOffset: charOffset,
+            byRelativeHref,
+            byLegacyAbsoluteHref,
+            isGenuineMatch,
+            currentSpineIndex: state.currentSpineIndex,
+            targetIndex,
+            normalizedPage,
+            normalizedCharOffset,
+            viewportWidth: state.viewportWidth,
+            frameClientWidth: elements.frame.clientWidth,
+            frameClientHeight: elements.frame.clientHeight
+        });
+
         if (targetIndex !== state.currentSpineIndex) {
-            loadResource(targetIndex, "", false, normalizedCharOffset)
-                .then(() => {
-                    // If a char offset was supplied, handleFrameLoad already resolved
-                    // it (and fired the resulting updateUi) before this promise
-                    // settled -- only fall back to the raw page number here.
-                    if (normalizedCharOffset === null) {
-                        goToPage(normalizedPage);
-                    }
-                })
-                .catch(setError);
+            goToSpineIndex(targetIndex, { charOffset: normalizedCharOffset, page: normalizedPage });
             return;
         }
 
         if (normalizedCharOffset === null || !resolveCharOffset(normalizedCharOffset)) {
+            logDiagnostic("DisplayBook reader setLocator: falling back to page in current chapter", { normalizedPage });
             goToPage(normalizedPage);
         } else {
             updateUi();
@@ -1826,49 +1836,175 @@
         hideLookupButton();
     }
 
-    window.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo };
+    // Android has no native CSS env(safe-area-inset-*) support (unlike WKWebView on
+    // iOS/macOS, where the CSS fallback above already resolves it), so the native side
+    // measures the status bar/notch and navigation bar insets itself and pushes them
+    // in here -- see ReaderWebViewHandler.android.cs.
+    function setSafeAreaInsets(top = 0, bottom = 0) {
+        const topPx = Math.max(0, Number(top) || 0);
+        const bottomPx = Math.max(0, Number(bottom) || 0);
+        if (state.safeAreaInsets.top === topPx && state.safeAreaInsets.bottom === bottomPx) {
+            return;
+        }
 
-    function scheduleBackgroundPreload(publication) {
-        const preload = () => {
-            state.preloadPromise = Promise.all([
-                preloadPublicationStyles(publication.manifest),
-                preloadRemainingResources()
-            ]).catch((error) => {
-                console.warn("Unable to preload the complete publication.", error);
+        state.safeAreaInsets = { top: topPx, bottom: bottomPx };
+        const frameDocument = elements.frame.contentDocument;
+        if (!frameDocument?.documentElement) {
+            return;
+        }
+
+        applySettingsToFrame(frameDocument);
+        if (state.isReady) {
+            logDiagnostic("DisplayBook reader setSafeAreaInsets->measurePageLayout", {
+                topPx,
+                bottomPx,
+                priorPage: state.currentPage,
+                priorPageCount: state.pageCount,
+                priorViewportWidth: state.viewportWidth,
+                newFrameClientWidth: elements.frame.clientWidth
             });
-        };
-
-        if (typeof window.requestIdleCallback === "function") {
-            window.requestIdleCallback(preload, { timeout: 2000 });
-        } else {
-            window.setTimeout(preload, 250);
+            measurePageLayout(true);
         }
     }
 
-    async function initialize() {
+    function loadPublication(payload) {
+        openPublication(payload).catch(setError);
+    }
+
+    // Answers EpubReaderView's post-resume liveness probe (see RecoverReaderIfNeededAsync). The
+    // reader is only usable if this shell is still running AND still holding the book it was given:
+    // when the OS reclaims the WebView's web content process in the background, the native side
+    // can't tell from its own state that any of this is gone, so it asks.
+    function isReaderAlive() {
+        return state.spine.length > 0 &&
+            Boolean(elements.frame.contentDocument?.querySelector("section[data-chapter-index]"));
+    }
+
+    readerWindow.DisplayBookReader = { setLocator, setSettings, clearSelection, getSelectionInfo, setSafeAreaInsets, loadPublication, isReaderAlive };
+
+    // Everything here is per-book; called fresh every time openPublication() runs, including for
+    // the second and later books in a session where the reader shell (this whole script/DOM) is
+    // never reloaded. Bumping loadToken here also invalidates any combined-document load still
+    // in flight from whichever book was being opened before (see openPublication).
+    function resetPublicationState() {
+        state.loadToken += 1;
+        state.currentPage = 0;
+        state.currentSpineIndex = 0;
+        state.isReady = false;
+        state.readerReadyNotified = false;
+        state.metadata = { author: "", title: "" };
+        state.coverHref = null;
+        state.pageCount = 1;
+        state.pendingFrameLoad = null;
+        state.spine = [];
+        state.toc = [];
+        state.progressSeek = { isLoading: false, pendingValue: null, behavior: "auto" };
+        hideLookupButton();
+        setReaderChromeVisible(false);
+        elements.contentsList.replaceChildren();
+        elements.error.hidden = true;
+    }
+
+    /// Called once per book, whenever the native side hands this (already-booted) shell a
+    /// publication via window.DisplayBookReader.loadPublication. Unlike the old opf-path-based
+    /// flow, `payload` already carries the fully-parsed spine/TOC/metadata (see
+    /// EpubPublicationParser/ReaderPublicationPayload on the native side) and the URL of a single
+    /// document containing every chapter (see CombinedDocumentBuilder) -- this function loads
+    /// that one document and shows its first chapter; nothing here ever fetches book content
+    /// itself. The token guard lets a later call abort an earlier one still awaiting the frame's
+    /// load event instead of both racing to mutate `state`.
+    async function openPublication(payload) {
+        if (!payload?.combinedHref || !Array.isArray(payload.spine) || payload.spine.length === 0) {
+            setError(new Error("The reader did not receive a publication to open."));
+            return;
+        }
+
+        resetPublicationState();
+        const token = state.loadToken;
+        setLoading(true, "Opening publication…");
+
+        state.metadata = { author: payload.author ?? "", title: payload.title ?? "" };
+        state.spine = payload.spine;
+        state.toc = payload.toc ?? [];
+        state.coverHref = payload.coverHref ?? null;
+        renderContents();
+        applyLoadingCover();
+
+        await new Promise((resolve, reject) => {
+            state.pendingFrameLoad = { resolve, reject };
+            elements.frame.removeAttribute("srcdoc");
+            elements.frame.src = payload.combinedHref;
+        });
+        if (token !== state.loadToken) {
+            return;
+        }
+
+        applySettingsToFrame(elements.frame.contentDocument);
+        state.isReady = true;
+        if (!showSection(0)) {
+            throw new Error("The combined reading document is missing its chapters.");
+        }
+
+        measurePageLayout();
+        updateUi();
+        updateTocHighlight();
+        setLoading(false);
+        elements.error.hidden = true;
+        // readerReady is a one-time-per-book handshake: the native side waits for it (or, if a
+        // start locator is set, for the locationChanged that follows its own setLocator call) to
+        // know the reader finished loading and clear its own loading overlay.
+        if (!state.readerReadyNotified) {
+            state.readerReadyNotified = true;
+            notifyNative("readerReady", {
+                resourceHref: state.spine[0].href,
+                page: state.currentPage,
+                pageCount: state.pageCount
+            });
+        }
+    }
+
+    // Fires once when the combined document itself (not a chapter -- there's only ever one
+    // navigation per book now) finishes loading into the iframe.
+    async function handleCombinedDocumentLoad() {
+        const pendingLoad = state.pendingFrameLoad;
+        state.pendingFrameLoad = null;
+        if (!pendingLoad) {
+            return;
+        }
+
+        try {
+            const frameDocument = elements.frame.contentDocument;
+            if (!frameDocument?.head || !frameDocument.documentElement) {
+                throw new Error("The combined reading document did not load correctly.");
+            }
+
+            createPaginationStyle(frameDocument);
+            await waitForNextFrame();
+            installFrameInputHandlers(frameDocument);
+            const frameFonts = frameDocument.fonts;
+            if (frameFonts) {
+                await frameFonts.ready;
+            }
+            pendingLoad.resolve();
+        } catch (error) {
+            pendingLoad.reject(error);
+        }
+    }
+
+    function initialize() {
         bindHostEvents();
         setReaderChromeVisible(false);
-        setLoading(true, "Opening publication…");
-        if (!OPF_PATH) {
-            throw new Error("The reader did not receive an EPUB package path.");
-        }
-        const opfUrl = getAbsoluteUrl(OPF_PATH, window.location.href);
-        state.opfUrl = opfUrl;
-        const packageText = await fetchText(opfUrl);
-        const publication = parsePackage(packageText, opfUrl);
-        state.manifest = publication.manifest;
-        state.metadata = publication.metadata;
-        state.spine = publication.spine;
-        state.contentsLoader = () => loadContents(publication.nav);
-        applyLoadingCover();
-        await Promise.all([
-            preloadReaderStyles(),
-            preloadResource(state.spine[0])
-        ]);
-        await preloadResourceStyles(state.spine[0]);
-        await loadResource(0);
-        scheduleBackgroundPreload(publication);
+
+        // Tells the native side this shell (index.html/EpubText.js) has finished its
+        // book-independent boot and is ready to receive a book via loadPublication -- distinct
+        // from readerReady, which fires per-book once that book's first chapter has actually
+        // loaded. See EpubReaderView.EnsureReaderShellLoadedAsync.
+        notifyNative("shellReady");
     }
 
-    initialize().catch(setError);
+    try {
+        initialize();
+    } catch (error) {
+        setError(error);
+    }
 })();

@@ -8,21 +8,21 @@ namespace DisplayBook.Viewer.Handlers;
 /// </summary>
 public sealed partial class ReaderWebViewHandler : WebViewHandler
 {
-    public static readonly IPropertyMapper<ReaderWebView, ReaderWebViewHandler> PropertyMapper =
-        new PropertyMapper<ReaderWebView, ReaderWebViewHandler>(WebViewHandler.Mapper)
-        {
-            [nameof(ReaderWebView.IsReaderContentHost)] = MapIsReaderContentHost
-        };
+	public static readonly IPropertyMapper<ReaderWebView, ReaderWebViewHandler> PropertyMapper =
+		new PropertyMapper<ReaderWebView, ReaderWebViewHandler>(WebViewHandler.Mapper)
+		{
+			[nameof(ReaderWebView.IsReaderContentHost)] = MapIsReaderContentHost
+		};
 
-    public ReaderWebViewHandler()
-        : base(PropertyMapper)
-    {
-    }
+	public ReaderWebViewHandler()
+		: base(PropertyMapper)
+	{
+	}
 
-    public static void MapIsReaderContentHost(ReaderWebViewHandler handler, ReaderWebView view)
-    {
-        handler.ConfigurePlatformView(view.IsReaderContentHost);
-    }
+	public static void MapIsReaderContentHost(ReaderWebViewHandler handler, ReaderWebView view)
+	{
+		handler.ConfigurePlatformView(view.IsReaderContentHost);
+	}
 
-    partial void ConfigurePlatformView(bool isReaderContentHost);
+	partial void ConfigurePlatformView(bool isReaderContentHost);
 }

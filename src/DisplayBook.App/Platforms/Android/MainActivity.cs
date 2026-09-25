@@ -2,14 +2,16 @@
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
+using Android.Views;
+using AndroidX.Core.View;
 
 namespace DisplayBook.App;
 
 [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
-	private const int FolderPickerRequestCode = 4107;
-	private TaskCompletionSource<string?>? _folderPickerCompletion;
+	const int folderPickerRequestCode = 4107;
+	TaskCompletionSource<string?>? folderPickerCompletion;
 
 	protected override void OnCreate(Bundle? savedInstanceState)
 	{
@@ -22,68 +24,75 @@ public class MainActivity : MauiAppCompatActivity
 		base.OnResume();
 		ConfigureSystemBars();
 	}
-
-	private void ConfigureSystemBars()
+	// Also called by ReaderPage (RestoreSystemUi) when leaving the reader, to put the
+	// system bars back to the app's normal edge-to-edge appearance/visibility. Using
+	// WindowInsetsControllerCompat (rather than raw SystemUiFlags) lets one code path
+	// cover every supported API level (26+) instead of branching on 23/30/35, and
+	// recomputing from the live app theme here - instead of replaying a snapshot taken
+	// at reader-entry time - is what keeps the restored bar from showing stale
+	// light/dark icon colors after a theme change or a reader session.
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S2325:Methods should not be static", Justification = "This method is called from the instance context.")]
+	internal void ConfigureSystemBars()
 	{
-		if (!OperatingSystem.IsAndroidVersionAtLeast(35))
-		{
-			Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
-		}
-
-		if (Window?.DecorView is not { } decorView)
+		if (Window is not { } window || window.DecorView is not { } decorView)
 		{
 			return;
 		}
 
-        if (OperatingSystem.IsAndroidVersionAtLeast(30) || (!OperatingSystem.IsAndroidVersionAtLeast(23)))
-        {
-            return;
-        }
-
-        var systemUiFlags = decorView.SystemUiFlags |
-			Android.Views.SystemUiFlags.LayoutStable |
-			Android.Views.SystemUiFlags.LayoutFullscreen;
-
-		if (Microsoft.Maui.Controls.Application.Current?.RequestedTheme == AppTheme.Light)
+		if (!OperatingSystem.IsAndroidVersionAtLeast(35))
 		{
-			systemUiFlags |= Android.Views.SystemUiFlags.LightStatusBar;
+			window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+			window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
 		}
-		else
+
+		if (OperatingSystem.IsAndroidVersionAtLeast(28) && window.Attributes is { } attributes)
 		{
-			systemUiFlags &= ~Android.Views.SystemUiFlags.LightStatusBar;
+			attributes.LayoutInDisplayCutoutMode = OperatingSystem.IsAndroidVersionAtLeast(30)
+				? LayoutInDisplayCutoutMode.Always
+				: LayoutInDisplayCutoutMode.ShortEdges;
+			window.Attributes = attributes;
 		}
-        decorView.SystemUiFlags = systemUiFlags;
-    }
+
+		if (WindowCompat.GetInsetsController(window, decorView) is not { } controller)
+		{
+			return;
+		}
+
+		bool useDarkIcons = Microsoft.Maui.Controls.Application.Current?.RequestedTheme == AppTheme.Light;
+		controller.AppearanceLightStatusBars = useDarkIcons;
+		controller.AppearanceLightNavigationBars = useDarkIcons;
+		controller.Show(WindowInsetsCompat.Type.SystemBars());
+	}
 
 	public Task<string?> PickFolderUriAsync()
 	{
-		if (_folderPickerCompletion is not null)
+		if (folderPickerCompletion is not null)
 		{
 			throw new InvalidOperationException("A folder picker is already active.");
 		}
 
-		_folderPickerCompletion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var intent = new Intent(Intent.ActionOpenDocumentTree);
+		folderPickerCompletion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		Intent intent = new(Intent.ActionOpenDocumentTree);
 		intent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantPersistableUriPermission | ActivityFlags.GrantPrefixUriPermission);
-		StartActivityForResult(intent, FolderPickerRequestCode);
-		return _folderPickerCompletion.Task;
+		StartActivityForResult(intent, folderPickerRequestCode);
+		return folderPickerCompletion.Task;
 	}
 
 	protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
 	{
 		base.OnActivityResult(requestCode, resultCode, data);
-		if (requestCode != FolderPickerRequestCode || _folderPickerCompletion is null)
+		if (requestCode != folderPickerRequestCode || folderPickerCompletion is null)
 		{
 			return;
 		}
 
-		var completion = _folderPickerCompletion;
-		_folderPickerCompletion = null;
+		TaskCompletionSource<string?> completion = folderPickerCompletion;
+		folderPickerCompletion = null;
 		if (resultCode == Result.Ok && data?.Data is not null)
 		{
 			try
 			{
-				var takeFlags = data.Flags & (ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
+				ActivityFlags takeFlags = data.Flags & (ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
 				ContentResolver?.TakePersistableUriPermission(data.Data, takeFlags);
 			}
 			catch (Java.Lang.SecurityException)
