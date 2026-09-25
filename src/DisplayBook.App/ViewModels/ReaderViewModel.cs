@@ -31,6 +31,17 @@ public partial class ReaderViewModel(
 	/// </summary>
 	bool isResolvingRemotePosition;
 
+	/// <summary>
+	/// <see cref="latestKnownPositionAt"/> as it stood when the app last lost focus, which is what
+	/// a refocus check compares against. Not the live value: coming back to the foreground
+	/// re-lays the reader out (on Windows the click that refocuses the window also toggles the
+	/// reader chrome, switching between one- and two-column layouts; on iOS unlocking re-applies
+	/// the safe area), and the position re-sampled from that new layout is reported -- and
+	/// stamped "now" -- while the remote lookup is still in flight, which would otherwise make
+	/// every position synced from another device look older than this one's.
+	/// </summary>
+	DateTimeOffset? knownPositionAtDeactivation;
+
 	[ObservableProperty]
 	public partial BookSummary? Book { get; set; }
 
@@ -152,11 +163,20 @@ public partial class ReaderViewModel(
 	/// </summary>
 	public async Task<EpubLocator?> CheckForNewerRemotePositionAsync()
 	{
-		if (Book is not { } book || string.IsNullOrEmpty(book.ContentHash) || isResolvingRemotePosition)
+		if (Book is not { } book || string.IsNullOrEmpty(book.ContentHash))
 		{
+			logger.LogInformation("Refocus check skipped: no open book with a content hash.");
 			return null;
 		}
 
+		if (isResolvingRemotePosition)
+		{
+			logger.LogInformation("Refocus check skipped for {ContentHash}: a position lookup or prompt is already in progress.", book.ContentHash);
+			return null;
+		}
+
+		DateTimeOffset knownAt = knownPositionAtDeactivation ?? latestKnownPositionAt;
+		knownPositionAtDeactivation = null;
 		isResolvingRemotePosition = true;
 		try
 		{
@@ -175,8 +195,17 @@ public partial class ReaderViewModel(
 			}
 
 			// The user may have opened a different book while the lookup was in flight.
-			if (!ReferenceEquals(Book, book) || remote is null || string.IsNullOrWhiteSpace(remote.ResourceHref) || remote.UpdatedAt <= latestKnownPositionAt)
+			if (!ReferenceEquals(Book, book) || remote is null || string.IsNullOrWhiteSpace(remote.ResourceHref))
 			{
+				logger.LogInformation("Refocus check for {ContentHash}: no synced position (signed out, offline, or none stored).", book.ContentHash);
+				return null;
+			}
+
+			if (remote.UpdatedAt <= knownAt)
+			{
+				logger.LogInformation(
+					"Refocus check for {ContentHash}: synced position from {RemoteUpdatedAt} is not newer than this device's {KnownAt}.",
+					book.ContentHash, remote.UpdatedAt, knownAt);
 				return null;
 			}
 
@@ -184,6 +213,7 @@ public partial class ReaderViewModel(
 			EpubLocator remoteLocator = new(remote.ResourceHref, remote.Page, remote.PageCount, remote.CharOffset);
 			if (IsSamePosition(Locator, remoteLocator))
 			{
+				logger.LogInformation("Refocus check for {ContentHash}: newer synced position matches the current one.", book.ContentHash);
 				return null;
 			}
 
@@ -206,6 +236,13 @@ public partial class ReaderViewModel(
 			isResolvingRemotePosition = false;
 		}
 	}
+
+	/// <summary>
+	/// Records what this device knew when the app lost focus, for the next refocus check (see
+	/// <see cref="knownPositionAtDeactivation"/>). Keeps the earliest snapshot if focus is lost
+	/// more than once before a check consumes it.
+	/// </summary>
+	public void NoteAppDeactivated() => knownPositionAtDeactivation ??= latestKnownPositionAt;
 
 	void NoteKnownPosition(DateTimeOffset updatedAt)
 	{

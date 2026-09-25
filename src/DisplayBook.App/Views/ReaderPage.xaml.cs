@@ -82,16 +82,27 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 #endif
 	}
 
+	/// <summary>
+	/// Resumed is subscribed alongside Activated as a backstop: both fire when returning from the
+	/// background on iOS/Android (WillEnterForeground/OnRestart then OnActivated/OnResume), and
+	/// the view model ignores the second while the first is still checking. Activated alone
+	/// covers Windows focus changes, where Resumed only fires on restore from minimized.
+	/// </summary>
 	void SubscribeToWindowLifecycle()
 	{
 		UnsubscribeFromWindowLifecycle();
-		if (Window is not { } window)
+
+		// The page's own Window can still be unset this early on some platforms (see the same
+		// caveat in EpubReaderView.LoadCurrentPublicationAsync); the app has only the one.
+		if ((Window ?? Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()) is not { } window)
 		{
+			logger.LogWarning("Reader page has no window to watch for focus changes; synced positions won't be checked on refocus.");
 			return;
 		}
-
+		logger.LogInformation("Reader page subscribing to window lifecycle events for focus changes.");
 		lifecycleWindow = window;
 		window.Activated += OnWindowActivated;
+		window.Resumed += OnWindowActivated;
 		window.Deactivated += OnWindowDeactivated;
 	}
 
@@ -103,6 +114,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 		}
 
 		lifecycleWindow.Activated -= OnWindowActivated;
+		lifecycleWindow.Resumed -= OnWindowActivated;
 		lifecycleWindow.Deactivated -= OnWindowDeactivated;
 		lifecycleWindow = null;
 	}
@@ -113,7 +125,11 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 	/// later, when the OS may already have suspended the app.
 	/// </summary>
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S1172:Unused method parameters should be removed", Justification = "It is an event handler")]
-	async void OnWindowDeactivated(object? sender, EventArgs e) => await FlushPendingSyncAsync();
+	async void OnWindowDeactivated(object? sender, EventArgs e)
+	{
+		viewModel.NoteAppDeactivated();
+		await FlushPendingSyncAsync();
+	}
 
 	/// <summary>
 	/// The app is back in the foreground: if the book was read further on another device in
@@ -122,10 +138,12 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "S1172:Unused method parameters should be removed", Justification = "It is an event handler")]
 	async void OnWindowActivated(object? sender, EventArgs e)
 	{
+		logger.LogInformation("Reader window regained focus; checking for a newer synced reading position.");
 		try
 		{
 			if (await viewModel.CheckForNewerRemotePositionAsync() is { } locator)
 			{
+				logger.LogInformation("A newer synced reading position was found; jumping to it.");
 				await Reader.SetLocatorAsync(locator);
 			}
 		}
