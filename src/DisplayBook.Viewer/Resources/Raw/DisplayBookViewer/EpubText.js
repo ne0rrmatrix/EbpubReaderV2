@@ -11,6 +11,7 @@
     const FRAME_STYLE_ID = "display-book-pagination-style";
     const VIRTUAL_COLUMN_CLASS = "display-book-virtual-column";
     const MIN_SWIPE_DISTANCE = 42;
+    const EXTERNAL_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
     const SETTINGS_STORAGE_KEY = "displaybook.reader.settings.v1";
     const SETTINGS_STORAGE_VERSION = 1;
     const WIDE_VIEWPORT_MINIMUM = 1200;
@@ -434,6 +435,22 @@
             spineIndex: state.spine.findIndex((item) => item.href === relativePath),
             fragment: resolved.hash
         };
+    }
+
+    // Only an href that is already absolute (parses with no base) and uses one of these schemes
+    // counts as external -- anything relative is book content and goes through
+    // resolveSpineIndexForHref as before.
+    /**
+     * @param {string} rawHref
+     */
+    function getExternalLinkUrl(rawHref) {
+        let url;
+        try {
+            url = new URL(rawHref.trim());
+        } catch {
+            return "";
+        }
+        return EXTERNAL_LINK_PROTOCOLS.has(url.protocol) ? url.href : "";
     }
 
     function getChapterTitle(spineIndex) {
@@ -1434,6 +1451,12 @@
         event.preventDefault();
         const rawHref = link.getAttribute("href");
         if (!rawHref) {
+            return;
+        }
+
+        const externalUrl = getExternalLinkUrl(rawHref);
+        if (externalUrl) {
+            notifyNative("openExternalLink", { url: externalUrl });
             return;
         }
 

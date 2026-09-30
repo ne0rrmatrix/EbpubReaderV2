@@ -599,6 +599,9 @@ public partial class EpubReaderView : ContentView
 			case ReaderBridgeMessageTypes.DictionaryLookupRequested:
 				await HandleDictionaryLookupMessageAsync(message);
 				break;
+			case ReaderBridgeMessageTypes.OpenExternalLink:
+				await HandleOpenExternalLinkAsync(message);
+				break;
 		}
 	}
 
@@ -677,6 +680,30 @@ public partial class EpubReaderView : ContentView
 		TryGetNonEmptyString(message.Payload, "text", out string? selection)
 			? HandleDictionaryLookupRequestedAsync(selection)
 			: Task.CompletedTask;
+
+	/// <summary>
+	/// Hands a link the book points outside itself to the OS default handler (browser/mail client).
+	/// The scheme is re-checked here rather than trusting the JS side, since book content controls
+	/// the href.
+	/// </summary>
+	static async Task HandleOpenExternalLinkAsync(ReaderBridgeMessage message)
+	{
+		if (!TryGetNonEmptyString(message.Payload, "url", out string? url) ||
+			!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) ||
+			(uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeMailto))
+		{
+			return;
+		}
+
+		try
+		{
+			await Launcher.Default.OpenAsync(uri);
+		}
+		catch (Exception exception)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EpubReaderView] Could not open external link {uri}: {exception.Message}");
+		}
+	}
 
 	static bool TryGetNonEmptyString(JsonElement payload, string propertyName, [NotNullWhen(true)] out string? value)
 	{
