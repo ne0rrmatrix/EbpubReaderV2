@@ -105,7 +105,6 @@
     const state = {
         currentPage: 0,
         currentSpineIndex: 0,
-        chromeVisible: false,
         isReady: false,
         loadToken: 0,
         locationReportToken: 0,
@@ -209,8 +208,9 @@
     }
 
     function getEffectiveSettings() {
-        const canUseTwoColumns = state.settings.columnMode === "two" && window.innerWidth >= WIDE_VIEWPORT_MINIMUM;
-        const useTwoColumns = !state.chromeVisible && canUseTwoColumns;
+        // Gated on the window, not the (smaller) chrome-visible viewport, so opening the menu
+        // keeps the same column count; measurePageLayout sizes the columns to fit the frame.
+        const useTwoColumns = state.settings.columnMode === "two" && window.innerWidth >= WIDE_VIEWPORT_MINIMUM;
         const columnCount = useTwoColumns ? "2" : "1";
         return {
             ...state.settings,
@@ -1318,7 +1318,6 @@
     }
 
     function setReaderChromeVisible(isVisible) {
-        state.chromeVisible = isVisible;
         elements.readerShell.classList.toggle("reader-shell--immersive", !isVisible);
         elements.readerShell.dataset.chromeVisible = String(isVisible);
         if (!isVisible) {
@@ -1328,9 +1327,6 @@
         notifyNative("chromeVisibilityChanged", { visible: isVisible });
         window.requestAnimationFrame(() => {
             if (state.isReady) {
-                elements.frame.contentDocument?.documentElement.style.setProperty(
-                    "--USER__colCount",
-                    getEffectiveSettings().columnCount);
                 measurePageLayout(true);
             }
         });
