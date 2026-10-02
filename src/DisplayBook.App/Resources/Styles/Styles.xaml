@@ -153,6 +153,26 @@
         </Setter>
     </Style>
 
+    <!--
+        Icon-only action button for the row of controls at the top of each page. The text
+        buttons these replaced overflowed the width of a small phone once there were more
+        than two or three of them. 44x44 is the smallest target Apple's and Google's
+        accessibility guidance allow, and the 10 padding leaves the artwork at its natural
+        24dp. Every user of this style needs SemanticProperties.Description set, since an
+        icon button has no text for a screen reader to announce.
+    -->
+    <Style TargetType="ImageButton" x:Key="TopBarIconButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="BorderWidth" Value="0" />
+        <Setter Property="CornerRadius" Value="22" />
+        <Setter Property="HeightRequest" Value="44" />
+        <Setter Property="WidthRequest" Value="44" />
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="Aspect" Value="AspectFit" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
     <Style TargetType="Label">
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
         <Setter Property="BackgroundColor" Value="Transparent" />

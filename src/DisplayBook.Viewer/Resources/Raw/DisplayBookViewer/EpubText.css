@@ -782,7 +782,10 @@ body.reader-body {
 }
 
 .settings-range output {
-    color: var(--reader-accent);
+    /* --reader-chrome-accent, not --reader-accent: only the former is rewritten per theme by
+       applySettings in EpubText.js, and this readout sits on --reader-chrome-surface alongside
+       --reader-chrome-ink text, so it has to move with them. */
+    color: var(--reader-chrome-accent);
     font-variant-numeric: tabular-nums;
 }
 
@@ -861,7 +864,18 @@ body.reader-body {
 }
 
 @media (max-width: 680px) {
-    .reader-shell {
+    /* Chrome-visible only. Immersive mode sizes .reader-stage/.book-viewport to the
+       full 100dvw/100dvh, so any padding here does not shrink them -- it just shifts
+       them down and right, pushing an equal strip of the page off the bottom and
+       right edges of the screen for good. Text laid out in that strip is invisible
+       but still counted by the frame's pagination, so the next page turn skips it
+       and the reader drops part of a sentence. Immersive mode hides the header,
+       footer and panels this padding exists for anyway, and the frame document
+       keeps clear of the status/navigation bars itself via
+       --reader-safe-area-inset-* (see createPaginationStyle in EpubText.js).
+       Excluded by :not() rather than by a later padding:0 override so that rule
+       order in this file cannot silently reintroduce the clipping. */
+    .reader-shell:not(.reader-shell--immersive) {
         gap: 0.65rem;
         padding: max(3.25rem, calc(env(safe-area-inset-top) + 1rem)) 0.75rem max(0.85rem, env(safe-area-inset-bottom));
     }

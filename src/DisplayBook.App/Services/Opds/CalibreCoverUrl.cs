@@ -7,28 +7,28 @@ namespace DisplayBook.App.Services;
 /// so grid covers built from it look soft/pixelated once displayed larger than the thumb size. This rewrites a
 /// thumb URL to request the original whenever it matches Calibre's convention; anything else passes through unchanged.
 /// </summary>
-internal static class CalibreCoverUrl
+static class CalibreCoverUrl
 {
-    private const string ThumbSegment = "/get/thumb/";
-    private const string CoverSegment = "/get/cover/";
+	const string thumbSegment = "/get/thumb/";
+	const string coverSegment = "/get/cover/";
 
-    public static string Upgrade(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return url ?? string.Empty;
-        }
+	public static string Upgrade(string? url)
+	{
+		if (string.IsNullOrWhiteSpace(url))
+		{
+			return url ?? string.Empty;
+		}
 
-        var thumbIndex = url.IndexOf(ThumbSegment, StringComparison.OrdinalIgnoreCase);
-        if (thumbIndex < 0)
-        {
-            return url;
-        }
+		int thumbIndex = url.IndexOf(thumbSegment, StringComparison.OrdinalIgnoreCase);
+		if (thumbIndex < 0)
+		{
+			return url;
+		}
 
-        var afterSegment = url[(thumbIndex + ThumbSegment.Length)..];
-        var queryIndex = afterSegment.IndexOf('?');
-        var bookAndLibraryPath = queryIndex >= 0 ? afterSegment[..queryIndex] : afterSegment;
+		string afterSegment = url[(thumbIndex + thumbSegment.Length)..];
+		int queryIndex = afterSegment.IndexOf('?');
+		string bookAndLibraryPath = queryIndex >= 0 ? afterSegment[..queryIndex] : afterSegment;
 
-        return string.Concat(url.AsSpan(0, thumbIndex), CoverSegment, bookAndLibraryPath);
-    }
+		return string.Concat(url.AsSpan(0, thumbIndex), coverSegment, bookAndLibraryPath);
+	}
 }

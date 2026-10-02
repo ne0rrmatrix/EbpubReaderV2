@@ -18,7 +18,7 @@ The library is part of the DisplayBook repository and currently targets:
 - Reader events for location changes, readiness, exit requests, settings requests, theme changes, and errors.
 - `SetLocatorAsync` for moving the reader to a previously saved position.
 
-The library renders EPUB content; it does not import EPUB files, maintain a book catalog, or provide persistence by itself. The host application is responsible for extracting EPUB files, storing publication metadata, and saving locations.
+The library renders EPUB content; it does not import EPUB files, maintain a book catalog, or provide persistence by itself. The host application is responsible for locating each book's `.epub` file, parsing it into memory (see `EpubArchive`), storing publication metadata, and saving locations.
 
 ## Add the library to a MAUI application
 
@@ -58,33 +58,30 @@ The host application must also include the normal .NET MAUI platform setup for t
 
 ## Prepare EPUB content
 
-The reader expects an extracted EPUB publication in the application's `ReaderContent` directory:
-
-```text
-<FileSystem.AppDataDirectory>
-└── ReaderContent
-	└── Books
-		└── <book-id>
-			├── META-INF
-			├── OEBPS
-			└── OEBPS\package.opf
-```
-
-The EPUB must be extracted before loading the reader. Do not pass the path to an `.epub` archive directly.
-
-Two relative paths are required:
-
-- `PublicationRoot`: the directory containing the extracted publication, relative to `ReaderContent`.
-- `PublicationOpfPath`: the OPF file path, relative to the publication root.
-
-For the structure above, use:
+The reader never touches disk for a book's chapters, CSS, images, or fonts. Instead it reads
+everything from an `EpubArchive` — the `.epub` file's entries, fully read into memory once, up
+front:
 
 ```csharp
-PublicationRoot = "Books/my-book-id";
-PublicationOpfPath = "OEBPS/package.opf";
+using DisplayBook.Viewer.Services;
+
+EpubArchive publicationSource = await EpubArchive.OpenAsync(pathToEpubFile, cancellationToken);
 ```
 
-Use forward slashes in relative paths. The library normalizes path separators when building the reader URL.
+Two things are required to load a publication:
+
+- `PublicationSource`: the `EpubArchive` built from the book's `.epub` file.
+- `PublicationOpfPath`: the OPF file's path *inside the archive* (e.g. `OEBPS/package.opf`).
+
+```csharp
+Reader.PublicationSource = publicationSource;
+Reader.PublicationOpfPath = "OEBPS/package.opf";
+```
+
+Use forward slashes for `PublicationOpfPath`. The library normalizes path separators when
+building the reader URL, and resolves every other resource the publication references (chapters,
+CSS, images, fonts) relative to that same in-memory archive — there's no separate "extraction"
+step and no per-book folder on disk.
 
 ## Add the reader to a page
 
@@ -98,14 +95,14 @@ Use forward slashes in relative paths. The library normalizes path separators wh
 
 	<viewer:EpubReaderView
 		x:Name="Reader"
-		PublicationRoot="Books/my-book-id"
+		PublicationSource="{Binding PublicationSource}"
 		PublicationOpfPath="OEBPS/package.opf"
 		HorizontalOptions="Fill"
 		VerticalOptions="Fill" />
 </ContentPage>
 ```
 
-`EpubReaderView` loads the publication when the control is loaded. You can also call `LoadPublicationAsync` explicitly when the publication properties are assigned programmatically.
+`EpubReaderView` loads the publication when the control is loaded. You can also call `LoadPublicationAsync` explicitly when the publication properties are assigned programmatically. `PublicationSource` is typically set from code-behind or a view model once `EpubArchive.OpenAsync` completes, since opening the archive is asynchronous.
 
 ## Restore and save reading position
 
@@ -123,7 +120,7 @@ public partial class ReaderPage : ContentPage
 
 	public ReaderPage(
 		string bookId,
-		string publicationRoot,
+		EpubArchive publicationSource,
 		string publicationOpfPath,
 		ReaderProgressStore progressStore)
 	{
@@ -131,7 +128,7 @@ public partial class ReaderPage : ContentPage
 
 		_bookId = bookId;
 		_progressStore = progressStore;
-		Reader.PublicationRoot = publicationRoot;
+		Reader.PublicationSource = publicationSource;
 		Reader.PublicationOpfPath = publicationOpfPath;
 		Reader.StartLocator = _progressStore.Get(_bookId) ?? EpubLocator.Empty;
 
@@ -181,7 +178,7 @@ await Reader.SetLocatorAsync(
 
 The normal startup sequence is:
 
-1. Assign `PublicationRoot` and `PublicationOpfPath`.
+1. Assign `PublicationSource` and `PublicationOpfPath`.
 2. Assign `StartLocator` if a saved position exists.
 3. The control initializes the local asset host and loads the viewer page.
 4. The viewer loads the publication and raises `ReaderReady`.
@@ -200,8 +197,8 @@ If the publication properties change after the control is loaded, the control re
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `PublicationRoot` | `string` | Extracted publication directory relative to `ReaderContent`. |
-| `PublicationOpfPath` | `string` | OPF path relative to `PublicationRoot`. |
+| `PublicationSource` | `EpubArchive?` | The book's content, already read into memory by `EpubArchive.OpenAsync`. |
+| `PublicationOpfPath` | `string` | OPF path inside the archive (e.g. `OEBPS/package.opf`). |
 | `StartLocator` | `EpubLocator` | Initial position to restore after the publication is loaded. Defaults to `EpubLocator.Empty`. |
 
 #### Methods
@@ -243,23 +240,23 @@ Reader settings are currently controlled by the bundled reader UI. `EpubReaderSe
 
 - Windows 10 build 19041 or later.
 - WebView2 Runtime.
-- The library maps the `displaybook.local` virtual host to its local reader content directory.
+- The library maps the `displaybook.local` virtual host to an in-memory resource lookup (the static viewer shell, plus the currently-open book's `EpubArchive`) — no per-book content is read from disk.
 
 ### Android
 
 - Android API 21 or later.
 - Android WebView with JavaScript enabled.
-- The library serves content through Android WebView asset loading from application storage.
+- The library serves content through a custom `WebViewAssetLoader` path handler backed by the in-memory `EpubArchive`.
 
 ### iOS
 
 - iOS 15.0 or later.
-- The library serves content to WKWebView as `file://` URLs from the app's local content directory.
+- The library serves content to WKWebView through a custom URL scheme handler backed by the in-memory `EpubArchive`.
 
 ### macOS (Mac Catalyst)
 
 - macOS via Mac Catalyst 15.0 or later.
-- The library serves content the same way as iOS, using WKWebView and `file://` URLs.
+- The library serves content the same way as iOS.
 
 The host should not replace the reader WebView handler or disable JavaScript for the reader control.
 
@@ -288,9 +285,8 @@ The application project references this library and is useful as a working integ
 
 Verify all of the following:
 
-- The extracted publication exists below the app's `ReaderContent` directory.
-- `PublicationRoot` is relative to `ReaderContent`, not an absolute filesystem path.
-- `PublicationOpfPath` points to an existing OPF file relative to `PublicationRoot`.
+- `PublicationSource` is set to a successfully-opened `EpubArchive` (not null).
+- `PublicationOpfPath` points to an existing entry inside that archive (e.g. `OEBPS/package.opf`), not an absolute filesystem path.
 - The WebView control has been loaded before calling `LoadPublicationAsync`.
 - The target platform's WebView runtime is installed.
 

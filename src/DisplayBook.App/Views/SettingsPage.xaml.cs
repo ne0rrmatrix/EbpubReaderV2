@@ -4,18 +4,18 @@ namespace DisplayBook.App.Views;
 
 public partial class SettingsPage : ContentPage
 {
-    private readonly SettingsViewModel _viewModel;
+	readonly SettingsViewModel viewModel;
 
-    public SettingsPage(SettingsViewModel viewModel)
-    {
-        _viewModel = viewModel;
-        BindingContext = viewModel;
-        InitializeComponent();
-    }
+	public SettingsPage(SettingsViewModel viewModel)
+	{
+		this.viewModel = viewModel;
+		BindingContext = viewModel;
+		InitializeComponent();
+	}
 
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        await _viewModel.OnPageAppearingAsync();
-    }
+	protected override async void OnAppearing()
+	{
+		base.OnAppearing();
+		await viewModel.OnPageAppearingAsync();
+	}
 }

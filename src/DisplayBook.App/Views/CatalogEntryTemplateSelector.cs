@@ -9,12 +9,12 @@ namespace DisplayBook.App.Views;
 /// </summary>
 public sealed class CatalogEntryTemplateSelector : DataTemplateSelector
 {
-    public DataTemplate? BookTemplate { get; set; }
+	public DataTemplate? BookTemplate { get; set; }
 
-    public DataTemplate? NavigationTemplate { get; set; }
+	public DataTemplate? NavigationTemplate { get; set; }
 
-    protected override DataTemplate? OnSelectTemplate(object item, BindableObject container)
-    {
-        return item is CatalogEntryModel { IsBook: true } ? BookTemplate : NavigationTemplate;
-    }
+	protected override DataTemplate? OnSelectTemplate(object item, BindableObject container)
+	{
+		return item is CatalogEntryModel { IsBook: true } ? BookTemplate : NavigationTemplate;
+	}
 }

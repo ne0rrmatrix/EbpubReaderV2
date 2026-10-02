@@ -367,5 +367,22 @@ FodyWeavers.xsd
 # builds too (env vars don't cross the host/device boundary). Never commit a key.
 src/DisplayBook.App/Resources/Raw/googlebooks_apikey.txt
 
+# Local-only Firebase Web API key for iOS/MacCatalyst, baked in at compile time via
+# AssemblyMetadata (see FirebaseOptions.cs and Secrets.local.props.example). Never commit
+# the real Secrets.local.props — only its .example template is tracked.
+src/DisplayBook.App/Secrets.local.props
+
+# Stray plaintext key file from an earlier, unused MauiAsset-based approach — no code
+# reads this anymore, but keep it out of git in case it lingers on a machine.
+src/DisplayBook.App/Resources/Raw/firebase_webapikey.txt
+
+# Local scratch file holding MY_APP_SECRET etc. before it's exported/bundled — never commit.
+src/DisplayBook.App/appsettings.json
+
 # macOS Finder metadata
 .DS_Store
+.headroom/memory_graph.db
+.headroom/memory_vectors.db
+.headroom/memory.db
+device_logs.txt
+device_logs.txt
