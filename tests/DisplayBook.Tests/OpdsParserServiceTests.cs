@@ -303,6 +303,17 @@ public class OpdsParserServiceTests
 	}
 
 	[Fact]
+	public void BuildDetailsFromEntry_CalibreEntry_OnlyEpubLinkIsEpub()
+	{
+		OpdsFeed? feed = OpdsParserService.ParseFeedFromBytes(calibreCatalog, "http://calibre.local:8012/opds/navcatalog/newest");
+		OpdsEntry entry = feed!.Entries[0];
+
+		BookDetails details = OpdsParserService.BuildDetailsFromEntry(entry);
+		DownloadLink epub = Assert.Single(details.DownloadLinks, link => link.IsEpub);
+		Assert.Equal("EPUB", epub.FormatName);
+	}
+
+	[Fact]
 	public void FormatNameFor_KnownMimesMapsToHumanNames()
 	{
 		Assert.Equal("EPUB", OpdsParserService.FormatNameFor("application/epub+zip"));

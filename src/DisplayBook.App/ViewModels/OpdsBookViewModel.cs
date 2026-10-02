@@ -100,7 +100,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		}
 	}
 
-	public bool HasDownloadOptions => !IsInLibrary;
+	public bool HasDownloadOptions => !IsInLibrary && DownloadLinks.Count > 0;
 
 	public Task InitializeAsync(string entryUrl)
 	{
@@ -231,10 +231,18 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 			: details.Summary;
 		CoverUrl = details.Cover?.ThumbnailUrl ?? details.Cover?.Url;
 
+		// Servers such as Calibre list every format a book is stored in (MOBI, AZW3, PDF, ...).
+		// Only EPUB is offered, since the importer and reader understand nothing else.
 		DownloadLinks.Clear();
-		foreach (DownloadLink link in details.DownloadLinks)
+		foreach (DownloadLink link in details.DownloadLinks.Where(link => link.IsEpub))
 		{
 			DownloadLinks.Add(link);
+		}
+
+		OnPropertyChanged(nameof(HasDownloadOptions));
+		if (DownloadLinks.Count == 0)
+		{
+			StatusMessage = "This book is not offered as EPUB.";
 		}
 	}
 

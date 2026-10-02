@@ -267,8 +267,7 @@ public sealed partial class OpdsCatalogViewModel(
 	{
 		// BuildDetailsFromEntry is network-free: the acquisition links are already in the feed.
 		List<DownloadLink> links = OpdsParserService.BuildDetailsFromEntry(entry).DownloadLinks;
-		return links.FirstOrDefault(link =>
-			link.FormatName.Equals("EPUB", StringComparison.OrdinalIgnoreCase));
+		return links.FirstOrDefault(link => link.IsEpub);
 	}
 
 	[RelayCommand]

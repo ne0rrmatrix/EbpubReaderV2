@@ -24,6 +24,11 @@ public sealed class DownloadLink
 	/// </summary>
 	public string FormatName { get; set; } = "File";
 
+	/// <summary>
+	/// Whether this link is an EPUB, the only format the importer and reader understand.
+	/// </summary>
+	public bool IsEpub => FormatName.Equals("EPUB", StringComparison.OrdinalIgnoreCase);
+
 	public long Size { get; set; }
 
 	public string? Title { get; set; }
