@@ -355,8 +355,12 @@ test.describe("settings", () => {
 
         await expect.poll(() => reader.frame.locator("html").evaluate((root) => root.style.getPropertyValue("--USER__colCount"))).toBe("2");
         await reader.page.keyboard.press("Escape");
-        await reader.frame.locator("body").press("End");
-        await expect(reader.location()).toHaveText(/Page (\d+) of \1/u);
+        // The new layout can still be settling (a later re-measure lands back on page 1), so
+        // press End again until the last page sticks.
+        await expect(async () => {
+            await reader.frame.locator("body").press("End");
+            await expect(reader.location()).toHaveText(/Page (\d+) of \1/u, { timeout: 1000 });
+        }).toPass();
     });
 });
 
