@@ -74,6 +74,15 @@ public class ReaderPageTests : AppDataTest
 	static string Chapter(int index) => $"OEBPS/Text/ch{index}.xhtml";
 
 	/// <summary>
+	/// Waits for a book opened at a saved position to reach it. The reader lays out the first
+	/// chapter before moving there, and when that first chapter's position report arrives after
+	/// readerReady (on a slow machine), EpubReaderView takes it as the answer to the start locator:
+	/// the loading overlay clears on chapter 1 and the requested chapter follows a moment later.
+	/// </summary>
+	static Task WaitForChapterAsync(OpenReader open, int index) =>
+		Wait.UntilAsync(() => open.ViewModel.Locator.ResourceHref == Chapter(index), $"the reader to reach chapter {index}", readerTimeout);
+
+	/// <summary>
 	/// The app losing and regaining focus. ReaderPage listens on its own window, or on the app's
 	/// first window when its own isn't set yet as it appears; the app has only one window, but
 	/// under test the first is the runner's, and raising focus events on the runner's window
@@ -125,7 +134,7 @@ public class ReaderPageTests : AppDataTest
 
 		OpenReader open = await OpenAsync(book);
 
-		Assert.Equal(Chapter(2), open.ViewModel.Locator.ResourceHref);
+		await WaitForChapterAsync(open, 2);
 	}
 
 	[UIFact]
@@ -254,7 +263,7 @@ public class ReaderPageTests : AppDataTest
 		OpenReader open = await OpenAsync(book);
 
 		Assert.Equal("Continue from another device?", Assert.Single(TestDialogs.Alerts).Title);
-		Assert.Equal(Chapter(3), open.ViewModel.Locator.ResourceHref);
+		await WaitForChapterAsync(open, 3);
 	}
 
 	[UIFact]
@@ -268,7 +277,7 @@ public class ReaderPageTests : AppDataTest
 		OpenReader open = await OpenAsync(book);
 
 		Assert.Equal("Different reading position found", Assert.Single(TestDialogs.Alerts).Title);
-		Assert.Equal(Chapter(2), open.ViewModel.Locator.ResourceHref);
+		await WaitForChapterAsync(open, 2);
 	}
 
 	[UIFact]
@@ -280,8 +289,8 @@ public class ReaderPageTests : AppDataTest
 
 		OpenReader open = await OpenAsync(book);
 
+		await WaitForChapterAsync(open, 2);
 		Assert.Empty(TestDialogs.Alerts);
-		Assert.Equal(Chapter(2), open.ViewModel.Locator.ResourceHref);
 	}
 
 	[UIFact]
