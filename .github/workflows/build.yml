@@ -12,7 +12,7 @@ jobs:
     env:
       # Code no test here can run: Android/iOS/Mac Catalyst-only files (the analysis and the device
       # tests run on Windows), the apps' platform entry points, and build scripts.
-      COVERAGE_EXCLUSIONS: "**/*.android.cs,**/*.ios.cs,**/*.maccatalyst.cs,**/*.macios.cs,**/*.apple.cs,**/Platforms/Android/**,**/Platforms/iOS/**,**/Platforms/MacCatalyst/**,src/DisplayBook.App/Platforms/**,tools/**"
+      COVERAGE_EXCLUSIONS: "**/*.android.cs,**/*.ios.cs,**/*.maccatalyst.cs,**/*.macios.cs,**/*.apple.cs,**/Platforms/Android/**,**/Platforms/iOS/**,**/Platforms/MacCatalyst/**,src/DisplayBook.App/Platforms/**,tests/**,tools/**"
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       DOTNET_NOLOGO: true
     steps:
