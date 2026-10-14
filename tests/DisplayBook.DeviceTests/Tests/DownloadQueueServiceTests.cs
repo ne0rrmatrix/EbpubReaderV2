@@ -296,8 +296,10 @@ public sealed partial class DownloadQueueServiceTests : AppDataTest, IDisposable
 	[Fact]
 	public async Task CancelAllThenClearFinished_EmptiesTheQueue()
 	{
-		GatedContent blocked = new(book, sendFirst: 1000);
-		handler.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = blocked };
+		// A body per request: HttpContent caches the stream it hands out, so one body shared by
+		// all three transfers would have them reading over each other, and a transfer that ends
+		// early or fails is no longer cancellable.
+		handler.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new GatedContent(book, sendFirst: 1000) };
 		await queue.EnqueueBatchAsync([("Book 1", Link(1)), ("Book 2", Link(2))]);
 		DownloadProgress single = await queue.EnqueueAsync(Link(3), "Book 3");
 		await Wait.UntilAsync(() => handler.Requests.Count > 0, "a download to start");
