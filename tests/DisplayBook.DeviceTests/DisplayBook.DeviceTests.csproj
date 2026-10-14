@@ -1,0 +1,91 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Device tests: a MAUI app that runs xUnit tests on the device itself, so code that calls MAUI
+	     platform APIs (FileSystem, SecureStorage, Preferences) runs against the real implementations
+	     instead of being left out of DisplayBook.Tests. Modelled on CommunityToolkit.Maui's
+	     device-test project (CommunityToolkit/Maui#3344), using the DeviceRunners packages
+	     (the public NuGet form of dotnet/maui's device-test runner) rather than vendoring that runner.
+	     See README.md. -->
+
+	<PropertyGroup>
+		<TargetFrameworks>$(NetVersion)-ios;$(NetVersion)-android;$(NetVersion)-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);$(NetVersion)-windows10.0.19041.0</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>DisplayBook.DeviceTests</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<IsPackable>false</IsPackable>
+		<!-- An Exe that isn't an IsTestProject, so SonarQube Cloud has to be told this is test code. -->
+		<SonarQubeTestProject>true</SonarQubeTestProject>
+		<!-- The MAUI app supplies its own entry points; dotnet test reaches it through
+		     DeviceRunners.Testing.Targets, not Microsoft.Testing.Platform. -->
+		<GenerateTestingPlatformEntryPoint>false</GenerateTestingPlatformEntryPoint>
+
+		<ApplicationTitle>DisplayBook Device Tests</ApplicationTitle>
+		<!-- Must differ from DisplayBook.App's ApplicationId: it decides the app-data folder and the
+		     secure-storage scope, and the tests wipe both (see AppDataSandbox). -->
+		<ApplicationId>com.ahdf.displaybook.devicetests</ApplicationId>
+		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+		<!-- Unpackaged like DisplayBook.App, so dotnet test launches the built .exe directly. -->
+		<WindowsPackageType>None</WindowsPackageType>
+		<!-- Bundle the Windows App SDK runtime so the app also runs on machines without it installed
+		     (the GitHub-hosted runner in .github/workflows/build.yml). -->
+		<WindowsAppSDKSelfContained Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</WindowsAppSDKSelfContained>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<MauiIcon Include="..\..\src\DisplayBook.App\Resources\AppIcon\appicon.svg" ForegroundFile="..\..\src\DisplayBook.App\Resources\AppIcon\appiconfg.svg" Color="#14213D" />
+		<MauiSplashScreen Include="..\..\src\DisplayBook.App\Resources\Splash\splash_icon.svg" Color="#14213D" BaseSize="256,256" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.utility" Version="2.9.3" />
+		<PackageReference Include="DeviceRunners.VisualRunners.Maui" Version="0.1.0-preview.12" />
+		<PackageReference Include="DeviceRunners.VisualRunners.Xunit" Version="0.1.0-preview.12" />
+		<PackageReference Include="DeviceRunners.Testing.Targets" Version="0.1.0-preview.12" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Like DisplayBook.Tests, the app's sources are compiled in directly rather than referencing
+		     DisplayBook.App (an Exe with its own entry points). Unlike DisplayBook.Tests, these are the
+		     files that call MAUI APIs. -->
+		<Compile Include="..\..\src\DisplayBook.App\Models\BookSummary.cs" Link="App\Models\BookSummary.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Models\Opds\*.cs" LinkBase="App\Models\Opds" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IBookDatabase.cs" Link="App\Interfaces\IBookDatabase.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IOpdsCatalogCache.cs" Link="App\Interfaces\IOpdsCatalogCache.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IOpdsServerRepository.cs" Link="App\Interfaces\IOpdsServerRepository.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IFirebaseAuthService.cs" Link="App\Interfaces\IFirebaseAuthService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\BookStorageService.cs" Link="App\Services\BookStorageService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\BookDatabase.cs" Link="App\Services\BookDatabase.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\GoogleBooksOptions.cs" Link="App\Services\GoogleBooksOptions.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\FirebaseAuthService.cs" Link="App\Services\FirebaseAuthService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Sync\FirebaseAuthService.cs" Link="App\Services\Sync\FirebaseAuthService.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Sync\AuthJsonContext.cs" Link="App\Services\Sync\AuthJsonContext.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Sync\FirebaseOptions.cs" Link="App\Services\Sync\FirebaseOptions.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsCatalogCache.cs" Link="App\Services\Opds\OpdsCatalogCache.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsServerRepository.cs" Link="App\Services\Opds\OpdsServerRepository.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsJsonContext.cs" Link="App\Services\Opds\OpdsJsonContext.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\StringDictionaryConverter.cs" Link="App\Services\Opds\StringDictionaryConverter.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsUrlNormalizer.cs" Link="App\Services\Opds\OpdsUrlNormalizer.cs" />
+		<Compile Include="..\..\src\DisplayBook.App\Views\Converters\ValueConverters.cs" Link="App\Views\Converters\ValueConverters.cs" />
+	</ItemGroup>
+
+	<!-- Test classes are found by reflection, which the trimmer cannot see. -->
+	<ItemGroup>
+		<TrimmerRootAssembly Include="$(AssemblyName)" RootMode="all" />
+	</ItemGroup>
+
+</Project>

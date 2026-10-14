@@ -158,20 +158,16 @@
 		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW</DefineConstants>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">
+	<!-- Android signing. The keystore and its passwords are not in the repository: locally they come
+	     from Secrets.local.props (see Secrets.local.props.example), in CI from repository secrets
+	     (see .github/workflows/build.yml). Without a keystore, Android builds sign with the SDK's
+	     debug key, as any MAUI app does by default. -->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(AndroidSigningKeyStore)' != ''">
 	  <AndroidKeyStore>True</AndroidKeyStore>
-	  <AndroidSigningStorePass>Jqbywx5Jqbywx5</AndroidSigningStorePass>
-	  <AndroidSigningKeyAlias>EpubReaderV2</AndroidSigningKeyAlias>
-	  <AndroidSigningKeyPass>Jqbywx5Jqbywx5</AndroidSigningKeyPass>
-	  <AndroidSigningKeyStore>EpubReaderV2.keystore</AndroidSigningKeyStore>
+	  <AndroidSigningKeyAlias Condition="'$(AndroidSigningKeyAlias)' == ''">EpubReaderV2</AndroidSigningKeyAlias>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net10.0-android|AnyCPU'">
-	  <AndroidKeyStore>True</AndroidKeyStore>
-	  <AndroidSigningStorePass>Jqbywx5Jqbywx5</AndroidSigningStorePass>
-	  <AndroidSigningKeyAlias>EpubReaderV2</AndroidSigningKeyAlias>
-	  <AndroidSigningKeyPass>Jqbywx5Jqbywx5</AndroidSigningKeyPass>
-	  <AndroidSigningKeyStore>EpubReaderV2.keystore</AndroidSigningKeyStore>
 	  <AndroidPackageFormat>apk</AndroidPackageFormat>
 	</PropertyGroup>
 

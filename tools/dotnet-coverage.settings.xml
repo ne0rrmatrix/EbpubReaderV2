@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dotnet-coverage settings for tools/coverage.ps1.
+     Both test projects compile the app's source files into their own test assembly (see CLAUDE.md,
+     "Tests: source-linked"), so the filter is by source path rather than by assembly: everything
+     whose source lives under src/ counts, test code and generated code (obj/) do not. -->
+<Configuration>
+	<CodeCoverage>
+		<IncludeTestAssembly>True</IncludeTestAssembly>
+		<ModulePaths>
+			<Include>
+				<ModulePath>.*[\\/]DisplayBook\.[^\\/]*\.(dll|exe)$</ModulePath>
+			</Include>
+		</ModulePaths>
+		<Sources>
+			<Include>
+				<Source>.*[\\/]src[\\/]DisplayBook\.(App|Viewer)[\\/].*</Source>
+			</Include>
+			<Exclude>
+				<Source>.*[\\/]obj[\\/].*</Source>
+			</Exclude>
+		</Sources>
+		<EnableStaticNativeInstrumentation>False</EnableStaticNativeInstrumentation>
+		<EnableDynamicNativeInstrumentation>False</EnableDynamicNativeInstrumentation>
+	</CodeCoverage>
+</Configuration>

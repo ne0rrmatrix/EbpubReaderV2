@@ -28,6 +28,8 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
+# DeviceRunners results from "dotnet test" on tests/DisplayBook.DeviceTests
+test-results/
 [Bb]in/
 [Oo]bj/
 [Oo]ut/
@@ -371,6 +373,9 @@ src/DisplayBook.App/Resources/Raw/googlebooks_apikey.txt
 # AssemblyMetadata (see FirebaseOptions.cs and Secrets.local.props.example). Never commit
 # the real Secrets.local.props — only its .example template is tracked.
 src/DisplayBook.App/Secrets.local.props
+# Android signing keystores: locally next to Secrets.local.props, in CI decoded from a secret.
+*.keystore
+*.jks
 
 # Stray plaintext key file from an earlier, unused MauiAsset-based approach — no code
 # reads this anymore, but keep it out of git in case it lingers on a machine.

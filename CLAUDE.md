@@ -29,6 +29,17 @@ dotnet test .\tests\DisplayBook.Tests\DisplayBook.Tests.csproj --filter "FullyQu
 dotnet test .\tests\DisplayBook.Tests\DisplayBook.Tests.csproj --filter "FullyQualifiedName~OpdsParserServiceTests.MethodName"
 ```
 
+Run device tests (xUnit inside a MAUI app, for code that calls MAUI APIs; always pass `-f`, see `tests/DisplayBook.DeviceTests/README.md`):
+```powershell
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-windows10.0.19041.0
+```
+
+Code coverage (unit tests + Windows device tests under `dotnet-coverage`, a local tool in `dotnet-tools.json`; writes the merged Visual Studio XML report SonarCloud reads, `artifacts/coverage/coverage.xml`):
+```powershell
+.\tools\coverage.ps1                    # -SkipDeviceTests for unit tests only
+```
+`.github/workflows/build.yml` runs the solution build and this script between the SonarQube Cloud scanner's `begin`/`end` on every push to `main` and every PR.
+
 Run the Windows build directly (built exe, no packaging):
 ```
 src\DisplayBook.App\bin\Debug\net10.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
@@ -86,6 +97,8 @@ Firebase Auth (Identity Toolkit) + Firestore, called **directly over REST via `H
 ### Tests: source-linked, not project-referenced
 
 `tests/DisplayBook.Tests` does **not** reference `DisplayBook.App` (that would pull in MAUI). Instead its `.csproj` links specific source files directly via `<Compile Include="..\..\src\DisplayBook.App\...\Foo.cs" Link="..." />`. Pure logic you want covered (parsers, matchers, URL/naming normalizers, small services with no MAUI dependency) needs its `.cs` file added to that list explicitly, or it's invisible to the test project no matter how good the test is.
+
+Code that calls MAUI APIs (`FileSystem`, `SecureStorage`, `Preferences`, anything reached through `BookStorageService`) is tested in `tests/DisplayBook.DeviceTests` instead: a MAUI app that runs xUnit on the device via the DeviceRunners packages, source-linking app files the same way. Its tests wipe the app's data folder and secure storage, which is safe only because its `ApplicationId` differs from `DisplayBook.App`'s (`AppDataSandbox` checks this) — keep it that way.
 
 ## Google Play Console operations
 

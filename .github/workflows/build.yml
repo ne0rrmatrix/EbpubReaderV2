@@ -1,0 +1,99 @@
+name: SonarQube
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_NOLOGO: true
+    steps:
+      - name: Set up JDK 21
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          java-version: 21
+          distribution: 'zulu' # Alternative distribution options are available.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Install MAUI workload
+        shell: powershell
+        run: dotnet workload install maui --source https://api.nuget.org/v3/index.json
+      # The Android keystore is stored base64-encoded in the ANDROID_KEYSTORE_BASE64 secret and
+      # written to the runner's temp folder, outside the workspace. DisplayBook.App.csproj signs
+      # with it when AndroidSigningKeyStore is set (MSBuild reads environment variables as
+      # properties); without the secret, as on pull requests from forks, Android builds use the
+      # SDK's debug key.
+      - name: Decode Android signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: powershell
+        run: |
+          if (-not $env:ANDROID_KEYSTORE_BASE64) {
+            Write-Host 'ANDROID_KEYSTORE_BASE64 is not set; Android builds sign with the debug key.'
+            exit 0
+          }
+          $dir = Join-Path $env:RUNNER_TEMP 'signing'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $path = Join-Path $dir 'EpubReaderV2.keystore'
+          try {
+            [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+          } catch {
+            Write-Error 'ANDROID_KEYSTORE_BASE64 is not valid base64.'
+            exit 1
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "AndroidSigningKeyStore=$path" -Encoding utf8
+          Write-Host 'Android keystore decoded to the runner temp folder.'
+      - name: Cache SonarQube Cloud packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~\sonar\cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Cache SonarQube Cloud scanner
+        id: cache-sonar-scanner
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}\scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+      - name: Install SonarQube Cloud scanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        shell: powershell
+        run: |
+          New-Item -Path ${{ runner.temp }}\scanner -ItemType Directory
+          dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}\scanner
+      - name: Build, test and analyze
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Keystore passwords, read by MSBuild as properties; only used when the keystore was decoded.
+          AndroidSigningStorePass: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          AndroidSigningKeyPass: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          AndroidSigningKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"ne0rrmatrix_EbpubReaderV2" /o:"ne0rrmatrix" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.vscoveragexml.reportsPaths="artifacts/coverage/coverage.xml"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build DisplayBook.slnx -c Debug
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Unit tests + Windows device tests under dotnet-coverage -> artifacts/coverage/coverage.xml
+          .\tools\coverage.ps1
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: artifacts/coverage
+          if-no-files-found: ignore
