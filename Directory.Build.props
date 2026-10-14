@@ -236,4 +236,12 @@ https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitati
     <!-- Re-enable Tizen once it includes support for .NET 10 -->
     <IncludeTizenTargetFrameworks>false</IncludeTizenTargetFrameworks>
   </PropertyGroup>
+
+  <!-- tools/sonar-precheck.ps1 (SonarPrecheck=true) builds into folders of its own, so it doesn't
+       overwrite the running app's exe or the normal builds' up-to-date state. The rest of its setup
+       is in Directory.Build.targets. -->
+  <PropertyGroup Condition="'$(SonarPrecheck)' == 'true'">
+    <OutputPath>bin\sonar\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\sonar\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
 </Project>

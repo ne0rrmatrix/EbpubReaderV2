@@ -50,4 +50,20 @@
      <TargetFrameworks Condition="'$(IncludeTizenTargetFrameworks)' == 'true'">$(TargetFrameworks);$(NetVersion)-tizen</TargetFrameworks>
   </PropertyGroup>
 
+  <!-- tools/sonar-precheck.ps1: write each compilation's diagnostics to a SARIF log, the file the
+       SonarQube Cloud scanner imports them from, and add Sonar's own C# rules, which the scanner adds
+       on CI. -->
+  <PropertyGroup Condition="'$(SonarPrecheck)' == 'true'">
+    <ErrorLog>$(IntermediateOutputPath)$(MSBuildProjectName).sarif,version=2.1</ErrorLog>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(SonarPrecheck)' == 'true' AND '$(Language)' == 'C#'">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.35.0.4138" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+  <!-- The project's quality profile from SonarQube Cloud, as the script writes it: which Sonar rules
+       are on. EditorConfigFiles is what the compiler is given (GlobalAnalyzerConfigFiles is copied
+       into it before this file is read), and a change to it makes the projects compile again. -->
+  <ItemGroup Condition="'$(SonarPrecheck)' == 'true' AND '$(SonarPrecheckGlobalConfig)' != ''">
+    <EditorConfigFiles Include="$(SonarPrecheckGlobalConfig)" />
+  </ItemGroup>
+
 </Project>

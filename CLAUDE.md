@@ -45,6 +45,12 @@ Code coverage (unit tests + Windows device tests under `dotnet-coverage`, a loca
 ```
 `.github/workflows/build.yml` runs the solution build and this script between the SonarQube Cloud scanner's `begin`/`end` on every push to `main` and every PR.
 
+Check for SonarQube Cloud issues before pushing, instead of waiting for CI:
+```powershell
+.\tools\sonar-precheck.ps1              # C# issues on lines changed since origin/main; -All for everything, -Offline to skip the API
+```
+It builds the solution with `SonarPrecheck=true` (into `bin/sonar`/`obj/sonar`, see `Directory.Build.props`/`.targets`), which adds `SonarAnalyzer.CSharp` with the project's quality profile (read from SonarQube Cloud's public API) and writes each compilation's SARIF log, the file the scanner imports compiler diagnostics from, suggestion-level ones included. It then reports what the PR analysis would: changed lines only, minus issues SonarQube Cloud already has on `main` (open, accepted or false positive), and in test projects only test-scoped Sonar rules (S2699...) plus compiler diagnostics. It doesn't cover JavaScript/CSS/HTML: for those, run "SonarQube: Analyze Changed Files with SonarQube" in VS Code (SonarQube for IDE, in connected mode with the project) before committing; automatic analysis only covers files open in the editor.
+
 Run the Windows build directly (built exe, no packaging):
 ```
 src\DisplayBook.App\bin\Debug\net10.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
