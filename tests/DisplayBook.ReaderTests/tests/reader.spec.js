@@ -200,9 +200,10 @@ test.describe("links in the book", () => {
     test("external and mail links are handed to the app", async ({ reader }) => {
         await reader.frame.locator("#external-link").click();
         await reader.frame.locator("#mail-link").click();
+        await reader.waitForMessage("openExternalLink", (message) => message.url === "mailto:author@example.com");
 
-        await expect.poll(() => reader.messages.filter((message) => message.type === "openExternalLink").map((message) => message.payload.url))
-            .toEqual(["https://example.com/more", "mailto:author@example.com"]);
+        const urls = reader.messages.filter((message) => message.type === "openExternalLink").map((message) => message.payload.url);
+        expect(urls).toEqual(["https://example.com/more", "mailto:author@example.com"]);
     });
 
     test("links that go nowhere leave the reader where it is", async ({ reader }) => {
@@ -276,8 +277,9 @@ test.describe("toolbar and panels", () => {
 
     test("the back button asks the app to close the reader", async ({ reader }) => {
         await reader.page.locator("#reader-back").click();
+        await reader.waitForMessage("requestExit");
 
-        await expect.poll(() => reader.messages.filter((message) => message.type === "requestExit").length).toBe(1);
+        expect(reader.messages.filter((message) => message.type === "requestExit")).toHaveLength(1);
     });
 });
 
