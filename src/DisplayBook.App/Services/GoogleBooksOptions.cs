@@ -17,52 +17,47 @@ namespace DisplayBook.App.Services;
 /// </summary>
 public static class GoogleBooksOptions
 {
-    private const string EnvironmentVariableName = "DISPLAYBOOK_GOOGLE_BOOKS_API_KEY";
-    private const string PreferenceKey = "GoogleBooksApiKey";
-    private const string BundledKeyAssetName = "googlebooks_apikey.txt";
+	const string environmentVariableName = "DISPLAYBOOK_GOOGLE_BOOKS_API_KEY";
+	const string preferenceKey = "GoogleBooksApiKey";
+	const string bundledKeyAssetName = "googlebooks_apikey.txt";
 
-    private static string? _cachedBundledKey;
-    private static bool _bundledKeyLoaded;
+	static string? cachedBundledKey;
+	static bool bundledKeyLoaded;
 
-    public static async Task<string?> GetApiKeyAsync()
-    {
-        var fromEnvironment = Environment.GetEnvironmentVariable(EnvironmentVariableName);
-        if (!string.IsNullOrWhiteSpace(fromEnvironment))
-        {
-            return fromEnvironment;
-        }
+	public static async Task<string?> GetApiKeyAsync()
+	{
+		string? fromEnvironment = Environment.GetEnvironmentVariable(environmentVariableName);
+		if (!string.IsNullOrWhiteSpace(fromEnvironment))
+		{
+			return fromEnvironment;
+		}
 
-        var fromPreferences = Preferences.Default.Get(PreferenceKey, (string?)null);
-        if (!string.IsNullOrWhiteSpace(fromPreferences))
-        {
-            return fromPreferences;
-        }
+		string? fromPreferences = Preferences.Default.Get(preferenceKey, (string?)null);
+		return !string.IsNullOrWhiteSpace(fromPreferences) ? fromPreferences : await GetBundledKeyAsync();
+	}
 
-        return await GetBundledKeyAsync();
-    }
+	static async Task<string?> GetBundledKeyAsync()
+	{
+		if (bundledKeyLoaded)
+		{
+			return cachedBundledKey;
+		}
 
-    private static async Task<string?> GetBundledKeyAsync()
-    {
-        if (_bundledKeyLoaded)
-        {
-            return _cachedBundledKey;
-        }
+		try
+		{
+			await using Stream stream = await FileSystem.OpenAppPackageFileAsync(bundledKeyAssetName);
+			using StreamReader reader = new(stream);
+			string content = (await reader.ReadToEndAsync()).Trim();
+			cachedBundledKey = content.Length == 0 ? null : content;
+		}
+		catch (Exception)
+		{
+			// Missing asset (no local key configured) or a platform read failure —
+			// either way, degrade to keyless rather than fail the metadata lookup.
+			cachedBundledKey = null;
+		}
 
-        try
-        {
-            await using var stream = await FileSystem.OpenAppPackageFileAsync(BundledKeyAssetName);
-            using var reader = new StreamReader(stream);
-            var content = (await reader.ReadToEndAsync()).Trim();
-            _cachedBundledKey = content.Length == 0 ? null : content;
-        }
-        catch (Exception)
-        {
-            // Missing asset (no local key configured) or a platform read failure —
-            // either way, degrade to keyless rather than fail the metadata lookup.
-            _cachedBundledKey = null;
-        }
-
-        _bundledKeyLoaded = true;
-        return _cachedBundledKey;
-    }
+		bundledKeyLoaded = true;
+		return cachedBundledKey;
+	}
 }

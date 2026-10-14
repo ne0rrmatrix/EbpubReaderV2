@@ -1,0 +1,312 @@
+# The reader control (DisplayBook.Viewer)
+
+`src/DisplayBook.Viewer` is a reusable .NET MAUI class library for displaying reflowable EPUB publications in a WebView. It supports Windows, Android, iOS, and macOS (via Mac Catalyst), and provides reader navigation, themes, settings, table-of-contents navigation, and location events that a host application can use to save and restore reading progress.
+
+The library is part of the DisplayBook repository and currently targets:
+
+- `net10.0-windows10.0.19041.0`
+- `net10.0-android`
+- `net10.0-ios`
+- `net10.0-maccatalyst`
+
+## What the library provides
+
+- `EpubReaderView`, a MAUI `ContentView` that hosts the EPUB reader.
+- `EpubArchive`, `EpubPublicationParser` and `CombinedDocumentBuilder`, which read a book's `.epub` into memory, parse its package, spine and table of contents, and combine its chapters into the one document the reader pages through.
+- Platform-specific in-memory content hosting for Windows, Android, iOS and Mac Catalyst.
+- A WebView reader implemented with bundled HTML, CSS, and JavaScript assets.
+- `EpubLocator`, which identifies the current publication resource and position.
+- Reader events for location changes, readiness, exit requests, settings requests, theme changes, toolbar visibility, and errors.
+- `SetLocatorAsync` for moving the reader to a previously saved position.
+- Word lookup in a bundled offline dictionary, and opening a book's web and email links with the system's browser or mail app; the control handles both itself.
+
+The library renders EPUB content; it does not import EPUB files, maintain a book catalog, or provide persistence by itself. The host application is responsible for locating each book's `.epub` file, parsing it into memory (see `EpubArchive`), storing publication metadata, and saving locations.
+
+## Add the library to a MAUI application
+
+For a local project reference, add the project to the solution and reference it from the application project:
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\DisplayBook.Viewer\DisplayBook.Viewer.csproj" />
+</ItemGroup>
+```
+
+The library is not currently distributed as a NuGet package.
+
+## Register the reader
+
+Call `UseDisplayBookViewer()` while creating the MAUI application. This registers the platform-specific WebView handler and configures the Windows WebView2 data directory.
+
+```csharp
+using DisplayBook.Viewer;
+
+public static class MauiProgram
+{
+	public static MauiApp CreateMauiApp()
+	{
+		var builder = MauiApp.CreateBuilder();
+
+		builder
+			.UseMauiApp<App>()
+			.UseDisplayBookViewer();
+
+		return builder.Build();
+	}
+}
+```
+
+The host application must also include the normal .NET MAUI platform setup for the target platforms.
+
+## Prepare EPUB content
+
+The reader never touches disk for a book's chapters, CSS, images, or fonts. Instead it reads
+everything from an `EpubArchive` — the `.epub` file's entries, fully read into memory once, up
+front:
+
+```csharp
+using DisplayBook.Viewer.Services;
+
+EpubArchive publicationSource = await EpubArchive.OpenAsync(pathToEpubFile, cancellationToken);
+```
+
+Two things are required to load a publication:
+
+- `PublicationSource`: the `EpubArchive` built from the book's `.epub` file.
+- `PublicationOpfPath`: the OPF file's path *inside the archive* (e.g. `OEBPS/package.opf`).
+
+```csharp
+Reader.PublicationSource = publicationSource;
+Reader.PublicationOpfPath = "OEBPS/package.opf";
+```
+
+Use forward slashes for `PublicationOpfPath`. The library normalizes path separators when
+building the reader URL, and resolves every other resource the publication references (chapters,
+CSS, images, fonts) relative to that same in-memory archive — there's no separate "extraction"
+step and no per-book folder on disk.
+
+## Add the reader to a page
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+	xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+	xmlns:viewer="clr-namespace:DisplayBook.Viewer.Controls;assembly=DisplayBook.Viewer"
+	x:Class="SampleApp.ReaderPage">
+
+	<viewer:EpubReaderView
+		x:Name="Reader"
+		PublicationSource="{Binding PublicationSource}"
+		PublicationOpfPath="OEBPS/package.opf"
+		HorizontalOptions="Fill"
+		VerticalOptions="Fill" />
+</ContentPage>
+```
+
+`EpubReaderView` loads the publication when the control is loaded. You can also call `LoadPublicationAsync` explicitly when the publication properties are assigned programmatically. `PublicationSource` is typically set from code-behind or a view model once `EpubArchive.OpenAsync` completes, since opening the archive is asynchronous.
+
+## Restore and save reading position
+
+Use `EpubLocator` to restore a saved position and subscribe to `LocationChanged` to save future changes.
+
+```csharp
+using DisplayBook.Viewer.Models;
+
+namespace SampleApp;
+
+public partial class ReaderPage : ContentPage
+{
+	private readonly ReaderProgressStore progressStore;
+	private readonly string bookId;
+
+	public ReaderPage(
+		string bookId,
+		EpubArchive publicationSource,
+		string publicationOpfPath,
+		ReaderProgressStore progressStore)
+	{
+		InitializeComponent();
+
+		this.bookId = bookId;
+		this.progressStore = progressStore;
+		Reader.PublicationSource = publicationSource;
+		Reader.PublicationOpfPath = publicationOpfPath;
+		Reader.StartLocator = progressStore.Get(bookId) ?? EpubLocator.Empty;
+
+		Reader.LocationChanged += OnLocationChanged;
+		Reader.ReaderError += OnReaderError;
+	}
+
+	private void OnLocationChanged(object? sender, EpubLocator locator)
+	{
+		progressStore.Save(bookId, locator);
+	}
+
+	private void OnReaderError(object? sender, string message)
+	{
+		// Display the error using the host application's UI and logging system.
+	}
+
+	protected override void OnDisappearing()
+	{
+		Reader.LocationChanged -= OnLocationChanged;
+		Reader.ReaderError -= OnReaderError;
+		base.OnDisappearing();
+	}
+}
+```
+
+`EpubLocator` contains:
+
+```csharp
+public sealed record EpubLocator(
+	string ResourceHref,
+	int Page,
+	int PageCount,
+	int CharOffset = -1);
+```
+
+`ResourceHref` identifies the current spine resource, exactly as the package's spine lists it. `CharOffset` is a character offset into that resource's text, so it identifies the same place in the book whatever the screen size, font or pagination; `-1` means unknown. `Page` is zero-based and `PageCount` is the number of pages in that resource at the current layout, which is only meaningful on the device that reported them (for a "Page N of M" label, for example). Save all four values and pass them back through `StartLocator` when opening the same book again; the reader resumes at `CharOffset` when it is set, and at `Page` otherwise.
+
+To move an already loaded reader to another position:
+
+```csharp
+await Reader.SetLocatorAsync(
+	new EpubLocator(savedResourceHref, savedPage, savedPageCount, savedCharOffset),
+	cancellationToken);
+```
+
+## Reader lifecycle
+
+The normal startup sequence is:
+
+1. Assign `PublicationSource` and `PublicationOpfPath`.
+2. Assign `StartLocator` if a saved position exists.
+3. The control initializes the local asset host and loads the viewer page.
+4. The viewer loads the publication and raises `ReaderReady`.
+5. The saved locator is applied when supplied.
+6. The control raises `LocationChanged` as the user moves through the publication.
+
+Subscribe to events before or during page setup so the host does not miss location changes.
+
+If the publication properties change after the control is loaded, the control reloads the publication. Set `StartLocator` to the desired position before the reload completes when changing books.
+
+The reader's web page (the "shell") is loaded once per `EpubReaderView`, not once per book: opening another book in the same control hands the new publication to the already-running page. Keep one `EpubReaderView` alive for the app session (the DisplayBook app registers its reader page as a singleton for this reason) rather than creating a new one per book.
+
+## Public API
+
+### `EpubReaderView`
+
+#### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `PublicationSource` | `EpubArchive?` | The book's content, already read into memory by `EpubArchive.OpenAsync`. |
+| `PublicationOpfPath` | `string` | OPF path inside the archive (e.g. `OEBPS/package.opf`). |
+| `StartLocator` | `EpubLocator` | Initial position to restore after the publication is loaded. Defaults to `EpubLocator.Empty`. |
+| `CoverImageSource` | `ImageSource` | The book's cover, shown on the loading screen while the publication opens. Optional. |
+
+#### Methods
+
+| Method | Description |
+| --- | --- |
+| `LoadPublicationAsync(CancellationToken)` | Initializes the reader and loads the configured publication. Safe to call when the control has already loaded. |
+| `SetLocatorAsync(EpubLocator, CancellationToken)` | Requests navigation to a resource and zero-based page in the loaded publication. |
+
+#### Events
+
+| Event | Payload | Description |
+| --- | --- | --- |
+| `ReaderReady` | `EventArgs` | Raised when the initial reader content and locator setup are ready. |
+| `LocationChanged` | `EpubLocator` | Raised when the current resource or page changes. Use this to persist reading progress. |
+| `ExitRequested` | `EventArgs` | Raised when the reader's exit/back action is requested. |
+| `SettingsRequested` | `EventArgs` | Raised when the reader requests settings UI. |
+| `ThemeChanged` | `string` | Raised when the active reader theme changes. The value is `original`, `paper`, `sepia`, or `night`. |
+| `ChromeVisibilityChanged` | `bool` | Raised when the reader's toolbar and controls are shown (`true`) or hidden for immersive reading (`false`). |
+| `ReaderError` | `string` | Raised when the reader cannot load content or receives an invalid bridge message. |
+| `MessageReceived` | `ReaderMessageEventArgs` | Raised for every raw reader bridge message. Most hosts should use the typed events instead. |
+
+## Reader behavior
+
+The bundled reader supports:
+
+- Paged and continuous-scroll modes.
+- Single- and two-column layouts where the viewport supports them.
+- The book's original styling, plus paper, sepia, and night themes.
+- Serif, sans, humanist, and monospace font families.
+- Font size, line height, text alignment, hyphenation, paragraph spacing, indentation, word spacing, letter spacing, and font weight settings.
+- Normal, dimmed, inverted, and dimmed-inverted image treatments.
+- Keyboard navigation, tap navigation, swipe navigation, progress seeking, and table-of-contents navigation.
+- Word lookup: selecting text shows a lookup button that looks the word up in a bundled offline dictionary (Webster's 1913; see `src/DisplayBook.Viewer/Resources/Raw/Dictionary/SOURCE.md`).
+- External links: `http`, `https` and `mailto` links in a book open with the system's browser or mail app; links within the book navigate the reader.
+
+Reader settings are currently controlled by the bundled reader UI. `EpubReaderSettings` exposes the shared setting identifiers and defaults for hosts that need to interpret or integrate with those values.
+
+## Platform requirements
+
+### Windows
+
+- Windows 10 version 1809 (build 17763) or later.
+- WebView2 Runtime.
+- The library maps the `displaybook.invalid` virtual host to an in-memory resource lookup (the static viewer shell, plus the currently-open book's `EpubArchive`) — no per-book content is read from disk.
+
+### Android
+
+- Android API 26 or later.
+- Android WebView with JavaScript enabled.
+- The library serves content through a custom `WebViewAssetLoader` path handler backed by the in-memory `EpubArchive`.
+
+### iOS
+
+- iOS 15.0 or later.
+- The library serves content to WKWebView through a custom URL scheme handler backed by the in-memory `EpubArchive`.
+
+### macOS (Mac Catalyst)
+
+- macOS via Mac Catalyst 15.0 or later.
+- The library serves content the same way as iOS.
+
+The host should not replace the reader WebView handler or disable JavaScript for the reader control.
+
+## Build the library
+
+From the repository root:
+
+```powershell
+dotnet restore .\DisplayBook.slnx
+dotnet build .\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj -c Debug
+```
+
+Build a specific target framework:
+
+```powershell
+dotnet build .\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj `
+  -f net10.0-windows10.0.19041.0 `
+  -c Debug
+```
+
+The application project references this library and is useful as a working integration example.
+
+## Troubleshooting
+
+### The reader is blank
+
+Verify all of the following:
+
+- `PublicationSource` is set to a successfully-opened `EpubArchive` (not null).
+- `PublicationOpfPath` points to an existing entry inside that archive (e.g. `OEBPS/package.opf`), not an absolute filesystem path.
+- The WebView control has been loaded before calling `LoadPublicationAsync`.
+- The target platform's WebView runtime is installed.
+
+### The book opens at the beginning
+
+Ensure the host saves the latest `EpubLocator` received from `LocationChanged` and assigns it to `StartLocator` before opening the reader. Do not save only the page number; the resource href identifies the chapter or spine item.
+
+### Reader errors are not visible
+
+Subscribe to `ReaderError` and log or display the supplied message. Also verify that the host does not intercept `displaybook://bridge` navigation requests before the reader control receives them.
+
+## License
+
+The library is part of DisplayBook and is licensed under the [MIT License](../LICENSE.txt). The bundled dictionary is public-domain text; its provenance is in `src/DisplayBook.Viewer/Resources/Raw/Dictionary/SOURCE.md`.

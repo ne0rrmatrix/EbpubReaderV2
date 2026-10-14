@@ -1,0 +1,13 @@
+{
+  "name": "displaybook-reader-tests",
+  "private": true,
+  "description": "Browser tests for the WebView reader engine (src/DisplayBook.Viewer/Resources/Raw/DisplayBookViewer/EpubText.js).",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "monocart-coverage-reports": "2.13.2"
+  }
+}

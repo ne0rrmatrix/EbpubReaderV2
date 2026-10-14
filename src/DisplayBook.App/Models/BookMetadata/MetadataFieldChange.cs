@@ -9,21 +9,21 @@ namespace DisplayBook.App.Models.BookMetadata;
 /// </summary>
 public sealed partial class MetadataFieldChange : ObservableObject
 {
-    private bool _isSelected;
+	bool isSelected;
 
-    public required string Field { get; init; }
+	public required string Field { get; init; }
 
-    public required string Label { get; init; }
+	public required string Label { get; init; }
 
-    public string? OldValueDisplay { get; init; }
+	public string? OldValueDisplay { get; init; }
 
-    public required string NewValueDisplay { get; init; }
+	public required string NewValueDisplay { get; init; }
 
-    public bool IsCover { get; init; }
+	public bool IsCover { get; init; }
 
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set => SetProperty(ref _isSelected, value);
-    }
+	public bool IsSelected
+	{
+		get => isSelected;
+		set => SetProperty(ref isSelected, value);
+	}
 }
