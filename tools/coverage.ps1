@@ -65,7 +65,11 @@ function Test-DeviceRun([string] $batch, [string] $resultsDirectory) {
 	return (Test-Path $events) -and [bool](Select-String -Path $events -Pattern '"type":"end"' -SimpleMatch -Quiet)
 }
 
-function Invoke-Checked([string] $description, [scriptblock] $command) {
+function Invoke-Checked {
+	# Its job is to show progress in the console, so Write-Host is what it should use.
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Console progress output.')]
+	param([string] $description, [scriptblock] $command)
+
 	Write-Host "==> $description" -ForegroundColor Cyan
 	& $command
 	if ($LASTEXITCODE -ne 0) {
