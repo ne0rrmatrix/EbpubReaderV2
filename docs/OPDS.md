@@ -25,7 +25,7 @@ DisplayBook connects to the standard Calibre Content server. To start it:
 
 ## Using OPDS in DisplayBook
 
-1. Open the **OPDS** section (from the library page).
+1. Select **Browse OPDS** in the library's top bar.
 2. **Discovered servers** appear automatically from the mDNS scan; tap one to connect.
 3. To connect to a server that mDNS can't see, choose **Add server** and enter:
    - **Name** — a label for your records

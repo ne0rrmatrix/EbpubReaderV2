@@ -5,7 +5,7 @@
 	     instead of being left out of DisplayBook.Tests. Modelled on CommunityToolkit.Maui's
 	     device-test project (CommunityToolkit/Maui#3344), using the DeviceRunners packages
 	     (the public NuGet form of dotnet/maui's device-test runner) rather than vendoring that runner.
-	     See README.md. -->
+	     See docs/testing.md. -->
 
 	<PropertyGroup>
 		<TargetFrameworks>$(NetVersion)-ios;$(NetVersion)-android;$(NetVersion)-maccatalyst</TargetFrameworks>
