@@ -174,6 +174,16 @@ public sealed partial class FirebaseAuthService(HttpClient httpClient, ILogger<F
 			idTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(Math.Max(30, expiresInSeconds - 60));
 			return idToken;
 		}
+		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+		{
+			// Offline or the token endpoint is unreachable: no token this time, but the session
+			// itself is still valid, so stay signed in and let the next call try again. Callers
+			// (e.g. opening a book from an async void page callback) treat null as "no sync" and
+			// must not see a network exception. Caller cancellation still propagates so their
+			// timeout handling keeps working.
+			logger.LogWarning(exception, "Could not reach the sync service to refresh the session.");
+			return null;
+		}
 		finally
 		{
 			refreshLock.Release();
