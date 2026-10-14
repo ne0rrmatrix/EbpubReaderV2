@@ -32,18 +32,48 @@ firewall prompt for the results connection.
 Started from the IDE or by hand instead, the app shows the visual runner, where tests can be run
 and inspected one at a time. That is the way to debug a failing test.
 
+## How the app is put together
+
+- **All of DisplayBook.App is compiled in.** It is an Exe, so it can't be referenced; the `.csproj`
+  includes its `.cs` and `.xaml` files instead, with the platform-specific ones added per target
+  framework. On Android the app's own `MainActivity` is this app's launcher too.
+- **The app's own registrations.** `MauiProgram` calls DisplayBook.App's `AddDisplayBook()`, so
+  pages, view models and services come from the same DI registrations and Shell routes the app uses.
+  It then swaps out what reaches beyond the device:
+  - every named `HttpClient` goes to an in-memory `FakeServer` (`FakeNetwork.Opds`, `.Firebase`,
+    `.GoogleBooks`, `.OpenLibrary`, `.Default`); `FakeCalibre` and `FakeFirebase` set up realistic
+    servers on them;
+  - the file and folder pickers are `FakeBookPicker`, mDNS discovery is `FakeBonjourDiscovery`;
+  - `DisplayAlertAsync`, action sheets and prompts are answered by `TestDialogs`, through the keyed
+    services MAUI 10 checks before showing a dialog. Queue an answer with
+    `TestDialogs.AnswerNextAlert(true)`; with none queued an alert is declined.
+- **Pages run in the real app shell.** `TestApp.GetShellAsync()` opens DisplayBook.App's `AppShell`
+  in a second window, kept for the whole run; view models' `Shell.Current` calls reach it because it
+  is the only window holding a Shell. Navigate with `TestApp.GoToAsync<TPage>(route)` and reset with
+  `TestApp.ResetNavigationAsync()`. The app's colours and named styles are loaded into the test
+  app's resources; its implicit styles are not, as they break the runner's own UI.
+
 ## Writing tests
 
-- The app's source files are compiled in (`<Compile Include="..\..\src\DisplayBook.App\...">` in
-  the `.csproj`), the same way `DisplayBook.Tests` does it, because `DisplayBook.App` is an Exe and
-  can't be referenced. Link the file under test there.
-- Put any test that reads or writes app data, secure storage or preferences in
-  `[Collection(AppDataCollection.Name)]`, and call `AppDataSandbox.Reset()` in its constructor.
-  Those stores are process-wide, so these tests must not run in parallel, and each one starts from
-  empty.
-- `AppDataSandbox.Reset()` deletes the library, the database and the stored sign-in. It refuses to
-  run unless the process is this app (`ApplicationId` `com.ahdf.displaybook.devicetests`). Keep
-  that ID different from `DisplayBook.App`'s: it is what keeps these tests away from a real library.
-- Use `StubHttpHandler` for services that call a REST API. No test here should need the network.
+- Derive from `AppDataTest`. Each test then starts from `AppDataSandbox.ResetAsync()`: no library,
+  database rows, OPDS servers, downloads, stored sign-in or fake state. The app's DI singletons hold
+  state of their own, so the reset clears them through their APIs. These tests share process-wide
+  state and don't run in parallel.
+- `AppDataSandbox` refuses to run unless the process is this app (`ApplicationId`
+  `com.ahdf.displaybook.devicetests`). Keep that ID different from DisplayBook.App's: it is what
+  keeps these tests away from a real library.
+- Tests that touch pages or the UI thread use `[UIFact]`/`[UITheory]`. Wait for asynchronous UI with
+  `Wait.UntilAsync`, which keeps the dispatcher running.
+- `TestEpub.Write` makes small valid EPUBs; different titles give different content hashes.
+- No test should need the network: set up routes on `FakeNetwork` instead.
 - A class that implements `IDisposable` must be `partial` on Windows (CsWinRT1028 is an error in
   this repository).
+- An unhandled exception that ends the app is written to `%TEMP%\DisplayBook.DeviceTests.crash.log`.
+
+## Coverage
+
+`tools/coverage.ps1` runs these tests under `dotnet-coverage` in batches, each in its own app
+process. When the code runs slower (under the profiler, or instrumented), the page tests
+intermittently hit a native access violation in WinUI's `Microsoft.UI.Xaml.Controls.dll`; a run
+without the profiler passes. A batch whose app crashes is run again, and if it crashes every time it
+is run once without coverage to prove its tests pass. See the script for details.

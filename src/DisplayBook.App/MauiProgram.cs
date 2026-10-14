@@ -23,6 +23,34 @@ public static class MauiProgram
 		builder
 			.UseMauiApp<App>()
 			.UseMauiCommunityToolkit()
+			.AddDisplayBook();
+
+#if MAUI_DEVFLOW
+		builder.AddMauiDevFlowAgent();
+#endif
+
+#if DEBUG
+		builder.Logging.AddDebug();
+
+		// HttpClient logs four Information lines per request. A batch download issues one request
+		// per book, and writing to the debug output is synchronous, so at a couple of thousand
+		// books the logging alone becomes a throughput problem — and it buries our own lines.
+		builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+#endif
+
+		return builder.Build();
+	}
+
+	/// <summary>
+	/// Everything the app registers apart from the <see cref="App"/> itself and the
+	/// CommunityToolkit (whose analyzer requires <c>UseMauiCommunityToolkit</c> to be chained to
+	/// <c>UseMauiApp</c>): platform setup, services, view models, pages and their Shell routes.
+	/// The device tests (tests/DisplayBook.DeviceTests) call this too, so the pages they host are
+	/// created from the same registrations the app uses.
+	/// </summary>
+	public static MauiAppBuilder AddDisplayBook(this MauiAppBuilder builder)
+	{
+		builder
 			.UseDisplayBookViewer()
 			.ConfigureFonts(fonts =>
 			{
@@ -30,9 +58,6 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
 
-#if MAUI_DEVFLOW
-		builder.AddMauiDevFlowAgent();
-#endif
 		builder.Services.AddSingleton<AppShell>();
 		builder.Services.AddSingleton<IBookCatalogService, BookCatalogService>();
 		builder.Services.AddHttpClient(OpdsConstants.HttpClientName)
@@ -83,16 +108,6 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<OpdsBookPage, OpdsBookViewModel>("opds/book");
 		builder.Services.AddTransientWithShellRoute<SettingsPage, SettingsViewModel>("settings");
 
-#if DEBUG
-		builder.Logging.AddDebug();
-
-		// HttpClient logs four Information lines per request. A batch download issues one request
-		// per book, and writing to the debug output is synchronous, so at a couple of thousand
-		// books the logging alone becomes a throughput problem — and it buries our own lines.
-		builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
-#endif
-
-		return builder.Build();
+		return builder;
 	}
-
 }

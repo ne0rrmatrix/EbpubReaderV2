@@ -1,12 +1,13 @@
+using DisplayBook.App.Interfaces;
 using DisplayBook.App.Services;
 using Microsoft.Data.Sqlite;
 
 namespace DisplayBook.DeviceTests.Support;
 
 /// <summary>
-/// Every test that touches <see cref="FileSystem.AppDataDirectory"/>, <see cref="SecureStorage"/>
-/// or <see cref="Preferences"/> runs in this collection: those are process-wide, so tests that
-/// share them must not run in parallel.
+/// Every test that touches <see cref="FileSystem.AppDataDirectory"/>, <see cref="SecureStorage"/>,
+/// <see cref="Preferences"/> or the app's DI singletons runs in this collection: those are
+/// process-wide, so tests that share them must not run in parallel.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class AppDataCollection
@@ -23,20 +24,56 @@ public sealed class AppDataCollection
 /// </summary>
 static class AppDataSandbox
 {
-	public static void Reset()
+	/// <summary>
+	/// Clears the library, OPDS data, downloads, stored sign-in and every test fake. The app's DI
+	/// singletons hold state of their own (the server list, the download queue, the signed-in
+	/// user, and the database's one-time schema setup), so they are cleared through their own
+	/// APIs, and the database schema is recreated unless <paramref name="primeDatabase"/> is false.
+	/// </summary>
+	public static async Task ResetAsync(bool primeDatabase = true)
 	{
 		EnsureTestApp();
+		IServiceProvider services = TestApp.Services;
 
-		// Microsoft.Data.Sqlite pools connections, and a pooled connection keeps the database
-		// file open, which stops Windows from deleting it.
-		SqliteConnection.ClearAllPools();
-		DeleteFileIfExists(BookStorageService.DatabasePath);
-		if (Directory.Exists(BookStorageService.ContentRoot))
+		IOpdsServerRepository servers = services.GetRequiredService<IOpdsServerRepository>();
+		foreach (App.Models.OpdsServer server in await servers.GetAllAsync())
 		{
-			Directory.Delete(BookStorageService.ContentRoot, recursive: true);
+			await servers.RemoveAsync(server.Id);
 		}
 
+		IDownloadQueueService queue = services.GetRequiredService<IDownloadQueueService>();
+		await queue.CancelAllAsync();
+		await queue.ClearFinishedAsync();
+
+		await services.GetRequiredService<IFirebaseAuthService>().SignOutAsync();
 		SecureStorage.Default.RemoveAll();
+
+		// Microsoft.Data.Sqlite pools connections, and a pooled connection keeps the database
+		// file open, which stops Windows from deleting it. A download cancelled just above may
+		// still be closing its file, hence the retries.
+		SqliteConnection.ClearAllPools();
+		await RetryAsync(() =>
+		{
+			DeleteFileIfExists(BookStorageService.DatabasePath);
+			DeleteDirectoryIfExists(BookStorageService.ContentRoot);
+			DeleteDirectoryIfExists(Path.Combine(FileSystem.CacheDirectory, "DisplayBookImports"));
+		});
+
+		if (primeDatabase)
+		{
+			using BookDatabase database = new();
+			await database.GetBooksAsync();
+			SqliteConnection.ClearAllPools();
+
+			// The download queue singleton creates this folder once, on its first download, and
+			// relies on it from then on; in the app nothing deletes it, but the reset above does.
+			Directory.CreateDirectory(Path.Combine(BookStorageService.ContentRoot, "Opds", "Downloads"));
+		}
+
+		TestDialogs.Reset();
+		FakeNetwork.Reset();
+		FakeBookPicker.Reset();
+		FakeBonjourDiscovery.StartFailure = null;
 	}
 
 	static void EnsureTestApp()
@@ -50,6 +87,26 @@ static class AppDataSandbox
 		}
 	}
 
+	static async Task RetryAsync(Action action)
+	{
+		for (int attempt = 1; ; attempt++)
+		{
+			try
+			{
+				action();
+				return;
+			}
+			catch (IOException) when (attempt < 20)
+			{
+				await Task.Delay(100);
+			}
+			catch (UnauthorizedAccessException) when (attempt < 20)
+			{
+				await Task.Delay(100);
+			}
+		}
+	}
+
 	static void DeleteFileIfExists(string path)
 	{
 		if (File.Exists(path))
@@ -57,4 +114,21 @@ static class AppDataSandbox
 			File.Delete(path);
 		}
 	}
+
+	static void DeleteDirectoryIfExists(string path)
+	{
+		if (Directory.Exists(path))
+		{
+			Directory.Delete(path, recursive: true);
+		}
+	}
+}
+
+/// <summary>Base for test classes in <see cref="AppDataCollection"/>: each test starts from a clean sandbox.</summary>
+[Collection(AppDataCollection.Name)]
+public abstract class AppDataTest : IAsyncLifetime
+{
+	public virtual Task InitializeAsync() => AppDataSandbox.ResetAsync();
+
+	public virtual Task DisposeAsync() => Task.CompletedTask;
 }

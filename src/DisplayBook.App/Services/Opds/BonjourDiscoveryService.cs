@@ -34,11 +34,28 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 #endif
 
 	readonly ILogger<BonjourDiscoveryService> logger = logger;
+	readonly Func<CancellationToken, Task<IReadOnlyList<IZeroconfHost>>> resolve =
+		cancellationToken => ZeroconfResolver.ResolveAsync(serviceTypes, scanTimeout, 2, 2000, null, cancellationToken);
+	readonly TimeSpan interval = scanInterval;
 	readonly ConcurrentDictionary<string, OpdsServer> servers = new();
 	readonly ConcurrentDictionary<string, int> missedScans = new();
 	CancellationTokenSource cts = new();
 	Task? loopTask;
 	int started;
+
+	/// <summary>
+	/// For tests: replaces the mDNS query (which answers with whatever is on the local network)
+	/// and the pause between scans. The app's DI container uses the public constructor.
+	/// </summary>
+	internal BonjourDiscoveryService(
+		ILogger<BonjourDiscoveryService> logger,
+		Func<CancellationToken, Task<IReadOnlyList<IZeroconfHost>>> resolve,
+		TimeSpan interval)
+		: this(logger)
+	{
+		this.resolve = resolve;
+		this.interval = interval;
+	}
 
 	public bool IsDiscovering => Volatile.Read(ref cts) != null;
 
@@ -148,7 +165,7 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 
 			try
 			{
-				await Task.Delay(scanInterval, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException)
 			{
@@ -164,9 +181,7 @@ public sealed partial class BonjourDiscoveryService(ILogger<BonjourDiscoveryServ
 #endif
 		try
 		{
-			IReadOnlyList<IZeroconfHost> hosts = await ZeroconfResolver
-				.ResolveAsync(serviceTypes, scanTimeout, 2, 2000, null, cancellationToken)
-				.ConfigureAwait(false);
+			IReadOnlyList<IZeroconfHost> hosts = await resolve(cancellationToken).ConfigureAwait(false);
 
 			HashSet<string> seenKeys = [];
 			foreach (IZeroconfHost? host in hosts)

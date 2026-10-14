@@ -7,17 +7,16 @@ namespace DisplayBook.DeviceTests.Tests;
 /// The key lookup order: environment variable, then the <see cref="Preferences"/> entry, then the
 /// bundled asset. This app bundles no key asset, so that last step always finds nothing.
 /// </summary>
-[Collection(AppDataCollection.Name)]
-public sealed partial class GoogleBooksOptionsTests : IDisposable
+public sealed partial class GoogleBooksOptionsTests : AppDataTest, IDisposable
 {
 	const string environmentVariable = "DISPLAYBOOK_GOOGLE_BOOKS_API_KEY";
 	const string preferenceKey = "GoogleBooksApiKey";
 
 	readonly string? originalEnvironmentValue = Environment.GetEnvironmentVariable(environmentVariable);
 
-	public GoogleBooksOptionsTests()
+	public override async Task InitializeAsync()
 	{
-		AppDataSandbox.Reset();
+		await base.InitializeAsync();
 		Environment.SetEnvironmentVariable(environmentVariable, null);
 		Preferences.Default.Remove(preferenceKey);
 	}

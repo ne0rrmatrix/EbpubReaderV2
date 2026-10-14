@@ -4,16 +4,13 @@ using DisplayBook.DeviceTests.Support;
 
 namespace DisplayBook.DeviceTests.Tests;
 
-[Collection(AppDataCollection.Name)]
-public sealed partial class OpdsCatalogCacheTests : IDisposable
+public sealed partial class OpdsCatalogCacheTests : AppDataTest, IDisposable
 {
 	const string feedUrl = "http://calibre.local:8080/opds/navcatalog/4f";
 
 	static readonly string cacheFolder = Path.Combine(BookStorageService.ContentRoot, "Cache");
 
 	readonly OpdsCatalogCache cache = new();
-
-	public OpdsCatalogCacheTests() => AppDataSandbox.Reset();
 
 	public void Dispose() => cache.Dispose();
 

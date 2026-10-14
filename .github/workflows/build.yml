@@ -10,6 +10,9 @@ jobs:
     name: Build and analyze
     runs-on: windows-latest
     env:
+      # Code no test here can run: Android/iOS/Mac Catalyst-only files (the analysis and the device
+      # tests run on Windows), the apps' platform entry points, and build scripts.
+      COVERAGE_EXCLUSIONS: "**/*.android.cs,**/*.ios.cs,**/*.maccatalyst.cs,**/*.macios.cs,**/*.apple.cs,**/Platforms/Android/**,**/Platforms/iOS/**,**/Platforms/MacCatalyst/**,src/DisplayBook.App/Platforms/**,tools/**"
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       DOTNET_NOLOGO: true
     steps:
@@ -25,6 +28,13 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+      # For the reader's browser tests (tests/DisplayBook.ReaderTests), run by tools/coverage.ps1.
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/DisplayBook.ReaderTests/package-lock.json
       - name: Install MAUI workload
         shell: powershell
         run: dotnet workload install maui --source https://api.nuget.org/v3/index.json
@@ -82,11 +92,12 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"ne0rrmatrix_EbpubReaderV2" /o:"ne0rrmatrix" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.vscoveragexml.reportsPaths="artifacts/coverage/coverage.xml"
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"ne0rrmatrix_EbpubReaderV2" /o:"ne0rrmatrix" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.vscoveragexml.reportsPaths="artifacts/coverage/coverage.xml" /d:sonar.javascript.lcov.reportPaths="artifacts/coverage/reader-js/lcov.info" /d:sonar.coverage.exclusions="${{ env.COVERAGE_EXCLUSIONS }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet build DisplayBook.slnx -c Debug
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # Unit tests + Windows device tests under dotnet-coverage -> artifacts/coverage/coverage.xml
+          # Unit tests + Windows device tests under dotnet-coverage -> artifacts/coverage/coverage.xml,
+          # reader browser tests -> artifacts/coverage/reader-js/lcov.info
           .\tools\coverage.ps1
           ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -3,11 +3,8 @@ using DisplayBook.DeviceTests.Support;
 
 namespace DisplayBook.DeviceTests.Tests;
 
-[Collection(AppDataCollection.Name)]
-public class BookStorageServiceTests
+public class BookStorageServiceTests : AppDataTest
 {
-	public BookStorageServiceTests() => AppDataSandbox.Reset();
-
 	[Fact]
 	public void Paths_AreUnderTheAppDataDirectory()
 	{
@@ -57,6 +54,9 @@ public class BookStorageServiceTests
 	[Fact]
 	public async Task InitializeAsync_CancelledToken_ThrowsWithoutCreatingFolders()
 	{
+		// Creating the database schema creates the folders too, so start without it.
+		await AppDataSandbox.ResetAsync(primeDatabase: false);
+
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BookStorageService.InitializeAsync(new CancellationToken(canceled: true)));
 
 		Assert.False(Directory.Exists(BookStorageService.ContentRoot));

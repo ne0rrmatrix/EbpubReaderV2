@@ -22,6 +22,9 @@
 		<!-- The MAUI app supplies its own entry points; dotnet test reaches it through
 		     DeviceRunners.Testing.Targets, not Microsoft.Testing.Platform. -->
 		<GenerateTestingPlatformEntryPoint>false</GenerateTestingPlatformEntryPoint>
+		<!-- Seconds without a test result before dotnet test treats the app as crashed. The page tests
+		     wait up to a minute for a cold WebView to open a book, so the default of 30 is too short. -->
+		<DeviceRunnersDataTimeout>300</DeviceRunnersDataTimeout>
 
 		<ApplicationTitle>DisplayBook Device Tests</ApplicationTitle>
 		<!-- Must differ from DisplayBook.App's ApplicationId: it decides the app-data folder and the
@@ -43,6 +46,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<MauiIcon Include="..\..\src\DisplayBook.App\Resources\AppIcon\appicon.svg" ForegroundFile="..\..\src\DisplayBook.App\Resources\AppIcon\appiconfg.svg" Color="#14213D" />
 		<MauiSplashScreen Include="..\..\src\DisplayBook.App\Resources\Splash\splash_icon.svg" Color="#14213D" BaseSize="256,256" />
 	</ItemGroup>
@@ -51,36 +58,50 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
+		<PackageReference Include="Zeroconf" Version="3.7.16" />
 		<PackageReference Include="xunit" Version="2.9.3" />
 		<PackageReference Include="xunit.runner.utility" Version="2.9.3" />
 		<PackageReference Include="DeviceRunners.VisualRunners.Maui" Version="0.1.0-preview.12" />
 		<PackageReference Include="DeviceRunners.VisualRunners.Xunit" Version="0.1.0-preview.12" />
+		<PackageReference Include="DeviceRunners.UITesting.Maui" Version="0.1.0-preview.12" />
+		<PackageReference Include="DeviceRunners.UITesting.Xunit" Version="0.1.0-preview.12" />
 		<PackageReference Include="DeviceRunners.Testing.Targets" Version="0.1.0-preview.12" PrivateAssets="all" />
 	</ItemGroup>
 
+	<PropertyGroup>
+		<AppSource>..\..\src\DisplayBook.App\</AppSource>
+		<AppSourceExcludes>$(AppSource)obj\**;$(AppSource)bin\**;$(AppSource)Platforms\**</AppSourceExcludes>
+	</PropertyGroup>
+
 	<ItemGroup>
-		<!-- Like DisplayBook.Tests, the app's sources are compiled in directly rather than referencing
-		     DisplayBook.App (an Exe with its own entry points). Unlike DisplayBook.Tests, these are the
-		     files that call MAUI APIs. -->
-		<Compile Include="..\..\src\DisplayBook.App\Models\BookSummary.cs" Link="App\Models\BookSummary.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Models\Opds\*.cs" LinkBase="App\Models\Opds" />
-		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IBookDatabase.cs" Link="App\Interfaces\IBookDatabase.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IOpdsCatalogCache.cs" Link="App\Interfaces\IOpdsCatalogCache.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IOpdsServerRepository.cs" Link="App\Interfaces\IOpdsServerRepository.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Interfaces\IFirebaseAuthService.cs" Link="App\Interfaces\IFirebaseAuthService.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\BookStorageService.cs" Link="App\Services\BookStorageService.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\BookDatabase.cs" Link="App\Services\BookDatabase.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\GoogleBooksOptions.cs" Link="App\Services\GoogleBooksOptions.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\FirebaseAuthService.cs" Link="App\Services\FirebaseAuthService.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Sync\FirebaseAuthService.cs" Link="App\Services\Sync\FirebaseAuthService.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Sync\AuthJsonContext.cs" Link="App\Services\Sync\AuthJsonContext.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Sync\FirebaseOptions.cs" Link="App\Services\Sync\FirebaseOptions.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsCatalogCache.cs" Link="App\Services\Opds\OpdsCatalogCache.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsServerRepository.cs" Link="App\Services\Opds\OpdsServerRepository.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsJsonContext.cs" Link="App\Services\Opds\OpdsJsonContext.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\StringDictionaryConverter.cs" Link="App\Services\Opds\StringDictionaryConverter.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Services\Opds\OpdsUrlNormalizer.cs" Link="App\Services\Opds\OpdsUrlNormalizer.cs" />
-		<Compile Include="..\..\src\DisplayBook.App\Views\Converters\ValueConverters.cs" Link="App\Views\Converters\ValueConverters.cs" />
+		<!-- All of DisplayBook.App is compiled in (it is an Exe with its own entry points, so it can't be
+		     referenced), so pages, view models and services can all be tested against real MAUI.
+		     Linked files keep their paths under App\, which the XAML's relative Source= paths rely on.
+		     Platform-specific files are added per target framework below; Directory.Build.targets'
+		     filename filters only apply to files inside this project's own folder. -->
+		<Compile Include="$(AppSource)**\*.cs" Exclude="$(AppSourceExcludes);$(AppSource)**\*.android.cs;$(AppSource)**\*.macios.cs;$(AppSource)**\*.windows.cs" LinkBase="App" />
+		<MauiXaml Include="$(AppSource)**\*.xaml" Exclude="$(AppSourceExcludes)" Link="App\%(RecursiveDir)%(Filename)%(Extension)" />
+		<MauiFont Include="$(AppSource)Resources\Fonts\*" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<Compile Include="$(AppSource)**\*.windows.cs" Exclude="$(AppSourceExcludes)" LinkBase="App" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<Compile Include="$(AppSource)**\*.android.cs" Exclude="$(AppSourceExcludes)" LinkBase="App" />
+		<!-- The app's own MainActivity is this app's launcher activity too: ReaderPage and the
+		     Android book picker cast Platform.CurrentActivity to it. -->
+		<Compile Include="$(AppSource)Platforms\Android\MainActivity.cs" Link="App\Platforms\Android\MainActivity.cs" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+		<Compile Include="$(AppSource)**\*.macios.cs" Exclude="$(AppSourceExcludes)" LinkBase="App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The metadata API responses DisplayBook.Tests already uses, served by the fake network. -->
+		<EmbeddedResource Include="..\DisplayBook.Tests\Fixtures\BookMetadata\*.json" LogicalName="BookMetadata.%(Filename)%(Extension)" />
 	</ItemGroup>
 
 	<!-- Test classes are found by reflection, which the trimmer cannot see. -->

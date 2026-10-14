@@ -6,14 +6,11 @@ using Microsoft.Data.Sqlite;
 
 namespace DisplayBook.DeviceTests.Tests;
 
-[Collection(AppDataCollection.Name)]
-public sealed partial class BookDatabaseTests : IDisposable
+public sealed partial class BookDatabaseTests : AppDataTest, IDisposable
 {
 	static readonly DateTimeOffset importedAt = new(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
 
 	readonly BookDatabase database = new();
-
-	public BookDatabaseTests() => AppDataSandbox.Reset();
 
 	public void Dispose() => database.Dispose();
 
@@ -188,6 +185,8 @@ public sealed partial class BookDatabaseTests : IDisposable
 	[Fact]
 	public async Task OpeningAnOlderDatabase_AddsTheMissingColumnsWithDefaults()
 	{
+		// Starts from no database at all, so the old schema can be created by hand.
+		await AppDataSandbox.ResetAsync(primeDatabase: false);
 		// The schema as it was before ContentHash/Isbn/Asin/PreviousMetadataJson/LocatorCharOffset.
 		await ExecuteAsync("""
 			CREATE TABLE Books (
@@ -210,6 +209,8 @@ public sealed partial class BookDatabaseTests : IDisposable
 	[Fact]
 	public async Task OpeningALegacyExtractedBook_ZipsItIntoAnEpubFile()
 	{
+		// Starts from no database at all, so the old schema can be created by hand.
+		await AppDataSandbox.ResetAsync(primeDatabase: false);
 		string legacyFolder = Path.Combine(BookStorageService.ContentRoot, "Legacy", "old");
 		Directory.CreateDirectory(Path.Combine(legacyFolder, "OEBPS"));
 		await File.WriteAllTextAsync(Path.Combine(legacyFolder, "mimetype"), "application/epub+zip");

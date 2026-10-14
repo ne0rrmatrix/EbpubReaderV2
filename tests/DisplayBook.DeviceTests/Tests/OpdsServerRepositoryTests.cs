@@ -4,14 +4,11 @@ using DisplayBook.DeviceTests.Support;
 
 namespace DisplayBook.DeviceTests.Tests;
 
-[Collection(AppDataCollection.Name)]
-public sealed partial class OpdsServerRepositoryTests : IDisposable
+public sealed partial class OpdsServerRepositoryTests : AppDataTest, IDisposable
 {
 	static readonly string serversFile = Path.Combine(BookStorageService.ContentRoot, "Opds", "servers.json");
 
 	readonly OpdsServerRepository repository = new();
-
-	public OpdsServerRepositoryTests() => AppDataSandbox.Reset();
 
 	public void Dispose() => repository.Dispose();
 

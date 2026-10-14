@@ -34,9 +34,14 @@ Run device tests (xUnit inside a MAUI app, for code that calls MAUI APIs; always
 dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-windows10.0.19041.0
 ```
 
-Code coverage (unit tests + Windows device tests under `dotnet-coverage`, a local tool in `dotnet-tools.json`; writes the merged Visual Studio XML report SonarCloud reads, `artifacts/coverage/coverage.xml`):
+Run the reader's browser tests (Playwright/Chromium against `EpubText.js`; needs Node.js, see `tests/DisplayBook.ReaderTests/README.md`):
 ```powershell
-.\tools\coverage.ps1                    # -SkipDeviceTests for unit tests only
+cd .\tests\DisplayBook.ReaderTests; npm ci; npx playwright install chromium; npx playwright test
+```
+
+Code coverage (unit tests + Windows device tests under `dotnet-coverage`, a local tool in `dotnet-tools.json`, plus the browser tests; writes `artifacts/coverage/coverage.xml` (Visual Studio XML) and `artifacts/coverage/reader-js/lcov.info`, the reports SonarCloud reads):
+```powershell
+.\tools\coverage.ps1                    # -SkipDeviceTests / -SkipReaderTests to leave a part out
 ```
 `.github/workflows/build.yml` runs the solution build and this script between the SonarQube Cloud scanner's `begin`/`end` on every push to `main` and every PR.
 
@@ -52,7 +57,7 @@ src\DisplayBook.App\bin\Debug\net10.0-windows10.0.19041.0\win-x64\DisplayBook.Ap
 - **`DisplayBook.App`** — the MAUI application: Views/ViewModels (MVVM via `CommunityToolkit.Mvvm`, source-generated `[ObservableProperty]`/`[RelayCommand]`), Services (import, SQLite catalog, OPDS, metadata matching, navigation, sync), and per-platform folders (`Platforms/{iOS,Android,MacCatalyst,Windows}`, using MAUI's `.ios.cs`/`.android.cs`/`.maccatalyst.cs`/`.windows.cs` file-suffix multi-targeting rather than `#if PLATFORM` blocks in shared code).
 - **`DisplayBook.Viewer`** — a separate, reusable, trim/AOT-clean MAUI control library (`IsTrimmable`, `EnableTrimAnalyzer`, `WarningsAsErrors` includes `IL2026;IL3050`) containing just the EPUB reader control. Never add App-only dependencies (Firebase, OPDS, etc.) here.
 
-All DI registration lives in `MauiProgram.cs` — there's no other composition root. Pages/viewmodels register with `AddTransientWithShellRoute<TPage, TViewModel>("route")` (or `AddSingletonWithShellRoute` for the Library root); this both registers the types in DI and calls `Routing.RegisterRoute` under the hood. Only `AppShell.xaml` declares the shell's root `ShellContent` — every other page is reached purely via `Shell.Current.GoToAsync("route")` (always `await`ed) called directly from the ViewModel's `[RelayCommand]` methods, with no XAML declaration at all and no navigation-wrapping service or interface of any kind. Data a target page needs travels as plain query-string parameters (e.g. `Shell.Current.GoToAsync($"Details?id={book.Id}")`), and the destination page implements `IQueryAttributable` to read it back and kick off its own async load (see `OpdsBookPage`/`ReaderPage`/`BookDetailsPage`) — never as an object passed through Shell's dictionary-parameter overload. New pages follow this pattern, not a XAML `ShellContent` entry.
+All DI registration lives in `MauiProgram.cs` — there's no other composition root. Everything except `UseMauiApp<App>()`, `UseMauiCommunityToolkit()` (its analyzer requires that chain) and debug-only setup is in its `AddDisplayBook()` extension, which the device tests call too so their pages come from the same registrations. Pages/viewmodels register with `AddTransientWithShellRoute<TPage, TViewModel>("route")` (or `AddSingletonWithShellRoute` for the Library root); this both registers the types in DI and calls `Routing.RegisterRoute` under the hood. Only `AppShell.xaml` declares the shell's root `ShellContent` — every other page is reached purely via `Shell.Current.GoToAsync("route")` (always `await`ed) called directly from the ViewModel's `[RelayCommand]` methods, with no XAML declaration at all and no navigation-wrapping service or interface of any kind. Data a target page needs travels as plain query-string parameters (e.g. `Shell.Current.GoToAsync($"Details?id={book.Id}")`), and the destination page implements `IQueryAttributable` to read it back and kick off its own async load (see `OpdsBookPage`/`ReaderPage`/`BookDetailsPage`) — never as an object passed through Shell's dictionary-parameter overload. New pages follow this pattern, not a XAML `ShellContent` entry.
 
 `BookDetailsViewModel.cs` is compiled directly into `DisplayBook.Tests` (see "Tests" below) and so must stay MAUI-free; the handful of members that touch `Shell`/`Launcher` live in a second partial-class file, `BookDetailsViewModel.Platform.cs`, that the test `.csproj` does not include. If a ViewModel is ever both source-linked into tests and needs to navigate, use the same partial-class split rather than adding an abstraction over `Shell`.
 
@@ -98,7 +103,7 @@ Firebase Auth (Identity Toolkit) + Firestore, called **directly over REST via `H
 
 `tests/DisplayBook.Tests` does **not** reference `DisplayBook.App` (that would pull in MAUI). Instead its `.csproj` links specific source files directly via `<Compile Include="..\..\src\DisplayBook.App\...\Foo.cs" Link="..." />`. Pure logic you want covered (parsers, matchers, URL/naming normalizers, small services with no MAUI dependency) needs its `.cs` file added to that list explicitly, or it's invisible to the test project no matter how good the test is.
 
-Code that calls MAUI APIs (`FileSystem`, `SecureStorage`, `Preferences`, anything reached through `BookStorageService`) is tested in `tests/DisplayBook.DeviceTests` instead: a MAUI app that runs xUnit on the device via the DeviceRunners packages, source-linking app files the same way. Its tests wipe the app's data folder and secure storage, which is safe only because its `ApplicationId` differs from `DisplayBook.App`'s (`AppDataSandbox` checks this) — keep it that way.
+Code that calls MAUI APIs (`FileSystem`, `SecureStorage`, `Preferences`, anything reached through `BookStorageService`) is tested in `tests/DisplayBook.DeviceTests` instead: a MAUI app that runs xUnit on the device via the DeviceRunners packages. It compiles in all of DisplayBook.App and hosts its pages in the real `AppShell`, with the network, file pickers, mDNS and dialogs replaced by fakes (see its README). Its tests wipe the app's data folder and secure storage, which is safe only because its `ApplicationId` differs from `DisplayBook.App`'s (`AppDataSandbox` checks this) — keep it that way.
 
 ## Google Play Console operations
 

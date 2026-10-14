@@ -11,8 +11,7 @@ namespace DisplayBook.DeviceTests.Tests;
 /// a session has to survive an app restart, and signing out or a rejected refresh has to clear it.
 /// HTTP is stubbed; the secure storage is the platform's real one, scoped to this test app.
 /// </summary>
-[Collection(AppDataCollection.Name)]
-public class FirebaseAuthServiceTests
+public class FirebaseAuthServiceTests : AppDataTest
 {
 	// The secure-storage key the refresh token is persisted under. Renaming it signs every
 	// existing user out, so it is pinned here on purpose.
@@ -21,8 +20,6 @@ public class FirebaseAuthServiceTests
 	const string signInResponse = """
 		{ "idToken": "id-1", "refreshToken": "refresh-1", "localId": "user-1", "expiresIn": "3600" }
 		""";
-
-	public FirebaseAuthServiceTests() => AppDataSandbox.Reset();
 
 	static FirebaseAuthService CreateService(StubHttpHandler handler) =>
 		new(new HttpClient(handler), NullLogger<FirebaseAuthService>.Instance);
