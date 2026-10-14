@@ -55,7 +55,13 @@ public partial class BookDetailsViewModel
 		}
 		catch (Exception exception)
 		{
-			logger.LogDebug(exception, "Could not open the metadata source link {Link}.", link);
+			Log.SourceLinkNotOpened(logger, exception, link);
 		}
+	}
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Could not open the metadata source link {Link}.")]
+		public static partial void SourceLinkNotOpened(ILogger logger, Exception exception, string link);
 	}
 }

@@ -51,6 +51,7 @@ public sealed partial class ReaderAssetHost
 		// "new" acknowledges this intentionally shares a name with Java.Lang.Object.Handle (the
 		// JNI handle property) -- unrelated members, just a naming collision from the Java
 		// interface being called "handle".
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Code Smell", "S927:Parameter names should match base declaration", Justification = "The interface's 'p0' is a name the Java binding generator made up; 'path' says what it is.")]
 		public new WebResourceResponse? Handle(string? path)
 		{
 			if (path is null || !TryGetResourceBytes(publicationSource, path, out byte[] data))

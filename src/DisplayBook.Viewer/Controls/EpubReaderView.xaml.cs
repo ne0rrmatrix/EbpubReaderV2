@@ -10,7 +10,7 @@ namespace DisplayBook.Viewer.Controls;
 public partial class EpubReaderView : ContentView
 {
 	readonly ReaderAssetHost assetHost = new();
-	readonly IDictionaryLookupService dictionaryLookupService = new DictionaryLookupService();
+	readonly DictionaryLookupService dictionaryLookupService = new();
 	bool isLoading;
 	bool isReadyForLocationChanges;
 	bool loadRequestedWhileLoading;
@@ -357,11 +357,8 @@ public partial class EpubReaderView : ContentView
 	[SuppressMessage("Security", "S1172", Justification = "Unused method parameters should be removed.")]
 	void OnUnloaded(object? sender, EventArgs e)
 	{
-		if (lifecycleWindow is not null)
-		{
-			lifecycleWindow.Resumed -= OnWindowResumed;
-			lifecycleWindow = null;
-		}
+		lifecycleWindow?.Resumed -= OnWindowResumed;
+		lifecycleWindow = null;
 	}
 
 	void SubscribeToWindowLifecycle()
@@ -371,10 +368,7 @@ public partial class EpubReaderView : ContentView
 			return;
 		}
 
-		if (lifecycleWindow is not null)
-		{
-			lifecycleWindow.Resumed -= OnWindowResumed;
-		}
+		lifecycleWindow?.Resumed -= OnWindowResumed;
 
 		lifecycleWindow = window;
 		window.Resumed += OnWindowResumed;

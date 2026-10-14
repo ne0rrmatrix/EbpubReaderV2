@@ -22,7 +22,7 @@ public static class EpubPublicationLoader
 	// from the archive it mutated -- a second archive opened for the same book is a genuinely
 	// different object and needs its own synthetic combined-document entry. Weak keys mean
 	// nothing is retained once a book's archive is dropped.
-	static readonly ConditionalWeakTable<EpubArchive, Task<EpubPublicationInfo>> preparedByArchive = new();
+	static readonly ConditionalWeakTable<EpubArchive, Task<EpubPublicationInfo>> preparedByArchive = [];
 
 	// ConditionalWeakTable.GetValue's factory can run more than once under a race (only one
 	// result is kept), which here would mean parsing and assembling a large book twice for

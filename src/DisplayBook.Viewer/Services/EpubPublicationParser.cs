@@ -32,12 +32,9 @@ public static class EpubPublicationParser
 
 		Dictionary<string, EpubManifestItem> manifestById = ParseManifest(package, opfDirectory);
 
-		XElement? spineElement = package.Descendants().FirstOrDefault(element =>
-			string.Equals(element.Name.LocalName, "spine", StringComparison.OrdinalIgnoreCase));
-		if (spineElement is null)
-		{
-			throw new InvalidDataException("The EPUB package does not contain a spine.");
-		}
+		XElement spineElement = package.Descendants().FirstOrDefault(element =>
+			string.Equals(element.Name.LocalName, "spine", StringComparison.OrdinalIgnoreCase))
+			?? throw new InvalidDataException("The EPUB package does not contain a spine.");
 
 		List<EpubSpineItem> spine = ParseSpine(spineElement, manifestById);
 		if (spine.Count == 0)
@@ -45,7 +42,7 @@ public static class EpubPublicationParser
 			throw new InvalidDataException("The EPUB package does not contain readable spine resources.");
 		}
 
-		Dictionary<string, int> spineIndexByHref = new(StringComparer.OrdinalIgnoreCase);
+		Dictionary<string, int> spineIndexByHref = [with(StringComparer.OrdinalIgnoreCase)];
 		foreach (EpubSpineItem spineItem in spine)
 		{
 			spineIndexByHref.TryAdd(spineItem.Href, spineItem.Index);
@@ -87,7 +84,7 @@ public static class EpubPublicationParser
 		// Scoped to the <manifest>'s own children the way ParseSpine scopes its <itemref> scan:
 		// both EPUB 2 and 3 define <item> as a direct child of <manifest>, and a document-wide
 		// search would pick up any same-named element elsewhere in the package document.
-		Dictionary<string, EpubManifestItem> manifestById = new(StringComparer.Ordinal);
+		Dictionary<string, EpubManifestItem> manifestById = [with(StringComparer.Ordinal)];
 		foreach (XElement itemElement in manifestElement.Elements().Where(element =>
 			string.Equals(element.Name.LocalName, "item", StringComparison.OrdinalIgnoreCase)))
 		{
@@ -108,7 +105,7 @@ public static class EpubPublicationParser
 		return manifestById;
 	}
 
-	static List<EpubSpineItem> ParseSpine(XElement spineElement, IReadOnlyDictionary<string, EpubManifestItem> manifestById)
+	static List<EpubSpineItem> ParseSpine(XElement spineElement, Dictionary<string, EpubManifestItem> manifestById)
 	{
 		List<EpubSpineItem> spine = [];
 		foreach (XElement itemRef in spineElement.Elements().Where(element =>

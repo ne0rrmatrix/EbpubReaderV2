@@ -138,18 +138,18 @@ public partial class LibraryViewModel(
 		{
 			IsBusy = true;
 			ErrorMessage = string.Empty;
-			logger.LogDebug("Loading library catalog.");
+			Log.LoadingCatalog(logger);
 			await ReloadCatalogAsync(cancellationToken);
 
-			logger.LogDebug("Loaded {BookCount} books into the library.", Books.Count);
+			Log.LoadedCatalog(logger, Books.Count);
 		}
 		catch (OperationCanceledException exception)
 		{
-			logger.LogDebug(exception, "Library catalog load was canceled.");
+			Log.CatalogLoadCanceled(logger, exception);
 		}
 		catch (Exception exception)
 		{
-			logger.LogError(exception, "Library catalog load failed.");
+			Log.CatalogLoadFailed(logger, exception);
 			ErrorMessage = $"The library could not be loaded: {exception.Message}";
 		}
 		finally
@@ -276,17 +276,17 @@ public partial class LibraryViewModel(
 		}
 		catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
 		{
-			logger.LogDebug(exception, "Book deletion was canceled.");
+			Log.DeletionCanceled(logger, exception);
 		}
 		catch (AggregateException exception)
 		{
-			logger.LogError(exception, "Book records were deleted, but some stored content could not be removed.");
+			Log.DeletionCleanupFailed(logger, exception);
 			CompleteDeletion(selectedIds);
 			ErrorMessage = "The selected books were removed, but some stored files could not be cleaned up.";
 		}
 		catch (Exception exception)
 		{
-			logger.LogError(exception, "Book deletion failed.");
+			Log.DeletionFailed(logger, exception);
 			ErrorMessage = $"The selected books could not be deleted: {exception.Message}";
 		}
 		finally
@@ -341,12 +341,12 @@ public partial class LibraryViewModel(
 		}
 		catch (OperationCanceledException exception) when (importCancellationSource.IsCancellationRequested)
 		{
-			logger.LogDebug(exception, "Book import was canceled.");
+			Log.ImportCanceled(logger, exception);
 			await ReloadCatalogAfterImportCancellationAsync();
 		}
 		catch (Exception exception)
 		{
-			logger.LogError(exception, "Book import failed.");
+			Log.ImportFailed(logger, exception);
 			ErrorMessage = exception.Message;
 		}
 		finally
@@ -384,11 +384,11 @@ public partial class LibraryViewModel(
 		try
 		{
 			await ReloadCatalogAsync(CancellationToken.None);
-			logger.LogInformation("Reloaded {BookCount} committed books after import cancellation.", Books.Count);
+			Log.ReloadedAfterImportCancellation(logger, Books.Count);
 		}
 		catch (Exception exception)
 		{
-			logger.LogWarning(exception, "Could not refresh the library after import cancellation.");
+			Log.ReloadAfterImportCancellationFailed(logger, exception);
 		}
 	}
 
@@ -516,5 +516,41 @@ public partial class LibraryViewModel(
 		EnterSelectionModeCommand.NotifyCanExecuteChanged();
 		SelectAllCommand.NotifyCanExecuteChanged();
 		NotifySelectionChanged();
+	}
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Loading library catalog.")]
+		public static partial void LoadingCatalog(ILogger logger);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Loaded {BookCount} books into the library.")]
+		public static partial void LoadedCatalog(ILogger logger, int bookCount);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Library catalog load was canceled.")]
+		public static partial void CatalogLoadCanceled(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Error, Message = "Library catalog load failed.")]
+		public static partial void CatalogLoadFailed(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Book deletion was canceled.")]
+		public static partial void DeletionCanceled(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Error, Message = "Book records were deleted, but some stored content could not be removed.")]
+		public static partial void DeletionCleanupFailed(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Error, Message = "Book deletion failed.")]
+		public static partial void DeletionFailed(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Book import was canceled.")]
+		public static partial void ImportCanceled(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Error, Message = "Book import failed.")]
+		public static partial void ImportFailed(ILogger logger, Exception exception);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Reloaded {BookCount} committed books after import cancellation.")]
+		public static partial void ReloadedAfterImportCancellation(ILogger logger, int bookCount);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not refresh the library after import cancellation.")]
+		public static partial void ReloadAfterImportCancellationFailed(ILogger logger, Exception exception);
 	}
 }

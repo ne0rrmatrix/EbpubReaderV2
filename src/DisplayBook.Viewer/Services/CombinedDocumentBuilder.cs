@@ -32,7 +32,9 @@ public static partial class CombinedDocumentBuilder
 	const string xlinkNamespaceUri = "http://www.w3.org/1999/xlink";
 	static readonly XName xlinkHrefName = XName.Get("href", xlinkNamespaceUri);
 
-	[GeneratedRegex(@"url\(\s*(['""]?)([^'"")]+)\1\s*\)", RegexOptions.IgnoreCase)]
+	// Case-insensitive on "url" only: with RegexOptions.IgnoreCase the source generator can't
+	// emit the \1 backreference and falls back to the interpreter (SYSLIB1044).
+	[GeneratedRegex(@"[Uu][Rr][Ll]\(\s*(['""]?)([^'"")]+)\1\s*\)")]
 	private static partial Regex CssUrlPattern();
 
 	// Real-world EPUB chapters routinely use HTML named entities (&nbsp;, &mdash;, &eacute;, ...)
@@ -196,5 +198,5 @@ public static partial class CombinedDocumentBuilder
 		value.StartsWith("http:", StringComparison.OrdinalIgnoreCase) ||
 		value.StartsWith("https:", StringComparison.OrdinalIgnoreCase) ||
 		value.StartsWith("//", StringComparison.Ordinal) ||
-		value.StartsWith("#", StringComparison.Ordinal);
+		value.StartsWith('#');
 }

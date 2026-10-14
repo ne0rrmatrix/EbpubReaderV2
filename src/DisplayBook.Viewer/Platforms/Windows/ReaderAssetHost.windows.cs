@@ -21,20 +21,20 @@ public sealed partial class ReaderAssetHost
 	// Keyed by native WebView2 instance (rather than a single static Task) so a handler that
 	// gets torn down and recreated -- e.g. navigating away from and back to the reader page --
 	// warms up its own new CoreWebView2 instead of awaiting a stale one.
-	static readonly ConditionalWeakTable<Microsoft.UI.Xaml.Controls.WebView2, Task> warmUpTasks = new();
+	static readonly ConditionalWeakTable<Microsoft.UI.Xaml.Controls.WebView2, Task> warmUpTasks = [];
 
 	// The WebResourceRequested handler is registered once per native WebView2, during warm-up --
 	// well before any book is chosen. This box is the mutable link between that one-time handler
 	// and whichever book is currently open, updated by ConfigurePlatformWebViewAsync each time
 	// LoadPublicationAsync runs.
-	static readonly ConditionalWeakTable<Microsoft.UI.Xaml.Controls.WebView2, PublicationSourceBox> publicationSources = new();
+	static readonly ConditionalWeakTable<Microsoft.UI.Xaml.Controls.WebView2, PublicationSourceBox> publicationSources = [];
 
 	// Same idea as publicationSources: the reader shell (and therefore its native WebView2) now
 	// outlives any single book, so the ContextMenuRequested handler below is wired up once per
 	// WebView2 instance (during warm-up) rather than once per book -- re-subscribing on every
 	// LoadPublicationAsync call would otherwise pile up one more "Look up..." menu item per book
 	// opened in the session.
-	static readonly ConditionalWeakTable<Microsoft.UI.Xaml.Controls.WebView2, DictionaryLookupBox> dictionaryLookupHandlers = new();
+	static readonly ConditionalWeakTable<Microsoft.UI.Xaml.Controls.WebView2, DictionaryLookupBox> dictionaryLookupHandlers = [];
 
 	// Spinning up the WebView2 runtime's browser process is the single slowest part of getting a
 	// CoreWebView2 ready -- and it's shared across every CoreWebView2 in the process, so it only

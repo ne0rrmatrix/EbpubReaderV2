@@ -65,8 +65,8 @@ public class ReaderPageTests : AppDataTest
 	static Task SendBridgeMessageAsync(EpubReaderView reader, string type, string payloadJson = "{}") =>
 		NavigateBridgeAsync(reader, $"'?message=' + encodeURIComponent(JSON.stringify({{ type: '{type}', payload: {payloadJson} }}))");
 
-	static Task NavigateBridgeAsync(EpubReaderView reader, string queryExpression) =>
-		reader.FindByName<WebView>("ReaderWebView").EvaluateJavaScriptAsync($"window.location.href = 'displaybook://bridge' + {queryExpression}; 'sent'");
+	static async Task NavigateBridgeAsync(EpubReaderView reader, string queryExpression) =>
+		await reader.FindByName<WebView>("ReaderWebView").EvaluateJavaScriptAsync($"window.location.href = 'displaybook://bridge' + {queryExpression}; 'sent'");
 
 	static async Task<BookSummary?> SavedBookAsync(string bookId) =>
 		await TestApp.GetService<IBookCatalogService>().GetBookAsync(bookId);

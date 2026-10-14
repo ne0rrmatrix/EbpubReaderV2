@@ -5,7 +5,7 @@ namespace DisplayBook.App.Services.Opds;
 
 public sealed class OpdsEntryStagingCache : IOpdsEntryStagingCache
 {
-	readonly Dictionary<string, OpdsEntry> pendingEntries = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, OpdsEntry> pendingEntries = [with(StringComparer.OrdinalIgnoreCase)];
 
 	public void Stage(string entryUrl, OpdsEntry entry)
 	{

@@ -16,6 +16,8 @@ const viewerFolder = path.join(repoRoot, "src", "DisplayBook.Viewer", "Resources
 const bridgeUrl = `${origin}/bridge`;
 export const shellUrl = `${origin}/DisplayBookViewer/index.html?bridge=${encodeURIComponent(bridgeUrl)}`;
 
+const contentTypes = { ".js": "text/javascript", ".css": "text/css" };
+
 const coverPng = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     "base64");
@@ -105,7 +107,7 @@ export class Reader {
             }
             if (url.pathname.startsWith("/DisplayBookViewer/")) {
                 const file = path.join(viewerFolder, decodeURIComponent(url.pathname.slice("/DisplayBookViewer/".length)));
-                const contentType = file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html";
+                const contentType = contentTypes[path.extname(file)] ?? "text/html";
                 await route.fulfill({ body: await fs.readFile(file), contentType });
                 return;
             }
@@ -140,11 +142,11 @@ export class Reader {
         await expect.poll(() => this.messages.some((message) => message.type === type && predicate(message.payload)), {
             message: `bridge message ${type}`
         }).toBe(true);
-        return this.messages.filter((message) => message.type === type && predicate(message.payload)).at(-1);
+        return this.messages.findLast((message) => message.type === type && predicate(message.payload));
     }
 
     lastOf(type) {
-        return this.messages.filter((message) => message.type === type).at(-1);
+        return this.messages.findLast((message) => message.type === type);
     }
 
     call(method, ...args) {

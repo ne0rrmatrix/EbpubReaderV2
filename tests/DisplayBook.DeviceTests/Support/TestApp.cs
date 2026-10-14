@@ -120,7 +120,9 @@ static class Wait
 	/// <summary>
 	/// Polls until <paramref name="condition"/> holds. Awaiting on the UI thread keeps the
 	/// dispatcher running between checks, so bindings, handlers and WebView messages progress.
+	/// Fails the test (TimeoutException) if it never does.
 	/// </summary>
+	[AssertionMethod]
 	public static async Task UntilAsync(Func<bool> condition, string what, TimeSpan? timeout = null)
 	{
 		DateTime deadline = DateTime.UtcNow + (timeout ?? DefaultTimeout);

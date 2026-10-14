@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.Services;
 
-public sealed class BookImportService(
+public sealed partial class BookImportService(
 	IBookPickerService picker,
 	IBookCatalogService catalog,
 	ILogger<BookImportService> logger) : IBookImportService
@@ -130,10 +130,7 @@ public sealed class BookImportService(
 				throw new InvalidDataException($"No valid new EPUBs could be imported. {failures[0]}");
 			}
 
-			logger.LogInformation("Imported {ImportedCount} EPUBs from folder {SourceRoot}; skipped {SkippedCount} candidates.",
-				importedBooks.Count,
-				sourceRoot,
-				candidates.Count - importedBooks.Count);
+			Log.ImportedFolder(logger, importedBooks.Count, sourceRoot, candidates.Count - importedBooks.Count);
 			return importedBooks;
 		}
 		finally
@@ -156,7 +153,7 @@ public sealed class BookImportService(
 	{
 		if (knownHashes.Contains(contentHash) || await catalog.ContainsContentHashAsync(contentHash, cancellationToken))
 		{
-			logger.LogInformation("Skipped duplicate EPUB {FileName}.", originalFileName);
+			Log.SkippedDuplicate(logger, originalFileName);
 			DeleteFile(stagingEpubPath);
 			return null;
 		}
@@ -197,7 +194,7 @@ public sealed class BookImportService(
 		{
 			await catalog.AddBookAsync(summary, coverRelativePath, cancellationToken);
 			knownHashes.Add(contentHash);
-			logger.LogInformation("Imported EPUB {Title} into {Path}.", summary.Title, finalEpubPath);
+			Log.Imported(logger, summary.Title, finalEpubPath);
 			return summary;
 		}
 		catch
@@ -299,14 +296,14 @@ public sealed class BookImportService(
 		{
 			string candidateName = Path.GetFileName(candidate.Path);
 			failures.Add($"{candidateName}: {exception.Message}");
-			logger.LogWarning(exception, "Skipped EPUB candidate {CandidatePath}.", candidate.Path);
+			Log.SkippedCandidate(logger, exception, candidate.Path);
 			return null;
 		}
 	}
 
 	async Task<HashSet<string>> GetKnownContentHashesAsync(IProgress<BookImportProgress>? progress, CancellationToken cancellationToken)
 	{
-		HashSet<string> knownHashes = new(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> knownHashes = [with(StringComparer.OrdinalIgnoreCase)];
 		IReadOnlyList<BookSummary> books = await catalog.GetBooksAsync(cancellationToken);
 		ReportProgress(progress, checkingExistingLibraryStage, "Preparing duplicate check", 0, books.Count);
 		for (int index = 0; index < books.Count; index++)
@@ -335,7 +332,7 @@ public sealed class BookImportService(
 			}
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
 			{
-				logger.LogWarning(exception, "Could not fingerprint existing EPUB {BookId}.", book.Id);
+				Log.FingerprintFailed(logger, exception, book.Id);
 			}
 
 			ReportProgress(progress, checkingExistingLibraryStage, book.Title, index + 1, books.Count);
@@ -456,4 +453,22 @@ public sealed class BookImportService(
 	sealed record ImportCandidate(string Path, bool IsDirectory);
 
 	readonly record struct CandidateProgress(int Index, int Total);
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Information, Message = "Imported {ImportedCount} EPUBs from folder {SourceRoot}; skipped {SkippedCount} candidates.")]
+		public static partial void ImportedFolder(ILogger logger, int importedCount, string? sourceRoot, int skippedCount);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Skipped duplicate EPUB {FileName}.")]
+		public static partial void SkippedDuplicate(ILogger logger, string fileName);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Imported EPUB {Title} into {Path}.")]
+		public static partial void Imported(ILogger logger, string title, string path);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Skipped EPUB candidate {CandidatePath}.")]
+		public static partial void SkippedCandidate(ILogger logger, Exception exception, string candidatePath);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not fingerprint existing EPUB {BookId}.")]
+		public static partial void FingerprintFailed(ILogger logger, Exception exception, string bookId);
+	}
 }

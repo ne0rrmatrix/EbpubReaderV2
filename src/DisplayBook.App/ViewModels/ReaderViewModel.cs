@@ -95,20 +95,16 @@ public partial class ReaderViewModel(
 		Locator = resolvedLocatorTask.Result;
 		PublicationSource = publicationSourceTask.Result;
 		Book = book;
-		logger.LogInformation(
-			"Reader init: book {BookId} opening at ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}.",
-			book.Id, Locator.ResourceHref, Locator.Page, Locator.PageCount, Locator.CharOffset);
+		Log.Opening(logger, book.Id, Locator.ResourceHref, Locator.Page, Locator.PageCount, Locator.CharOffset);
 	}
 
 	async Task<EpubLocator> ResolveRemoteLocatorAsync(BookSummary book, EpubLocator localLocator)
 	{
-		logger.LogInformation(
-			"Local locator for {ContentHash}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}, LastOpenedAt={LastOpenedAt}.",
-			book.ContentHash, localLocator.ResourceHref, localLocator.Page, localLocator.PageCount, localLocator.CharOffset, book.LastOpenedAt);
+		Log.LocalLocator(logger, book.ContentHash, localLocator.ResourceHref, localLocator.Page, localLocator.PageCount, localLocator.CharOffset, book.LastOpenedAt);
 
 		if (string.IsNullOrEmpty(book.ContentHash))
 		{
-			logger.LogInformation("No ContentHash for book {BookId}; skipping remote position lookup.", book.Id);
+			Log.NoContentHash(logger, book.Id);
 			return localLocator;
 		}
 
@@ -118,22 +114,20 @@ public partial class ReaderViewModel(
 		{
 			remote = await syncService.TryPullPositionAsync(book.ContentHash, timeoutCts.Token);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException exception)
 		{
-			logger.LogWarning("Remote position lookup for {ContentHash} timed out.", book.ContentHash);
+			Log.RemoteLookupTimedOut(logger, exception, book.ContentHash);
 			return localLocator;
 		}
 
 		if (remote is null || string.IsNullOrWhiteSpace(remote.ResourceHref))
 		{
-			logger.LogInformation("No remote position found for {ContentHash}.", book.ContentHash);
+			Log.NoRemotePosition(logger, book.ContentHash);
 			return localLocator;
 		}
 
 		EpubLocator remoteLocator = new(remote.ResourceHref, remote.Page, remote.PageCount, remote.CharOffset);
-		logger.LogInformation(
-			"Remote locator for {ContentHash}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}, UpdatedAt={UpdatedAt}.",
-			book.ContentHash, remoteLocator.ResourceHref, remoteLocator.Page, remoteLocator.PageCount, remoteLocator.CharOffset, remote.UpdatedAt);
+		Log.RemoteLocator(logger, book.ContentHash, remoteLocator.ResourceHref, remoteLocator.Page, remoteLocator.PageCount, remoteLocator.CharOffset, remote.UpdatedAt);
 		NoteKnownPosition(remote.UpdatedAt);
 
 		// Nothing to choose between if this device has never read the book, or the two
@@ -141,16 +135,14 @@ public partial class ReaderViewModel(
 		// actually move the reader somewhere else.
 		if (string.IsNullOrWhiteSpace(localLocator.ResourceHref) || IsSamePosition(localLocator, remoteLocator))
 		{
-			logger.LogInformation("Adopting remote locator for {ContentHash} without prompting (no local position, or positions already match).", book.ContentHash);
+			Log.AdoptingRemoteWithoutPrompt(logger, book.ContentHash);
 			return remoteLocator;
 		}
 
 		DateTimeOffset localUpdatedAt = book.LastOpenedAt ?? DateTimeOffset.MinValue;
 		bool remoteIsNewer = remote.UpdatedAt > localUpdatedAt;
 		bool acceptRemote = await PromptToAdoptRemotePositionAsync(remoteIsNewer, remote.UpdatedAt);
-		logger.LogInformation(
-			"User {Choice} the {Direction} synced position for {ContentHash}.",
-			acceptRemote ? "accepted" : "declined", remoteIsNewer ? "newer" : "older", book.ContentHash);
+		Log.RemoteChoice(logger, acceptRemote ? "accepted" : "declined", remoteIsNewer ? "newer" : "older", book.ContentHash);
 		return acceptRemote ? remoteLocator : localLocator;
 	}
 
@@ -165,13 +157,13 @@ public partial class ReaderViewModel(
 	{
 		if (Book is not { } book || string.IsNullOrEmpty(book.ContentHash))
 		{
-			logger.LogInformation("Refocus check skipped: no open book with a content hash.");
+			Log.RefocusSkippedNoBook(logger);
 			return null;
 		}
 
 		if (isResolvingRemotePosition)
 		{
-			logger.LogInformation("Refocus check skipped for {ContentHash}: a position lookup or prompt is already in progress.", book.ContentHash);
+			Log.RefocusSkippedBusy(logger, book.ContentHash);
 			return null;
 		}
 
@@ -187,9 +179,9 @@ public partial class ReaderViewModel(
 				{
 					remote = await syncService.TryPullPositionAsync(book.ContentHash, timeoutCts.Token);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException exception)
 				{
-					logger.LogWarning("Remote position lookup on refocus for {ContentHash} timed out.", book.ContentHash);
+					Log.RefocusLookupTimedOut(logger, exception, book.ContentHash);
 					return null;
 				}
 			}
@@ -197,15 +189,13 @@ public partial class ReaderViewModel(
 			// The user may have opened a different book while the lookup was in flight.
 			if (!ReferenceEquals(Book, book) || remote is null || string.IsNullOrWhiteSpace(remote.ResourceHref))
 			{
-				logger.LogInformation("Refocus check for {ContentHash}: no synced position (signed out, offline, or none stored).", book.ContentHash);
+				Log.RefocusNoRemotePosition(logger, book.ContentHash);
 				return null;
 			}
 
 			if (remote.UpdatedAt <= knownAt)
 			{
-				logger.LogInformation(
-					"Refocus check for {ContentHash}: synced position from {RemoteUpdatedAt} is not newer than this device's {KnownAt}.",
-					book.ContentHash, remote.UpdatedAt, knownAt);
+				Log.RefocusNotNewer(logger, book.ContentHash, remote.UpdatedAt, knownAt);
 				return null;
 			}
 
@@ -213,14 +203,12 @@ public partial class ReaderViewModel(
 			EpubLocator remoteLocator = new(remote.ResourceHref, remote.Page, remote.PageCount, remote.CharOffset);
 			if (IsSamePosition(Locator, remoteLocator))
 			{
-				logger.LogInformation("Refocus check for {ContentHash}: newer synced position matches the current one.", book.ContentHash);
+				Log.RefocusSamePosition(logger, book.ContentHash);
 				return null;
 			}
 
 			bool acceptRemote = await PromptToAdoptRemotePositionAsync(remoteIsNewer: true, remote.UpdatedAt);
-			logger.LogInformation(
-				"User {Choice} the newer synced position for {ContentHash} on refocus.",
-				acceptRemote ? "accepted" : "declined", book.ContentHash);
+			Log.RefocusChoice(logger, acceptRemote ? "accepted" : "declined", book.ContentHash);
 			if (!acceptRemote || !ReferenceEquals(Book, book))
 			{
 				return null;
@@ -292,9 +280,7 @@ public partial class ReaderViewModel(
 		}
 
 		DateTimeOffset updatedAt = DateTimeOffset.UtcNow;
-		logger.LogInformation(
-			"Reader reported locator for book {BookId}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}.",
-			Book.Id, locator.ResourceHref, locator.Page, locator.PageCount, locator.CharOffset);
+		Log.LocatorReported(logger, Book.Id, locator.ResourceHref, locator.Page, locator.PageCount, locator.CharOffset);
 		await catalogService.SaveLocatorAsync(Book.Id, locator.ResourceHref, locator.Page, locator.PageCount, locator.CharOffset);
 
 		// The reader also re-reports the unchanged position whenever it re-paginates -- e.g. the
@@ -315,4 +301,55 @@ public partial class ReaderViewModel(
 	}
 
 	public Task FlushPendingSyncAsync() => syncService.FlushPendingPushAsync();
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Information, Message = "Reader init: book {BookId} opening at ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}.")]
+		public static partial void Opening(ILogger logger, string bookId, string resourceHref, int page, int pageCount, int charOffset);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Local locator for {ContentHash}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}, LastOpenedAt={LastOpenedAt}.")]
+		public static partial void LocalLocator(ILogger logger, string contentHash, string resourceHref, int page, int pageCount, int charOffset, DateTimeOffset? lastOpenedAt);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "No ContentHash for book {BookId}; skipping remote position lookup.")]
+		public static partial void NoContentHash(ILogger logger, string bookId);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Remote position lookup for {ContentHash} timed out.")]
+		public static partial void RemoteLookupTimedOut(ILogger logger, Exception exception, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "No remote position found for {ContentHash}.")]
+		public static partial void NoRemotePosition(ILogger logger, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Remote locator for {ContentHash}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}, UpdatedAt={UpdatedAt}.")]
+		public static partial void RemoteLocator(ILogger logger, string contentHash, string resourceHref, int page, int pageCount, int charOffset, DateTimeOffset updatedAt);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Adopting remote locator for {ContentHash} without prompting (no local position, or positions already match).")]
+		public static partial void AdoptingRemoteWithoutPrompt(ILogger logger, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "User {Choice} the {Direction} synced position for {ContentHash}.")]
+		public static partial void RemoteChoice(ILogger logger, string choice, string direction, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Refocus check skipped: no open book with a content hash.")]
+		public static partial void RefocusSkippedNoBook(ILogger logger);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Refocus check skipped for {ContentHash}: a position lookup or prompt is already in progress.")]
+		public static partial void RefocusSkippedBusy(ILogger logger, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Remote position lookup on refocus for {ContentHash} timed out.")]
+		public static partial void RefocusLookupTimedOut(ILogger logger, Exception exception, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Refocus check for {ContentHash}: no synced position (signed out, offline, or none stored).")]
+		public static partial void RefocusNoRemotePosition(ILogger logger, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Refocus check for {ContentHash}: synced position from {RemoteUpdatedAt} is not newer than this device's {KnownAt}.")]
+		public static partial void RefocusNotNewer(ILogger logger, string contentHash, DateTimeOffset remoteUpdatedAt, DateTimeOffset knownAt);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Refocus check for {ContentHash}: newer synced position matches the current one.")]
+		public static partial void RefocusSamePosition(ILogger logger, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "User {Choice} the newer synced position for {ContentHash} on refocus.")]
+		public static partial void RefocusChoice(ILogger logger, string choice, string contentHash);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Reader reported locator for book {BookId}: ResourceHref={ResourceHref}, Page={Page}, PageCount={PageCount}, CharOffset={CharOffset}.")]
+		public static partial void LocatorReported(ILogger logger, string bookId, string resourceHref, int page, int pageCount, int charOffset);
+	}
 }

@@ -135,7 +135,7 @@ public class ValueConvertersTests
 	];
 
 	[Theory]
-	[MemberData(nameof(Converters))]
+	[MemberData(nameof(Converters), DisableDiscoveryEnumeration = true)]
 	public void ConvertBack_IsNotSupported(IValueConverter converter)
 	{
 		Assert.Throws<NotSupportedException>(() => converter.ConvertBack(null, typeof(object), null, invariant));

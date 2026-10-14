@@ -113,7 +113,7 @@ public sealed partial class DownloadQueueService(
 			item.Status = DownloadStatus.Paused;
 			RaiseItemUpdated(item);
 			await CancelSourceAsync(item).ConfigureAwait(false);
-			logger.LogInformation("OPDS download {Item} paused.", item.BookTitle);
+			Log.Paused(logger, item.BookTitle);
 		}
 	}
 
@@ -141,7 +141,7 @@ public sealed partial class DownloadQueueService(
 			item.Status = DownloadStatus.Canceled;
 			RaiseItemUpdated(item);
 			await CancelSourceAsync(item).ConfigureAwait(false);
-			logger.LogInformation("OPDS download {Item} canceled.", item.BookTitle);
+			Log.Canceled(logger, item.BookTitle);
 		}
 	}
 
@@ -221,7 +221,7 @@ public sealed partial class DownloadQueueService(
 				}
 			}
 
-			logger.LogInformation("Canceled {Count} OPDS download(s).", stopping.Count);
+			Log.CanceledAll(logger, stopping.Count);
 			foreach (string batchId in batches.Keys)
 			{
 				RaiseBatchUpdated(batchId, force: true);
@@ -369,7 +369,7 @@ public sealed partial class DownloadQueueService(
 			RaiseItemUpdated(item);
 
 			long existingLength = File.Exists(tempPath) ? new FileInfo(tempPath).Length : 0L;
-			logger.LogInformation("OPDS download {Item} starting; temp partial {ExistingBytes} bytes at {TempPath}.", item.BookTitle, existingLength, tempPath);
+			Log.Starting(logger, item.BookTitle, existingLength, tempPath);
 			TransferOutcome outcome = await RequestTransferAsync(item, tempPath, existingLength, token).ConfigureAwait(false);
 			try
 			{
@@ -401,7 +401,7 @@ public sealed partial class DownloadQueueService(
 				item.Status = DownloadStatus.Failed;
 				item.Error = $"Download failed: {ex.Message}";
 				RaiseItemUpdated(item);
-				logger.LogWarning(ex, "OPDS download transfer failed for {Item}.", item.BookTitle);
+				Log.TransferFailed(logger, ex, item.BookTitle);
 			}
 		}
 		finally
@@ -442,7 +442,7 @@ public sealed partial class DownloadQueueService(
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
 		{
-			logger.LogWarning(ex, "Could not delete the partial download for {Item}.", item.BookTitle);
+			Log.PartialNotDeleted(logger, ex, item.BookTitle);
 		}
 	}
 
@@ -483,7 +483,7 @@ public sealed partial class DownloadQueueService(
 				response.Dispose();
 				SetLength(item, existingLength, existingLength);
 				item.TotalBytes = existingLength;
-				logger.LogInformation("OPDS download {Item}: partial is already complete at {Bytes} bytes.", item.BookTitle, existingLength);
+				Log.PartialAlreadyComplete(logger, item.BookTitle, existingLength);
 				return new TransferOutcome(null, existingLength, succeeded: true, alreadyComplete: true);
 			}
 
@@ -491,7 +491,7 @@ public sealed partial class DownloadQueueService(
 			// information to validate it. Restart without a Range header.
 			response.Dispose();
 			File.Delete(tempPath);
-			logger.LogWarning("OPDS download {Item}: server rejected resume at {ExistingBytes} bytes (server length {ServerBytes}); restarting.", item.BookTitle, existingLength, serverLength);
+			Log.ResumeRejected(logger, item.BookTitle, existingLength, serverLength);
 			return await RequestTransferAsync(item, tempPath, existingLength: 0, token).ConfigureAwait(false);
 		}
 
@@ -500,7 +500,7 @@ public sealed partial class DownloadQueueService(
 			item.Status = DownloadStatus.Failed;
 			item.Error = $"Download failed: server responded {(int)response.StatusCode} ({response.StatusCode}).";
 			RaiseItemUpdated(item);
-			logger.LogWarning("OPDS download transfer failed for {Item}: {StatusCode} {Reason}.", item.BookTitle, (int)response.StatusCode, response.ReasonPhrase);
+			Log.TransferFailedStatus(logger, item.BookTitle, (int)response.StatusCode, response.ReasonPhrase);
 			return new TransferOutcome(response, 0, succeeded: false);
 		}
 
@@ -576,11 +576,11 @@ public sealed partial class DownloadQueueService(
 			RaiseItemUpdated(item);
 			if (importedBooks.Count == 0)
 			{
-				logger.LogInformation("OPDS download {Item} matched an existing library book; removed duplicate staging file.", item.BookTitle);
+				Log.DuplicateOfLibraryBook(logger, item.BookTitle);
 			}
 			else
 			{
-				logger.LogInformation("OPDS download {Item} imported into the library.", item.BookTitle);
+				Log.Imported(logger, item.BookTitle);
 			}
 		}
 		catch (OperationCanceledException)
@@ -594,7 +594,7 @@ public sealed partial class DownloadQueueService(
 				item.Status = DownloadStatus.Failed;
 				item.Error = $"Import failed: {ex.Message}";
 				RaiseItemUpdated(item);
-				logger.LogWarning(ex, "OPDS download import failed for {Item}.", item.BookTitle);
+				Log.ImportFailed(logger, ex, item.BookTitle);
 			}
 		}
 	}
@@ -734,4 +734,43 @@ public sealed partial class DownloadQueueService(
 		TempFilePath = source.TempFilePath,
 		BatchId = source.BatchId
 	};
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Information, Message = "OPDS download {Item} paused.")]
+		public static partial void Paused(ILogger logger, string item);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "OPDS download {Item} canceled.")]
+		public static partial void Canceled(ILogger logger, string item);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Canceled {Count} OPDS download(s).")]
+		public static partial void CanceledAll(ILogger logger, int count);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "OPDS download {Item} starting; temp partial {ExistingBytes} bytes at {TempPath}.")]
+		public static partial void Starting(ILogger logger, string item, long existingBytes, string tempPath);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "OPDS download transfer failed for {Item}.")]
+		public static partial void TransferFailed(ILogger logger, Exception exception, string item);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not delete the partial download for {Item}.")]
+		public static partial void PartialNotDeleted(ILogger logger, Exception exception, string item);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "OPDS download {Item}: partial is already complete at {Bytes} bytes.")]
+		public static partial void PartialAlreadyComplete(ILogger logger, string item, long bytes);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "OPDS download {Item}: server rejected resume at {ExistingBytes} bytes (server length {ServerBytes}); restarting.")]
+		public static partial void ResumeRejected(ILogger logger, string item, long existingBytes, long? serverBytes);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "OPDS download transfer failed for {Item}: {StatusCode} {Reason}.")]
+		public static partial void TransferFailedStatus(ILogger logger, string item, int statusCode, string? reason);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "OPDS download {Item} matched an existing library book; removed duplicate staging file.")]
+		public static partial void DuplicateOfLibraryBook(ILogger logger, string item);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "OPDS download {Item} imported into the library.")]
+		public static partial void Imported(ILogger logger, string item);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "OPDS download import failed for {Item}.")]
+		public static partial void ImportFailed(ILogger logger, Exception exception, string item);
+	}
 }

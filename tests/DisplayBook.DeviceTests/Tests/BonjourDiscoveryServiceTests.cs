@@ -194,7 +194,7 @@ public sealed partial class BonjourDiscoveryServiceTests : IDisposable
 
 	sealed record FakeHost(string Id, string DisplayName, IReadOnlyList<string> IPAddresses, IReadOnlyDictionary<string, IService> Services) : IZeroconfHost
 	{
-		public string IPAddress => IPAddresses.FirstOrDefault() ?? string.Empty;
+		public string IPAddress => IPAddresses.Count > 0 ? IPAddresses[0] : string.Empty;
 	}
 
 	sealed record FakeService(string ServiceName, int Port, IReadOnlyList<IReadOnlyDictionary<string, string>> Properties) : IService

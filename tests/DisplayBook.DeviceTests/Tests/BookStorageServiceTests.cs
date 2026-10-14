@@ -91,7 +91,7 @@ public class BookStorageServiceTests : AppDataTest
 	[Fact]
 	public void DeleteBook_NothingStored_DoesNotThrow()
 	{
-		BookStorageService.DeleteBook("never-imported");
-		BookStorageService.DeleteBook("  ");
+		Assert.Null(Record.Exception(() => BookStorageService.DeleteBook("never-imported")));
+		Assert.Null(Record.Exception(() => BookStorageService.DeleteBook("  ")));
 	}
 }

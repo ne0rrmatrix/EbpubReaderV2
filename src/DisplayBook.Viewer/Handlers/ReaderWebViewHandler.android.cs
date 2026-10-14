@@ -1,4 +1,5 @@
 #if ANDROID
+using System.Globalization;
 using Android.Content.PM;
 using Android.Views;
 using Android.Webkit;
@@ -26,7 +27,7 @@ public sealed partial class ReaderWebViewHandler
 		Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
 #endif
 
-		ReaderSelectionWebView platformView = new(this, Context!)
+		ReaderSelectionWebView platformView = new(this, Context)
 		{
 			LayoutParameters = new LayoutParams(LayoutParams.MatchParent, LayoutParams.MatchParent)
 		};
@@ -132,7 +133,7 @@ public sealed partial class ReaderWebViewHandler
 
 		double topDp = topPx / density;
 		double bottomDp = bottomPx / density;
-		string script = FormattableString.Invariant(
+		string script = string.Create(CultureInfo.InvariantCulture,
 			$"window.DisplayBookReader?.setSafeAreaInsets({topDp}, {bottomDp});");
 		platformView.EvaluateJavascript(script, null);
 	}

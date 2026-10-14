@@ -172,7 +172,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		}
 		catch (Exception ex)
 		{
-			logger.LogWarning(ex, "Could not load OPDS book details {Url}", entryUrl);
+			Log.DetailsLoadFailed(logger, ex, entryUrl);
 			if (!disposed)
 			{
 				StatusMessage = "Could not load this book: " + ex.Message;
@@ -196,7 +196,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		if (pendingEntry is not null)
 		{
 			BookDetails stagedDetails = await parser.ParseBookDetailsAsync(pendingEntry, ct).ConfigureAwait(false);
-			logger.LogDebug("Using staged OPDS entry for book details {Url}.", entryUrl);
+			Log.UsingStagedEntry(logger, entryUrl);
 			return stagedDetails;
 		}
 
@@ -287,7 +287,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		}
 		catch (Exception ex)
 		{
-			logger.LogWarning(ex, "Could not refresh OPDS library membership for {Book}.", Title);
+			Log.MembershipRefreshFailed(logger, ex, Title);
 		}
 	}
 
@@ -311,7 +311,7 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		}
 		catch (Exception ex)
 		{
-			logger.LogWarning(ex, "Could not enqueue download for {Book}", bookTitle);
+			Log.EnqueueFailed(logger, ex, bookTitle);
 			if (!disposed)
 			{
 				StatusMessage = "Could not start the download: " + ex.Message;
@@ -336,5 +336,20 @@ public sealed partial class OpdsBookViewModel : ObservableObject, IDisposable
 		disposed = true;
 		loadCts?.Cancel();
 		Subscribe(false);
+	}
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not load OPDS book details {Url}")]
+		public static partial void DetailsLoadFailed(ILogger logger, Exception exception, string url);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Using staged OPDS entry for book details {Url}.")]
+		public static partial void UsingStagedEntry(ILogger logger, string url);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not refresh OPDS library membership for {Book}.")]
+		public static partial void MembershipRefreshFailed(ILogger logger, Exception exception, string book);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not enqueue download for {Book}")]
+		public static partial void EnqueueFailed(ILogger logger, Exception exception, string book);
 	}
 }

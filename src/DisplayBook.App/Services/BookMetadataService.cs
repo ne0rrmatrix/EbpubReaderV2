@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DisplayBook.App.Services;
 
-public sealed class BookMetadataService(
+public sealed partial class BookMetadataService(
 	GoogleBooksClient googleBooks,
 	OpenLibraryClient openLibrary,
 	IHttpClientFactory httpClientFactory,
@@ -34,7 +34,7 @@ public sealed class BookMetadataService(
 			}
 			catch (Exception exception) when (exception is BookMetadataRateLimitedException or BookMetadataFetchException or HttpRequestException or TaskCanceledException)
 			{
-				logger.LogWarning(exception, "{Provider} lookup for {BookId} failed; trying the next source.", providerName, book.Id);
+				Log.ProviderFailed(logger, exception, providerName, book.Id);
 				failures.Add(exception);
 				return null;
 			}
@@ -59,9 +59,7 @@ public sealed class BookMetadataService(
 
 		if (result is not null)
 		{
-			logger.LogInformation(
-				"Metadata lookup for {BookId} matched via {Provider} in {ElapsedMs}ms.",
-				book.Id, result.SourceProvider, stopwatch.ElapsedMilliseconds);
+			Log.Matched(logger, book.Id, result.SourceProvider, stopwatch.ElapsedMilliseconds);
 			return new BookMetadataFetchResult(BookMetadataFetchStatus.Found, result, stopwatch.Elapsed, null);
 		}
 
@@ -70,18 +68,18 @@ public sealed class BookMetadataService(
 		// rate-limit/network error from a source that got successfully worked around.
 		if (anyProviderRespondedCleanly || failures.Count == 0)
 		{
-			logger.LogInformation("Metadata lookup for {BookId} found no match after {ElapsedMs}ms.", book.Id, stopwatch.ElapsedMilliseconds);
+			Log.NoMatch(logger, book.Id, stopwatch.ElapsedMilliseconds);
 			return new BookMetadataFetchResult(BookMetadataFetchStatus.NotFound, null, stopwatch.Elapsed, "No match found on Google Books or Open Library.");
 		}
 
 		if (failures.OfType<BookMetadataRateLimitedException>().FirstOrDefault() is { } rateLimited)
 		{
-			logger.LogWarning("Metadata lookup for {BookId} exhausted every source after {ElapsedMs}ms; last failure was a rate limit.", book.Id, stopwatch.ElapsedMilliseconds);
+			Log.RateLimited(logger, book.Id, stopwatch.ElapsedMilliseconds);
 			return new BookMetadataFetchResult(BookMetadataFetchStatus.RateLimited, null, stopwatch.Elapsed, rateLimited.Message);
 		}
 
 		Exception lastFailure = failures[^1];
-		logger.LogError(lastFailure, "Metadata lookup for {BookId} failed on every source after {ElapsedMs}ms.", book.Id, stopwatch.ElapsedMilliseconds);
+		Log.AllSourcesFailed(logger, lastFailure, book.Id, stopwatch.ElapsedMilliseconds);
 		return new BookMetadataFetchResult(BookMetadataFetchStatus.NetworkError, null, stopwatch.Elapsed, lastFailure.Message);
 	}
 
@@ -112,5 +110,23 @@ public sealed class BookMetadataService(
 			".jpeg" => ".jpg",
 			_ => match,
 		};
+	}
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Warning, Message = "{Provider} lookup for {BookId} failed; trying the next source.")]
+		public static partial void ProviderFailed(ILogger logger, Exception exception, string provider, string bookId);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Metadata lookup for {BookId} matched via {Provider} in {ElapsedMs}ms.")]
+		public static partial void Matched(ILogger logger, string bookId, BookMetadataProvider provider, long elapsedMs);
+
+		[LoggerMessage(Level = LogLevel.Information, Message = "Metadata lookup for {BookId} found no match after {ElapsedMs}ms.")]
+		public static partial void NoMatch(ILogger logger, string bookId, long elapsedMs);
+
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Metadata lookup for {BookId} exhausted every source after {ElapsedMs}ms; last failure was a rate limit.")]
+		public static partial void RateLimited(ILogger logger, string bookId, long elapsedMs);
+
+		[LoggerMessage(Level = LogLevel.Error, Message = "Metadata lookup for {BookId} failed on every source after {ElapsedMs}ms.")]
+		public static partial void AllSourcesFailed(ILogger logger, Exception exception, string bookId, long elapsedMs);
 	}
 }

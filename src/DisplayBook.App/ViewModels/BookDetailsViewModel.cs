@@ -170,7 +170,7 @@ public partial class BookDetailsViewModel(
 			}
 			catch (Exception exception)
 			{
-				logger.LogWarning(exception, "Could not download the cover for {BookId}; the rest of the metadata will still apply.", Book.Id);
+				Log.CoverDownloadFailed(logger, exception, Book.Id);
 			}
 		}
 
@@ -289,8 +289,17 @@ public partial class BookDetailsViewModel(
 		}
 		catch (Exception exception)
 		{
-			logger.LogDebug(exception, "Could not determine undo availability for {BookId}.", Book.Id);
+			Log.UndoAvailabilityUnknown(logger, exception, Book.Id);
 			CanUndo = false;
 		}
+	}
+
+	static partial class Log
+	{
+		[LoggerMessage(Level = LogLevel.Warning, Message = "Could not download the cover for {BookId}; the rest of the metadata will still apply.")]
+		public static partial void CoverDownloadFailed(ILogger logger, Exception exception, string bookId);
+
+		[LoggerMessage(Level = LogLevel.Debug, Message = "Could not determine undo availability for {BookId}.")]
+		public static partial void UndoAvailabilityUnknown(ILogger logger, Exception exception, string bookId);
 	}
 }

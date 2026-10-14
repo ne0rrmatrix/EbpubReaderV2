@@ -20,7 +20,7 @@ public sealed class EpubArchive
 
 	public static async Task<EpubArchive> OpenAsync(string epubFilePath, CancellationToken cancellationToken = default)
 	{
-		Dictionary<string, byte[]> entries = new(StringComparer.OrdinalIgnoreCase);
+		Dictionary<string, byte[]> entries = [with(StringComparer.OrdinalIgnoreCase)];
 		await using (FileStream fileStream = new(
 			epubFilePath,
 			FileMode.Open,

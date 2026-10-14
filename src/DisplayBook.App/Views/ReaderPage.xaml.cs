@@ -94,7 +94,7 @@ public partial class ReaderPage : ContentPage, IQueryAttributable
 
 		// The page's own Window can still be unset this early on some platforms (see the same
 		// caveat in EpubReaderView.LoadCurrentPublicationAsync); the app has only the one.
-		if ((Window ?? Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()) is not { } window)
+		if ((Window ?? (Microsoft.Maui.Controls.Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null)) is not { } window)
 		{
 			logger.LogWarning("Reader page has no window to watch for focus changes; synced positions won't be checked on refocus.");
 			return;

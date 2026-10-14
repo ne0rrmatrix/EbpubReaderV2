@@ -242,9 +242,6 @@ public class BookDetailsViewModelMetadataTests
 		public Task AddBookAsync(BookSummary book, string coverRelativePath, CancellationToken cancellationToken = default) =>
 			Task.CompletedTask;
 
-		public Task SaveLocatorAsync(string bookId, string resourceHref, int page, int pageCount, CancellationToken cancellationToken = default) =>
-			Task.CompletedTask;
-
 		public Task<BookSummary> UpdateMetadataAsync(string bookId, BookSummary updated, string? newCoverRelativePath, CancellationToken cancellationToken = default)
 		{
 			previous = book;

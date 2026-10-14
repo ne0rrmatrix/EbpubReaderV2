@@ -12,7 +12,7 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
 		"DisplayBookViewer/ReadiumCSS-after.css"
 	];
 	static readonly SemaphoreSlim shellAssetsLock = new(1, 1);
-	static IReadOnlyDictionary<string, byte[]>? shellAssets;
+	static Dictionary<string, byte[]>? shellAssets;
 
 	/// <summary>
 	/// Shared across every platform's resource handler so the extension-to-MIME-type mapping
@@ -103,7 +103,7 @@ public sealed partial class ReaderAssetHost : IReaderAssetHost
 				return;
 			}
 
-			Dictionary<string, byte[]> assets = new(StringComparer.OrdinalIgnoreCase);
+			Dictionary<string, byte[]> assets = [with(StringComparer.OrdinalIgnoreCase)];
 			foreach (string assetPath in viewerAssetPaths)
 			{
 				await using Stream source = await FileSystem.OpenAppPackageFileAsync(assetPath);

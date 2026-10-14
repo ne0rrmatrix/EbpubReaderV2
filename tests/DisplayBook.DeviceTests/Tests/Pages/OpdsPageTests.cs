@@ -177,8 +177,19 @@ public class OpdsServersPageTests : OpdsPageTest
 		await TestApp.WaitForPageAsync<LibraryPage>();
 
 		await Wait.UntilAsync(() => !Discovery.IsDiscovering, "discovery to stop");
+	}
+
+	[UIFact]
+	public async Task Dispose_StopsListeningForDiscoveredServers()
+	{
+		OpdsServersViewModel servers = await OpenServersAsync();
+		int listeners = Discovery.ServerDiscoveredListenerCount;
+
 		servers.Dispose();
+		Assert.Equal(listeners - 1, Discovery.ServerDiscoveredListenerCount);
+
 		servers.Dispose();
+		Assert.Equal(listeners - 1, Discovery.ServerDiscoveredListenerCount);
 	}
 }
 
@@ -355,9 +366,6 @@ public class OpdsCatalogPageTests : OpdsPageTest
 
 		OpdsBookPage page = await TestApp.WaitForPageAsync<OpdsBookPage>();
 		await Wait.UntilAsync(() => page.ViewModel.Title == "Elric of Melniboné", "the book details to load");
-		catalog.OnPageDisappearing();
-		catalog.Dispose();
-		catalog.Dispose();
 	}
 }
 

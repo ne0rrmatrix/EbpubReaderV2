@@ -40,6 +40,8 @@ sealed partial class FakeBonjourDiscovery : IBonjourDiscoveryService
 	public event EventHandler<ServerRemovedEventArgs>? ServerRemoved;
 	public event EventHandler<DiscoveryErrorEventArgs>? DiscoveryError;
 
+	public int ServerDiscoveredListenerCount => ServerDiscovered?.GetInvocationList().Length ?? 0;
+
 	public Task StartDiscoveryAsync(CancellationToken cancellationToken = default)
 	{
 		if (StartFailure is { } failure)

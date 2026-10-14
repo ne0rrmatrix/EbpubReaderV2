@@ -105,11 +105,22 @@ public class DownloadCenterViewModelTests : AppDataTest
 	}
 
 	[UIFact]
-	public void Dispose_StopsListeningToTheQueue()
+	public async Task Dispose_StopsListeningToTheQueue()
 	{
+		DownloadCenterViewModel downloads = Downloads;
 		DownloadCenterViewModel separate = ActivatorUtilities.CreateInstance<DownloadCenterViewModel>(TestApp.Services);
+		FakeNetwork.Opds.On(_ => true, _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
 
 		separate.Dispose();
 		separate.Dispose();
+		await Queue.EnqueueAsync(Link(1), "First");
+
+		// The app's own view model is still subscribed, so once it has the update the
+		// disposed one would have too.
+		await Wait.UntilAsync(() => downloads.Items.Count == 1 && downloads.Items[0].Status == DownloadStatus.Failed, "the download to fail");
+		Assert.Empty(separate.Items);
+
+		// The sandbox reset clears the queue but not this shared view model's rows.
+		await downloads.ClearFinishedCommand.ExecuteAsync(null);
 	}
 }
