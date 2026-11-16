@@ -10,7 +10,7 @@ DisplayBook has three test suites, a coverage script that runs them all, and CI 
 
 ```powershell
 dotnet test .\tests\DisplayBook.Tests\DisplayBook.Tests.csproj
-dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-windows10.0.19041.0
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net11.0-windows10.0.19041.0
 cd .\tests\DisplayBook.ReaderTests; npm ci; npx playwright install chromium; npx playwright test
 ```
 
@@ -39,10 +39,10 @@ dotnet test .\tests\DisplayBook.Tests\DisplayBook.Tests.csproj --filter "FullyQu
 `dotnet test` builds the app, launches it, runs every test, receives the results over TCP on port 16384, and closes it. Run one platform at a time:
 
 ```powershell
-dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-windows10.0.19041.0
-dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-android        # a booted emulator or connected device
-dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-ios            # on a Mac, with a booted simulator
-dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-maccatalyst    # on a Mac
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net11.0-windows10.0.19041.0
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net11.0-android        # a booted emulator or connected device
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net11.0-ios            # on a Mac, with a booted simulator
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net11.0-maccatalyst    # on a Mac
 ```
 
 - **Always pass `-f`.** Without it, `dotnet test` tries every platform, including ones this machine can't run.
@@ -111,6 +111,8 @@ The device tests run in batches, each in its own app process. Under the profiler
 3. Builds `DisplayBook.slnx`.
 4. Runs `tools/coverage.ps1`.
 5. Ends the scanner, which uploads the analysis.
+
+Pull requests from Dependabot and from forks get no repository secrets. Without `SONAR_TOKEN` the workflow skips steps 2 and 5 (with a warning on the run) and still builds and tests. To analyze Dependabot PRs too, add `SONAR_TOKEN` as a Dependabot secret as well (Settings > Secrets and variables > Dependabot).
 
 Platform-only code that no test here can run (Android, iOS and Mac files and folders, the app's platform entry points), the tests themselves, and `tools/` are excluded from coverage. Results are on [SonarQube Cloud](https://sonarcloud.io/project/overview?id=ne0rrmatrix_EbpubReaderV2).
 
