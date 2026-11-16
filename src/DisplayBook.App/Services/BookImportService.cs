@@ -72,7 +72,7 @@ public sealed partial class BookImportService(
 			HashSet<string> knownHashes = await GetKnownContentHashesAsync(progress, cancellationToken);
 			BookSummary? book = await SaveImportedBookAsync(stagingEpubPath, originalFileName, importId, contentHash, knownHashes, cancellationToken);
 			ReportProgress(progress, "Import complete", book?.Title ?? originalFileName, 1, 1);
-			return book is null ? [] : [book];
+			return book is null ? [] : (BookSummary[])[book];
 		}
 		finally
 		{

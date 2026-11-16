@@ -99,10 +99,10 @@ public sealed partial class DownloadQueueService(
 		=> batches.TryGetValue(batchId, out HashSet<string>? members) ? BuildBatchSnapshot(batchId, members) : null;
 
 	public IReadOnlyList<DownloadProgress> GetItems()
-		=> [.. items.Values.Select(CloneProgress)];
+		=> (DownloadProgress[])[.. items.Values.Select(CloneProgress)];
 
 	public IReadOnlyList<DownloadBatchProgress> GetBatches()
-		=> [.. batches.Keys.Select(batchId => BuildBatchSnapshot(batchId, batches[batchId]))];
+		=> (DownloadBatchProgress[])[.. batches.Keys.Select(batchId => BuildBatchSnapshot(batchId, batches[batchId]))];
 
 	public async Task PauseAsync(string itemId, CancellationToken cancellationToken = default)
 	{

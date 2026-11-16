@@ -7,7 +7,7 @@ This guide takes you from a fresh clone to DisplayBook running on Windows, the o
 | Tool | Needed for |
 | --- | --- |
 | [Git](https://git-scm.com/) | Cloning the repository |
-| [.NET 10 SDK](https://dotnet.microsoft.com/download), 10.0.401 or a later 10.0.4xx patch (pinned in `global.json`) | Everything |
+| [.NET 11 SDK](https://dotnet.microsoft.com/download), 11.0.100 or a later 11.0.1xx patch (pinned in `global.json`) | Everything |
 | The .NET MAUI workload (`dotnet workload install maui`) | Building the app |
 | Visual Studio 2026 with the **.NET Multi-platform App UI development** workload, or VS Code with the C# Dev Kit and .NET MAUI extensions | Running and debugging from an IDE (optional; the command line works too) |
 | [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) | Running the Windows app (already installed on current Windows 10 and 11) |
@@ -19,7 +19,7 @@ This guide takes you from a fresh clone to DisplayBook running on Windows, the o
 Check the SDK:
 
 ```powershell
-dotnet --version   # run in the repository: should print 10.0.4xx
+dotnet --version   # run in the repository: should print 11.0.1xx
 ```
 
 ## Clone and restore
@@ -35,8 +35,8 @@ dotnet restore .\DisplayBook.slnx
 ## Build and run on Windows
 
 ```powershell
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-windows10.0.19041.0 -c Debug
-.\src\DisplayBook.App\bin\Debug\net10.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-windows10.0.19041.0 -c Debug
+.\src\DisplayBook.App\bin\Debug\net11.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
 ```
 
 Or open `DisplayBook.slnx` in Visual Studio, choose **Windows Machine** as the target, and press **F5**.

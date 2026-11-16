@@ -41,7 +41,7 @@ DisplayBook is an EPUB reader for Windows, Android, iOS and macOS. Keep your boo
 | Windows | Windows 10 (build 19041) or later, with the WebView2 Runtime |
 | Android | Android 8.0 (API 26) or later |
 | iOS | iOS 15 or later |
-| macOS | macOS with Mac Catalyst 15 or later |
+| macOS | macOS 14 (Sonoma) or later |
 
 ## Getting DisplayBook
 
@@ -63,7 +63,7 @@ Your books, library and reading positions are stored on your device. Nothing is 
 
 ## For developers
 
-DisplayBook is a .NET 10 MAUI app with a reusable, WebView-based EPUB reader control. The [documentation](docs/README.md) covers:
+DisplayBook is a .NET 11 MAUI app with a reusable, WebView-based EPUB reader control. The [documentation](docs/README.md) covers:
 
 - [Getting started](docs/getting-started.md) and [Building and running](docs/building.md)
 - [Configuration and secrets](docs/configuration.md): optional API keys and signing

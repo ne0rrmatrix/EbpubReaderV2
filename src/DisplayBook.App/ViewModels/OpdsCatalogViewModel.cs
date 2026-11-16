@@ -157,7 +157,7 @@ public sealed partial class OpdsCatalogViewModel(
 
 	[RelayCommand(CanExecute = nameof(HasSelection))]
 	Task DownloadSelectedAsync()
-		=> DownloadAsync([.. Entries.Where(entry => entry.IsSelected)]);
+		=> DownloadAsync((CatalogEntryModel[])[.. Entries.Where(entry => entry.IsSelected)]);
 
 	/// <summary>
 	/// Queues the EPUB acquisition link of every given entry and opens the download popup.

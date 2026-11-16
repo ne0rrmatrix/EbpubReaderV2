@@ -13,7 +13,7 @@
 	                        sonar.javascript.lcov.reportPaths)
 
 	The device tests run by calling the DeviceRunners CLI directly (the same command that
-	"dotnet test -f net10.0-windows10.0.19041.0" runs), so dotnet-coverage profiles the CLI and the
+	"dotnet test -f net11.0-windows10.0.19041.0" runs), so dotnet-coverage profiles the CLI and the
 	test app it starts rather than MSBuild. They run in batches, each in its own app process. When the
 	code runs slower (under the profiler, or instrumented), the page tests intermittently hit a
 	native access violation in WinUI (Microsoft.UI.Xaml.Controls.dll); a full run without it passes.
@@ -47,7 +47,7 @@ $output = Join-Path $root 'artifacts/coverage'
 $unitProject = Join-Path $root 'tests/DisplayBook.Tests/DisplayBook.Tests.csproj'
 $deviceProject = Join-Path $root 'tests/DisplayBook.DeviceTests/DisplayBook.DeviceTests.csproj'
 $readerTests = Join-Path $root 'tests/DisplayBook.ReaderTests'
-$windowsFramework = 'net10.0-windows10.0.19041.0'
+$windowsFramework = 'net11.0-windows10.0.19041.0'
 $configuration = 'Debug'
 
 # True when a DeviceRunners run finished (its event stream ends with "end"); throws when a test failed.

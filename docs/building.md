@@ -1,13 +1,13 @@
 # Building and running
 
-DisplayBook targets .NET 10 and builds for four platforms. Set up the tools in [Getting started](getting-started.md) first.
+DisplayBook targets .NET 11 and builds for four platforms. Set up the tools in [Getting started](getting-started.md) first.
 
 | Platform | Target framework | Minimum version | Builds on |
 | --- | --- | --- | --- |
-| Windows | `net10.0-windows10.0.19041.0` | Windows 10 build 19041 | Windows |
-| Android | `net10.0-android` | Android API 26 (Android 8.0) | Windows, macOS |
-| iOS | `net10.0-ios` | iOS 15.0 | macOS (compiles on Windows; packaging and running needs a Mac) |
-| macOS (Mac Catalyst) | `net10.0-maccatalyst` | Mac Catalyst 15.0 | macOS (compiles on Windows; packaging and running needs a Mac) |
+| Windows | `net11.0-windows10.0.19041.0` | Windows 10 build 19041 | Windows |
+| Android | `net11.0-android` | Android API 26 (Android 8.0) | Windows, macOS |
+| iOS | `net11.0-ios` | iOS 15.0 | macOS (compiles on Windows; packaging and running needs a Mac) |
+| macOS (Mac Catalyst) | `net11.0-maccatalyst` | Mac Catalyst 17.0 (macOS 14) | macOS (compiles on Windows; packaging and running needs a Mac) |
 
 The app id is `com.ahdf.EpubReaderV2` and the display name is **EpubReaderV2**.
 
@@ -22,8 +22,8 @@ On Windows this builds every project for every platform it can compile, which is
 ## Windows
 
 ```powershell
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-windows10.0.19041.0 -c Debug
-.\src\DisplayBook.App\bin\Debug\net10.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-windows10.0.19041.0 -c Debug
+.\src\DisplayBook.App\bin\Debug\net11.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
 ```
 
 The app is unpackaged (`WindowsPackageType=None`): the built `.exe` runs directly. In Visual Studio, choose **Windows Machine** and press **F5**.
@@ -36,13 +36,13 @@ Start an emulator or connect a device with USB debugging on, then:
 
 ```powershell
 dotnet maui device list
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-android -c Debug
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-android -c Debug
 ```
 
 To build, install and launch on the default device in one step:
 
 ```powershell
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-android -c Debug -t:Run
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-android -c Debug -t:Run
 ```
 
 In Visual Studio, pick the emulator or device as the target and press **F5**.
@@ -54,14 +54,14 @@ Release builds are `.apk` files. They're signed with the app's own keystore when
 On a Mac with Xcode:
 
 ```bash
-dotnet build src/DisplayBook.App/DisplayBook.App.csproj -f net10.0-ios -c Debug
+dotnet build src/DisplayBook.App/DisplayBook.App.csproj -f net11.0-ios -c Debug
 ```
 
 For a booted simulator, pass its runtime identifier, then install and launch the app (list simulators with `xcrun simctl list devices available`):
 
 ```bash
-dotnet build src/DisplayBook.App/DisplayBook.App.csproj -f net10.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64
-xcrun simctl install <SIMULATOR_UDID> src/DisplayBook.App/bin/Debug/net10.0-ios/iossimulator-arm64/DisplayBook.App.app
+dotnet build src/DisplayBook.App/DisplayBook.App.csproj -f net11.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64
+xcrun simctl install <SIMULATOR_UDID> src/DisplayBook.App/bin/Debug/net11.0-ios/iossimulator-arm64/DisplayBook.App.app
 xcrun simctl launch <SIMULATOR_UDID> com.ahdf.EpubReaderV2
 ```
 
@@ -70,8 +70,8 @@ A physical device needs an Apple Developer signing identity and provisioning pro
 ## Mac Catalyst
 
 ```bash
-dotnet build src/DisplayBook.App/DisplayBook.App.csproj -f net10.0-maccatalyst -c Debug
-open src/DisplayBook.App/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/EpubReaderV2.app
+dotnet build src/DisplayBook.App/DisplayBook.App.csproj -f net11.0-maccatalyst -c Debug
+open src/DisplayBook.App/bin/Debug/net11.0-maccatalyst/maccatalyst-arm64/EpubReaderV2.app
 ```
 
 ## The reader library on its own
@@ -80,7 +80,7 @@ open src/DisplayBook.App/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/EpubRea
 
 ```powershell
 dotnet build .\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj -c Debug
-dotnet build .\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj -f net10.0-windows10.0.19041.0 -c Debug
+dotnet build .\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj -f net11.0-windows10.0.19041.0 -c Debug
 ```
 
 It is trimmable and AOT-clean: trim and AOT warnings are errors. See [The reader control](reader.md).
@@ -89,7 +89,7 @@ It is trimmable and AOT-clean: trim and AOT warnings are errors. See [The reader
 
 Every project picks these up from the repository root:
 
-- **`global.json`** pins the .NET SDK (10.0.401, rolling forward to later patches).
+- **`global.json`** pins the .NET SDK (11.0.100, rolling forward to later patches).
 - **`Directory.Build.props`**: nullable reference types, the preview C# language version (`LangVersion=preview`), code style enforced in the build, NuGet vulnerability auditing, and the list of warnings treated as errors (nullable, XML docs, MVVM Toolkit, xUnit, XAML bindings, trimming and AOT).
 - **`Directory.Build.targets`** excludes each platform's source files (`*.android.cs`, `*.windows.cs`, `*.ios.cs`, `*.macios.cs`…) from the other platforms' builds, so platform code lives in suffixed files rather than `#if` blocks.
 - **`.editorconfig`**: code style and analyzer severities; see [Contributing](contributing.md#code-style).
