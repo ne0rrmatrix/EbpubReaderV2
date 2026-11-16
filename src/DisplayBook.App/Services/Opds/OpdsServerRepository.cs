@@ -31,7 +31,7 @@ public sealed partial class OpdsServerRepository : IOpdsServerRepository, IDispo
 	public async Task<IReadOnlyList<OpdsServer>> GetAllAsync()
 	{
 		servers = await LoadAsync().ConfigureAwait(false);
-		return [.. servers.OrderBy(server => server.Name, StringComparer.OrdinalIgnoreCase)];
+		return (OpdsServer[])[.. servers.OrderBy(server => server.Name, StringComparer.OrdinalIgnoreCase)];
 	}
 
 	public async Task<OpdsServer> AddAsync(OpdsServer server)

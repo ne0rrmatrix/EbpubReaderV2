@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-DisplayBook is a cross-platform EPUB reader built with .NET MAUI (net10.0), targeting Windows, Android, iOS, and macOS (Mac Catalyst). It has a local library (SQLite-backed), a WebView-based EPUB reading engine, an OPDS/Calibre catalog browser, and (as of this writing) Firebase-backed cross-device reading-position sync. `README.md` is the user-facing front page; the developer documentation is in `docs/` (index: `docs/README.md` — getting started, building, configuration and secrets, architecture, the reader control, sync, testing, contributing, troubleshooting). This file covers what's needed to work in the code productively. When a change affects behavior, setup or conventions described there, update the matching `docs/` page too.
+DisplayBook is a cross-platform EPUB reader built with .NET MAUI (net11.0), targeting Windows, Android, iOS, and macOS (Mac Catalyst). It has a local library (SQLite-backed), a WebView-based EPUB reading engine, an OPDS/Calibre catalog browser, and (as of this writing) Firebase-backed cross-device reading-position sync. `README.md` is the user-facing front page; the developer documentation is in `docs/` (index: `docs/README.md` — getting started, building, configuration and secrets, architecture, the reader control, sync, testing, contributing, troubleshooting). This file covers what's needed to work in the code productively. When a change affects behavior, setup or conventions described there, update the matching `docs/` page too.
 
 ## Commands
 
@@ -15,10 +15,10 @@ dotnet restore .\DisplayBook.slnx
 
 Build a specific platform (Windows is the only one buildable without extra tooling on this machine):
 ```powershell
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-windows10.0.19041.0 -c Debug
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-android -c Debug
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-ios -c Debug          # compiles on Windows; full device/sim build needs a Mac
-dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net10.0-maccatalyst -c Debug  # requires a Mac
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-windows10.0.19041.0 -c Debug
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-android -c Debug
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-ios -c Debug          # compiles on Windows; full device/sim build needs a Mac
+dotnet build .\src\DisplayBook.App\DisplayBook.App.csproj -f net11.0-maccatalyst -c Debug  # requires a Mac
 ```
 Build everything: `dotnet build .\DisplayBook.slnx -c Debug`
 
@@ -31,7 +31,7 @@ dotnet test .\tests\DisplayBook.Tests\DisplayBook.Tests.csproj --filter "FullyQu
 
 Run device tests (xUnit inside a MAUI app, for code that calls MAUI APIs; always pass `-f`, see `docs/testing.md`):
 ```powershell
-dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net10.0-windows10.0.19041.0
+dotnet test .\tests\DisplayBook.DeviceTests\DisplayBook.DeviceTests.csproj -f net11.0-windows10.0.19041.0
 ```
 
 Run the reader's browser tests (Playwright/Chromium against `EpubText.js`; needs Node.js, see `docs/testing.md`):
@@ -53,7 +53,7 @@ It builds the solution with `SonarPrecheck=true` (into `bin/sonar`/`obj/sonar`, 
 
 Run the Windows build directly (built exe, no packaging):
 ```
-src\DisplayBook.App\bin\Debug\net10.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
+src\DisplayBook.App\bin\Debug\net11.0-windows10.0.19041.0\win-x64\DisplayBook.App.exe
 ```
 
 ## Architecture

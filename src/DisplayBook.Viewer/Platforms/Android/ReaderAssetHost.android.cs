@@ -73,14 +73,11 @@ public sealed partial class ReaderAssetHost
 		readonly Lock navigationQueueLock = new();
 		Task navigationQueue = Task.CompletedTask;
 
+		// The only overload Android calls from API 24 on (the app's minimum is 26). The string
+		// overload is obsolete in the .NET 11 Android bindings and is left to the base class.
 		public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView? view, Android.Webkit.IWebResourceRequest? request)
 		{
 			return HandleNavigation(request?.Url?.ToString());
-		}
-
-		public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView? view, string? url)
-		{
-			return HandleNavigation(url);
 		}
 
 		public override Android.Webkit.WebResourceResponse? ShouldInterceptRequest(

@@ -18,7 +18,7 @@ On Windows, these targets compile but can't be packaged or run; that needs a Mac
 
 ### `dotnet` reports the wrong SDK, or none
 
-`global.json` pins the SDK to 10.0.401, rolling forward to later 10.0.4xx patches only. Install a matching SDK, and run `dotnet --version` from the repository folder to see which one it picks.
+`global.json` pins the SDK to 11.0.100, rolling forward to later 11.0.1xx patches only. Install a matching SDK, and run `dotnet --version` from the repository folder to see which one it picks.
 
 ### Build output looks stale
 

@@ -90,7 +90,7 @@ public partial class LibraryViewModel(
 	int activeImportGeneration;
 
 	public IReadOnlyList<string> SortOptions { get; } =
-	[
+	(string[])[
 		"Recently added",
 		"Recently opened",
 		"Title (A–Z)",

@@ -25,6 +25,11 @@
 		<!-- Seconds without a test result before dotnet test treats the app as crashed. The page tests
 		     wait up to a minute for a cold WebView to open a book, so the default of 30 is too short. -->
 		<DeviceRunnersDataTimeout>300</DeviceRunnersDataTimeout>
+		<!-- CsWinRT1032 (new with .NET 11's CsWinRT): a collection expression typed as a read-only
+		     interface has no concrete type that WinRT can marshal under trimming/AOT. The test fakes
+		     and test data never cross into WinRT and this app is never trimmed or AOT-published; the
+		     app's own sources still get the warning from DisplayBook.App's build. -->
+		<NoWarn>$(NoWarn);CsWinRT1032</NoWarn>
 
 		<ApplicationTitle>DisplayBook Device Tests</ApplicationTitle>
 		<!-- Must differ from DisplayBook.App's ApplicationId: it decides the app-data folder and the
@@ -39,7 +44,7 @@
 		<WindowsAppSDKSelfContained Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</WindowsAppSDKSelfContained>
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</TargetPlatformMinVersion>
@@ -55,12 +60,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiPackageVersion)" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="11.0.0" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.13" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="17.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0" />
 		<PackageReference Include="Zeroconf" Version="3.7.16" />
 		<PackageReference Include="xunit" Version="2.9.3" />
 		<PackageReference Include="xunit.runner.utility" Version="2.9.3" />

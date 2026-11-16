@@ -4,10 +4,10 @@
 
 The library is part of the DisplayBook repository and currently targets:
 
-- `net10.0-windows10.0.19041.0`
-- `net10.0-android`
-- `net10.0-ios`
-- `net10.0-maccatalyst`
+- `net11.0-windows10.0.19041.0`
+- `net11.0-android`
+- `net11.0-ios`
+- `net11.0-maccatalyst`
 
 ## What the library provides
 
@@ -264,7 +264,7 @@ Reader settings are currently controlled by the bundled reader UI. `EpubReaderSe
 
 ### macOS (Mac Catalyst)
 
-- macOS via Mac Catalyst 15.0 or later.
+- macOS 14 (Sonoma) or later, via Mac Catalyst 17.0 (the .NET MAUI 11 minimum).
 - The library serves content the same way as iOS.
 
 The host should not replace the reader WebView handler or disable JavaScript for the reader control.
@@ -282,7 +282,7 @@ Build a specific target framework:
 
 ```powershell
 dotnet build .\src\DisplayBook.Viewer\DisplayBook.Viewer.csproj `
-  -f net10.0-windows10.0.19041.0 `
+  -f net11.0-windows10.0.19041.0 `
   -c Debug
 ```
 

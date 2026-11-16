@@ -49,5 +49,25 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Apps built with the iOS and Mac Catalyst 27 SDK (.NET 11) must use the UIKit scene life cycle, or they crash at
+	     launch on iOS/macOS 27: https://aka.ms/uiscene. MauiUIApplicationDelegate switches to scene-based startup when
+	     this key is present, and SceneDelegate (SceneDelegate.cs) creates the window. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>__MAUI_DEFAULT_SCENE_CONFIGURATION__</string>
+					<key>UISceneDelegateClassName</key>
+					<string>SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 </dict>
 </plist>
